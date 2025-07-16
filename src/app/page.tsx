@@ -5,20 +5,20 @@ import PassageForm from '@/components/PassageForm';
 import PassageDisplay from '@/components/PassageDisplay';
 import QuestionForm from '@/components/QuestionForm';
 import QuestionDisplay from '@/components/QuestionDisplay';
-import { PassageInput, QuestionInput, Passage, Question, GradeType } from '@/types';
+import { PassageInput, QuestionInput, Passage, Question, DivisionType } from '@/types';
 
 export default function Home() {
   const [passageLoading, setPassageLoading] = useState(false);
   const [questionLoading, setQuestionLoading] = useState(false);
   const [passage, setPassage] = useState<Passage | null>(null);
   const [questions, setQuestions] = useState<Question | null>(null);
-  const [currentGrade, setCurrentGrade] = useState<GradeType | ''>('');
+  const [currentDivision, setCurrentDivision] = useState<DivisionType | ''>('');
 
   const handlePassageSubmit = async (input: PassageInput) => {
     setPassageLoading(true);
     setPassage(null);
     setQuestions(null);
-    setCurrentGrade(input.grade);
+    setCurrentDivision(input.division);
 
     try {
       const response = await fetch('/api/generate-passage', {
@@ -71,13 +71,13 @@ export default function Home() {
   };
 
   const handleGenerateQuestions = (passageText: string) => {
-    if (!currentGrade) {
+    if (!currentDivision) {
       alert('학년 정보가 없습니다.');
       return;
     }
 
     const input: QuestionInput = {
-      grade: currentGrade as GradeType,
+      division: currentDivision as DivisionType,
       passage: passageText,
       questionType: '객관식',
     };
@@ -105,10 +105,10 @@ export default function Home() {
               loading={passageLoading} 
             />
             
-            {passage && currentGrade && (
+            {passage && currentDivision && (
               <QuestionForm
                 passage={passage.passages[0]?.paragraphs.join('\n\n') || ''}
-                grade={currentGrade as GradeType}
+                division={currentDivision as DivisionType}
                 onSubmit={handleQuestionSubmit}
                 loading={questionLoading}
               />
@@ -133,7 +133,7 @@ export default function Home() {
 
         {/* 로딩 상태 */}
         {(passageLoading || questionLoading) && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-lg text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-700">

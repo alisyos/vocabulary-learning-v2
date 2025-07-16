@@ -1,22 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { QuestionInput, GradeType, QuestionType } from '@/types';
+import { QuestionInput, DivisionType, QuestionType } from '@/types';
 
 interface QuestionFormProps {
   passage: string;
-  grade: GradeType;
+  division: DivisionType;   // 구분 (기존 grade)
   onSubmit: (input: QuestionInput) => void;
   loading: boolean;
 }
 
-export default function QuestionForm({ passage, grade, onSubmit, loading }: QuestionFormProps) {
+export default function QuestionForm({ passage, division, onSubmit, loading }: QuestionFormProps) {
   const [questionType, setQuestionType] = useState<QuestionType>('객관식');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
-      grade,
+      division,
       passage,
       questionType,
     });

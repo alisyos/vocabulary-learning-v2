@@ -2,27 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generatePassage } from '@/lib/openai';
 import { generatePassagePrompt } from '@/lib/prompts';
 import { savePassageData } from '@/lib/google-sheets';
-import { PassageInput } from '@/types';
+import { PassageInput, AreaType } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
     const body: PassageInput = await request.json();
     
     // 입력값 검증
-    if (!body.grade || !body.length || !body.subject || !body.area) {
+    if (!body.division || !body.length || !body.subject || !body.grade || !body.area || !body.maintopic || !body.subtopic || !body.keyword) {
       return NextResponse.json(
         { error: '모든 필수 항목을 입력해주세요.' },
         { status: 400 }
       );
     }
 
-    // 프롬프트 생성 (선택적 매개변수 포함)
+    // 프롬프트 생성 (새로운 필드들 포함)
     const prompt = generatePassagePrompt(
-      body.grade,
+      body.division,
       body.length,
       body.subject,
-      body.area,
-      body.topic,
+      body.grade,
+      body.area as AreaType, // 타입 캐스팅
+      body.maintopic,
+      body.subtopic,
+      body.keyword,
       body.textType
     );
 

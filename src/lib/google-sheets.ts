@@ -142,11 +142,14 @@ export async function savePassageData(
   const data = [
     [
       timestamp,
-      input.grade,
+      input.division,      // 구분 (기존 grade)
       input.subject,
+      input.grade,         // 새로운 학년
       input.area,
       input.length,
-      input.topic || '-',      // 주제 (선택사항)
+      input.maintopic,     // 대주제
+      input.subtopic,      // 소주제
+      input.keyword,       // 핵심 개념어
       input.textType || '-',   // 유형 (선택사항)
       prompt,
       JSON.stringify(result),
@@ -166,7 +169,7 @@ export async function saveQuestionData(
   const data = [
     [
       timestamp,
-      input.grade,
+      input.division,      // 구분 (기존 grade)
       input.questionType,
       input.passage,
       prompt,
@@ -175,4 +178,33 @@ export async function saveQuestionData(
   ];
 
   return await saveToSheet('questions', data);
+}
+
+// 필드 데이터 읽기 (계층적 선택을 위한)
+export async function getFieldData() {
+  try {
+    const data = await readFromSheet('field');
+    
+    // 헤더 제외하고 데이터 파싱
+    const [headers, ...rows] = data;
+    
+    if (!headers || headers.length < 6) {
+      throw new Error('Field sheet must have at least 6 columns: subject, grade, area, maintopic, subtopic, keyword');
+    }
+    
+    const fieldData = rows.map(row => ({
+      subject: row[0] || '',
+      grade: row[1] || '',
+      area: row[2] || '',
+      maintopic: row[3] || '',
+      subtopic: row[4] || '',
+      keyword: row[5] || ''
+    }));
+    
+    return fieldData;
+  } catch (error) {
+    console.error('Error reading field data:', error);
+    // 기본값 반환 (Google Sheets 연결 실패 시)
+    return [];
+  }
 }

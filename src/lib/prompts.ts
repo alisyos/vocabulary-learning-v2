@@ -1,7 +1,7 @@
-import { GradeType, SubjectType, AreaType, PassageLengthType, QuestionType, TextType } from '@/types';
+import { DivisionType, GradeType, SubjectType, AreaType, PassageLengthType, QuestionType, TextType } from '@/types';
 
-// 학년별 프롬프트
-const gradePrompts = {
+// 구분별 프롬프트 (기존 학년)
+const divisionPrompts = {
   '초등학교 중학년(3-4학년)': `초등학교 중학년(3-4학년): 학습자는 짧은 문장 구조와 익숙한 단어를 중심으로 이해할 수 있습니다. 설명은 구체적인 사례와 생활 속 경험에 기반해야 하며, 새로운 개념어에는 간단한 풀이가 필요합니다. 추상적인 개념은 '왜 그럴까?', '무엇이 다를까?'와 같은 질문으로 흥미를 유도하고, 그림을 그리듯 서술해 주세요.`,
   
   '초등학교 고학년(5-6학년)': `초등학교 고학년(5-6학년): 학습자는 다소 긴 문장과 낯선 단어를 접할 수 있으며, 인과관계나 비교 같은 구조를 이해하기 시작합니다. 설명은 실생활 예시에서 출발해 원리나 개념으로 자연스럽게 확장되도록 구성하고, 낱말 풀이도 포함합니다. 경험을 바탕으로 '어떤 일이 일어날까?', '무엇이 원인일까?' 같은 탐구형 문장도 포함해 주세요.`,
@@ -163,11 +163,14 @@ const textTypePrompts = {
 
 // 지문 생성 프롬프트 생성
 export function generatePassagePrompt(
-  grade: GradeType,
+  division: DivisionType,
   length: PassageLengthType,
   subject: SubjectType,
+  grade: GradeType,
   area: AreaType,
-  topic?: string,
+  maintopic: string,
+  subtopic: string,
+  keyword: string,
   textType?: TextType
 ): string {
   let prompt = `###지시사항
@@ -178,7 +181,7 @@ export function generatePassagePrompt(
 
 ###작성절차
 1. 키워드 도출
-- 학년·과목·영역·지문 길이를 파싱하여 ① 핵심 개념(기초→심화), ② 생활 연계 예시, ③ 학년별 어휘 수준을 도출합니다.
+- 구분·과목·학년·영역·지문 길이를 파싱하여 ① 핵심 개념(기초→심화), ② 생활 연계 예시, ③ 학년별 어휘 수준을 도출합니다.
 2. 지문(passages) 생성
 - 도출한 가이드를 조합해 제목 1개와 본문을 작성합니다.
 - 본문은 입력된 지문 길이 옵션(단락 수·문장 수) 규칙을 정확히 준수합니다.
@@ -190,8 +193,8 @@ export function generatePassagePrompt(
 - 아래 [공통 출력 스키마] 형식을 준수한 JSON만 출력하십시오.
 - 지정된 키가 없거나 데이터를 찾을 수 없으면 **"-"**로 표기합니다.
 
-###학년
-${gradePrompts[grade]}
+###구분
+${divisionPrompts[division]}
 
 ###지문 길이
 ${length}
@@ -199,17 +202,23 @@ ${length}
 ###과목
 ${subject}
 
+###학년
+${grade}
+
 ###영역
-${areaPrompts[area]}`;
+${areaPrompts[area]}
 
-  // 선택적 주제 추가
-  if (topic && topic.trim()) {
-    prompt += `
+###대주제
+${maintopic}
+위 대주제를 중심으로 ${area} 영역의 학습 내용과 연결하여 지문을 구성하세요.
 
-###주제
-지정된 주제: "${topic}"
-위 주제를 중심으로 ${area} 영역의 학습 내용과 연결하여 지문을 구성하세요. 주제가 영역과 자연스럽게 연결되도록 하고, 학습 목표를 달성할 수 있는 내용으로 작성하세요.`;
-  }
+###소주제
+${subtopic}
+이 소주제를 구체적으로 다루며, 대주제와의 연관성을 명확히 하여 지문을 작성하세요.
+
+###핵심 개념어
+${keyword}
+이 핵심 개념어들을 지문에 자연스럽게 포함시키고, 학년 수준에 맞게 설명하세요. 필요시 footnote에 용어 해설을 추가하세요.`;
 
   // 선택적 유형 추가
   if (textType && textType in textTypePrompts) {
@@ -299,7 +308,7 @@ const questionOutputFormats = {
 
 // 문제 생성 프롬프트 생성
 export function generateQuestionPrompt(
-  grade: GradeType,
+  division: DivisionType,
   passage: string,
   questionType: QuestionType
 ): string {
@@ -307,14 +316,14 @@ export function generateQuestionPrompt(
 다음 입력값을 기반으로, 해당 지문 내용을 반영한 **문제 3개**를 생성하십시오.
 - 일반 문제 1개와 보완 문제 2개를 생성합니다.
 - 일반 문제는 학생이 처음 접하는 문제이며, 보완 문제는 오답 시 학습 강화를 위해 생성하는 구조입니다.
-- 학년에 맞는 어휘 수준과 사고 수준을 반영해 난이도를 조절해야 합니다.
+- 구분에 맞는 어휘 수준과 사고 수준을 반영해 난이도를 조절해야 합니다.
 - 문제는 반드시 지문 내용 또는 개념을 기반으로 출제되어야 하며, 임의(random) 구성은 금지됩니다.
 
 ###지문
 ${passage}
 
-###학년
-${questionGradePrompts[grade]}
+###구분
+${questionGradePrompts[division]}
 
 ###문제유형
 ${questionTypePrompts[questionType]}

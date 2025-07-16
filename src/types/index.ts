@@ -1,8 +1,11 @@
-// 학년 타입
-export type GradeType = 
+// 구분 타입 (기존 학년)
+export type DivisionType = 
   | '초등학교 중학년(3-4학년)' 
   | '초등학교 고학년(5-6학년)' 
   | '중학생(1-3학년)';
+
+// 학년 타입 (새로 추가, Google Sheets와 연동)
+export type GradeType = string;
 
 // 과목 타입
 export type SubjectType = '사회' | '과학';
@@ -28,14 +31,27 @@ export type TextType =
 // 문제 형태 타입
 export type QuestionType = '객관식' | '주관식';
 
-// 지문 생성 입력값
+// 필드 데이터 타입 (Google Sheets field 시트)
+export interface FieldData {
+  subject: string;
+  grade: string;
+  area: string;
+  maintopic: string;
+  subtopic: string;
+  keyword: string;
+}
+
+// 지문 생성 입력값 (업데이트됨)
 export interface PassageInput {
-  grade: GradeType;
+  division: DivisionType;   // 구분 (기존 grade)
   length: PassageLengthType;
   subject: SubjectType;
-  area: AreaType;
-  topic?: string;       // 주제 (선택사항)
-  textType?: TextType;  // 유형 (선택사항)
+  grade: GradeType | '';    // 새로운 학년 필드
+  area: AreaType | '';      // 빈 문자열 허용 (초기화 시)
+  maintopic: string;        // 대주제
+  subtopic: string;         // 소주제
+  keyword: string;          // 핵심 개념어
+  textType?: TextType;      // 유형 (선택사항)
 }
 
 // 지문 출력 스키마
@@ -49,7 +65,7 @@ export interface Passage {
 
 // 문제 생성 입력값
 export interface QuestionInput {
-  grade: GradeType;
+  division: DivisionType;   // 구분 (기존 grade)
   passage: string;
   questionType: QuestionType;
 }

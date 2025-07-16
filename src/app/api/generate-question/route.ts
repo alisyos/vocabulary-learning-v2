@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const body: QuestionInput = await request.json();
     
     // 입력값 검증
-    if (!body.grade || !body.passage || !body.questionType) {
+    if (!body.division || !body.passage || !body.questionType) {
       return NextResponse.json(
         { error: '모든 필수 항목을 입력해주세요.' },
         { status: 400 }
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     // 프롬프트 생성
     const prompt = generateQuestionPrompt(
-      body.grade,
+      body.division,
       body.passage,
       body.questionType
     );
