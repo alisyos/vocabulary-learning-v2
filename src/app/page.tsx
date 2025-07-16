@@ -5,14 +5,14 @@ import PassageForm from '@/components/PassageForm';
 import PassageDisplay from '@/components/PassageDisplay';
 import QuestionForm from '@/components/QuestionForm';
 import QuestionDisplay from '@/components/QuestionDisplay';
-import { PassageInput, QuestionInput, Passage, Question } from '@/types';
+import { PassageInput, QuestionInput, Passage, Question, GradeType } from '@/types';
 
 export default function Home() {
   const [passageLoading, setPassageLoading] = useState(false);
   const [questionLoading, setQuestionLoading] = useState(false);
   const [passage, setPassage] = useState<Passage | null>(null);
   const [questions, setQuestions] = useState<Question | null>(null);
-  const [currentGrade, setCurrentGrade] = useState<string>('');
+  const [currentGrade, setCurrentGrade] = useState<GradeType | ''>('');
 
   const handlePassageSubmit = async (input: PassageInput) => {
     setPassageLoading(true);
@@ -77,7 +77,7 @@ export default function Home() {
     }
 
     const input: QuestionInput = {
-      grade: currentGrade as any,
+      grade: currentGrade as GradeType,
       passage: passageText,
       questionType: '객관식',
     };
@@ -108,7 +108,7 @@ export default function Home() {
             {passage && currentGrade && (
               <QuestionForm
                 passage={passage.passages[0]?.paragraphs.join('\n\n') || ''}
-                grade={currentGrade as any}
+                grade={currentGrade as GradeType}
                 onSubmit={handleQuestionSubmit}
                 loading={questionLoading}
               />

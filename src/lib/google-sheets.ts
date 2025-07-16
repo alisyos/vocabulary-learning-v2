@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { PassageInput, QuestionInput } from '@/types';
 
 // Google Sheets 클라이언트 초기화
 export async function getGoogleSheetsClient() {
@@ -60,7 +61,7 @@ export async function getGoogleSheetsClient() {
 // 스프레드시트에 데이터 저장
 export async function saveToSheet(
   sheetName: string,
-  data: any[][],
+  data: (string | number)[][],
   range?: string
 ) {
   try {
@@ -118,9 +119,9 @@ export async function readFromSheet(
 
 // 지문 데이터 저장
 export async function savePassageData(
-  input: any,
+  input: PassageInput,
   prompt: string,
-  result: any
+  result: Record<string, unknown>
 ) {
   const timestamp = new Date().toISOString();
   const data = [
@@ -142,9 +143,9 @@ export async function savePassageData(
 
 // 문제 데이터 저장
 export async function saveQuestionData(
-  input: any,
+  input: QuestionInput,
   prompt: string,
-  result: any
+  result: Record<string, unknown>
 ) {
   const timestamp = new Date().toISOString();
   const data = [

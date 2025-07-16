@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     console.log('GPT question response:', result);
 
     // Google Sheets에 저장
-    let saveStatus = {
+    const saveStatus = {
       saved: false,
       error: null as string | null
     };
