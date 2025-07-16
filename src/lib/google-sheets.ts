@@ -31,13 +31,22 @@ export async function getGoogleSheetsClient() {
     let privateKey = process.env.GOOGLE_SHEETS_PRIVATE_KEY;
     
     try {
-      // JSON 문자열에서 이스케이프된 줄바꿈 처리
+      // 1. 앞뒤 따옴표 제거
+      privateKey = privateKey.replace(/^["']|["']$/g, '');
+      
+      // 2. JSON 문자열에서 이스케이프된 줄바꿈 처리
       privateKey = privateKey.replace(/\\n/g, '\n');
       
-      // private key가 BEGIN/END로 감싸져 있는지 확인
+      // 3. 혹시 모를 추가 공백 제거
+      privateKey = privateKey.trim();
+      
+      // 4. private key가 BEGIN/END로 감싸져 있는지 확인
       if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
         throw new Error('Invalid private key format. Must include BEGIN/END markers.');
       }
+      
+      // 5. 변환된 키 로깅 (디버깅용 - 실제 키는 보이지 않게)
+      console.log('Private key processed successfully. Starts with:', privateKey.substring(0, 50) + '...');
 
       const auth = new google.auth.GoogleAuth({
         credentials: {
@@ -50,6 +59,12 @@ export async function getGoogleSheetsClient() {
       const sheets = google.sheets({ version: 'v4', auth });
       return sheets;
     } catch (keyError) {
+      console.error('Private key processing details:', {
+        originalLength: process.env.GOOGLE_SHEETS_PRIVATE_KEY?.length,
+        processedLength: privateKey?.length,
+        startsWithBegin: privateKey?.startsWith('-----BEGIN'),
+        endsWithEnd: privateKey?.endsWith('-----'),
+      });
       throw new Error(`Private key processing failed: ${keyError instanceof Error ? keyError.message : keyError}`);
     }
   } catch (error) {
