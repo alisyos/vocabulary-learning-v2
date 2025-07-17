@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getGoogleSheetsClient } from '@/lib/google-sheets';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     console.log('Creating required sheets...');
     

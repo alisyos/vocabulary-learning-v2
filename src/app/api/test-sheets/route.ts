@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getGoogleSheetsClient } from '@/lib/google-sheets';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log('Testing Google Sheets connection...');
     

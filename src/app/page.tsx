@@ -13,8 +13,7 @@ import {
   EditablePassage,
   VocabularyQuestion,
   ComprehensiveQuestion,
-  WorkflowData, 
-  WorkflowStep
+  WorkflowData
 } from '@/types';
 
 export default function Home() {

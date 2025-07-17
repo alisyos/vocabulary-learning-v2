@@ -47,9 +47,22 @@ export default function FinalSave({
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionTest, setConnectionTest] = useState<any>(null);
+  const [connectionTest, setConnectionTest] = useState<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    details?: string;
+    missingSheets?: string[];
+    recommendations?: string | string[];
+  } | null>(null);
   const [creatingSheets, setCreatingSheets] = useState(false);
-  const [sheetCreation, setSheetCreation] = useState<any>(null);
+  const [sheetCreation, setSheetCreation] = useState<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    details?: string;
+    created?: string[];
+  } | null>(null);
 
   // 데이터 요약 계산
   const summary = {
@@ -388,7 +401,7 @@ export default function FinalSave({
                 {connectionTest.message || connectionTest.error}
               </p>
               
-              {connectionTest.success && connectionTest.missingSheets?.length > 0 && (
+              {connectionTest.success && connectionTest.missingSheets && connectionTest.missingSheets.length > 0 && (
                 <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
                   <p className="text-yellow-800 font-medium">주의사항:</p>
                   <p className="text-yellow-700">{connectionTest.recommendations}</p>
@@ -412,7 +425,7 @@ export default function FinalSave({
                   <p className={`text-xs ${sheetCreation.success ? 'text-green-700' : 'text-red-700'}`}>
                     {sheetCreation.message || sheetCreation.error}
                   </p>
-                  {sheetCreation.success && sheetCreation.created?.length > 0 && (
+                  {sheetCreation.success && sheetCreation.created && sheetCreation.created.length > 0 && (
                     <p className="text-xs text-green-600 mt-1">
                       생성된 시트: {sheetCreation.created.join(', ')}
                     </p>
@@ -424,9 +437,12 @@ export default function FinalSave({
                 <div className="mt-2">
                   <p className="text-red-700 font-medium text-sm">해결 방법:</p>
                   <ul className="list-disc list-inside text-xs text-red-600 mt-1">
-                    {connectionTest.recommendations.map((rec: string, index: number) => (
-                      <li key={index}>{rec}</li>
-                    ))}
+                    {Array.isArray(connectionTest.recommendations) 
+                      ? connectionTest.recommendations.map((rec: string, index: number) => (
+                          <li key={index}>{rec}</li>
+                        ))
+                      : <li>{connectionTest.recommendations}</li>
+                    }
                   </ul>
                 </div>
               )}
@@ -447,7 +463,7 @@ export default function FinalSave({
         
         <button
           onClick={handleFinalSave}
-          disabled={saving || (connectionTest && !connectionTest.success)}
+          disabled={saving || (connectionTest !== null && !connectionTest.success)}
           className="bg-red-600 text-white px-8 py-3 rounded-md hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-lg"
         >
           {saving ? '저장 중...' : 'Google Sheets에 최종 저장하기'}
