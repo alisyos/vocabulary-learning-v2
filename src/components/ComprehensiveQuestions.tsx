@@ -362,7 +362,7 @@ export default function ComprehensiveQuestions({
               orderedQuestions.push(...relatedSupplementary);
             });
             
-            return orderedQuestions.map((question, qIndex) => {
+            return orderedQuestions.map((question) => {
               // 보완 문제인 경우 원본 문제 정보 표시
               const originalQuestion = question.isSupplementary 
                 ? localQuestions.find(q => q.id === question.originalQuestionId)

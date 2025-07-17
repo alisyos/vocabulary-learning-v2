@@ -19,6 +19,8 @@ interface DataSet {
   comprehensiveCount: number;
   totalQuestions: number;
   createdAt: string;
+  paragraphCount: number;
+  vocabularyWordsCount: number;
 }
 
 interface ApiResponse {
@@ -54,7 +56,7 @@ export default function ManagePage() {
   
   // 페이지네이션
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   
   const fetchDataSets = useCallback(async () => {
     setLoading(true);
@@ -248,23 +250,44 @@ export default function ManagePage() {
         ) : (
           <>
             {/* 테이블 */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      지문 정보
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      교육과정
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      문제 수
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       생성일
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      과목
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      구분
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      학년
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      영역
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      대주제
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      소주제
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      문단수
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      어휘수
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      어휘문제수
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      종합문제수
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       작업
                     </th>
                   </tr>
@@ -272,50 +295,49 @@ export default function ManagePage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedData.map((item) => (
                     <tr key={item.setId} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900 mb-1">
-                            {item.passageTitle}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            ID: {item.setId}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {item.subject} · {item.grade} · {item.area}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {item.maintopic}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex space-x-4 text-sm">
-                          <span className="text-purple-600">어휘 {item.vocabularyCount}</span>
-                          <span className="text-green-600">종합 {item.comprehensiveCount}</span>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          총 {item.totalQuestions}문제
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(item.createdAt)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <Link
-                            href={`/manage/${item.setId}`}
-                            className="text-blue-600 hover:text-blue-900"
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.subject}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.division}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.grade}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.area}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.maintopic}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.subtopic}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.paragraphCount}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.vocabularyWordsCount}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-purple-600">
+                        {item.vocabularyCount}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600">
+                        {item.comprehensiveCount}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => window.open(`/manage/${item.setId}`, '_blank')}
+                            className="text-blue-600 hover:text-blue-900 text-xs"
                           >
-                            상세보기
-                          </Link>
-                          <span className="text-gray-300">|</span>
-                          <button className="text-green-600 hover:text-green-900">
-                            편집
+                            상세
                           </button>
                           <span className="text-gray-300">|</span>
-                          <button className="text-red-600 hover:text-red-900">
+                          <button className="text-red-600 hover:text-red-900 text-xs">
                             삭제
                           </button>
                         </div>
@@ -326,37 +348,36 @@ export default function ManagePage() {
               </table>
             </div>
             
-            {/* 페이지네이션 */}
-            {totalPages > 1 && (
-              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-lg shadow">
-                <div className="flex-1 flex justify-between sm:hidden">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    이전
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    다음
-                  </button>
-                </div>
-                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm text-gray-700">
-                      <span className="font-medium">{startIndex + 1}</span>
-                      -
-                      <span className="font-medium">{Math.min(startIndex + itemsPerPage, filteredDataSets.length)}</span>
-                      개 (총
-                      <span className="font-medium"> {filteredDataSets.length}</span>
-                      개)
-                    </p>
+            {/* 페이지네이션 및 페이지 크기 선택 */}
+            <div className="bg-white px-4 py-3 flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-lg shadow">
+              <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center space-x-4">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">{startIndex + 1}</span>
+                    -
+                    <span className="font-medium">{Math.min(startIndex + itemsPerPage, filteredDataSets.length)}</span>
+                    개 (총
+                    <span className="font-medium"> {filteredDataSets.length}</span>
+                    개)
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm text-gray-700">페이지당:</label>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1); // 페이지 크기 변경 시 첫 페이지로 이동
+                      }}
+                      className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value={20}>20개</option>
+                      <option value={50}>50개</option>
+                      <option value={100}>100개</option>
+                    </select>
                   </div>
-                  <div>
+                </div>
+                {totalPages > 1 && (
+                  <div className="mt-3 sm:mt-0">
                     <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                       <button
                         onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
@@ -365,7 +386,20 @@ export default function ManagePage() {
                       >
                         이전
                       </button>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
+                        // 페이지 번호 표시 로직 (최대 10개 페이지 번호만 표시)
+                        let pageNumber;
+                        if (totalPages <= 10) {
+                          pageNumber = i + 1;
+                        } else if (currentPage <= 5) {
+                          pageNumber = i + 1;
+                        } else if (currentPage >= totalPages - 4) {
+                          pageNumber = totalPages - 9 + i;
+                        } else {
+                          pageNumber = currentPage - 4 + i;
+                        }
+                        return pageNumber;
+                      }).map(page => (
                         <button
                           key={page}
                           onClick={() => setCurrentPage(page)}
@@ -387,9 +421,9 @@ export default function ManagePage() {
                       </button>
                     </nav>
                   </div>
-                </div>
+                )}
               </div>
-            )}
+            </div>
           </>
         )}
       </div>

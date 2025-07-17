@@ -45,10 +45,10 @@ export async function callGPT(prompt: string, maxTokens: number = 2000) {
 
 // 지문 생성 전용 함수
 export async function generatePassage(prompt: string) {
-  return await callGPT(prompt, 3000);
+  return await callGPT(prompt, 10000);
 }
 
 // 문제 생성 전용 함수
 export async function generateQuestion(prompt: string) {
-  return await callGPT(prompt, 2000);
+  return await callGPT(prompt, 10000);
 }

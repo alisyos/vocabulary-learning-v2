@@ -48,18 +48,26 @@ export async function GET(request: NextRequest) {
     const [, ...compRows] = compDetailsData;
     const comprehensiveQuestions = compRows
       .filter(row => row[1] === setId)
-      .map(row => ({
-        timestamp: row[0],
-        setId: row[1],
-        questionId: row[2],
-        type: row[3],
-        question: row[4],
-        options: row[5] ? JSON.parse(row[5]) : null,
-        answer: row[6],
-        explanation: row[7],
-        isSupplementary: row[8] === 'true',
-        originalQuestionId: row[9] || null
-      }));
+      .map(row => {
+        const isSupplementaryValue = row[8];
+        const isSupplementary = isSupplementaryValue && (isSupplementaryValue.toString().toLowerCase() === 'true');
+        
+        // 디버깅용 로그
+        console.log(`Question ${row[2]}: isSupplementaryValue = "${isSupplementaryValue}", parsed = ${isSupplementary}`);
+        
+        return {
+          timestamp: row[0],
+          setId: row[1],
+          questionId: row[2],
+          type: row[3],
+          question: row[4],
+          options: row[5] ? JSON.parse(row[5]) : null,
+          answer: row[6],
+          explanation: row[7],
+          isSupplementary,
+          originalQuestionId: row[9] || null
+        };
+      });
     
     // 문제 유형별 통계 조회
     const typeStatsData = await readFromSheet('question_type_stats');

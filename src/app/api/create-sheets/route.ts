@@ -37,7 +37,8 @@ export async function POST() {
           'timestamp', 'setId', 'division', 'subject', 'grade', 'area', 
           'maintopic', 'subtopic', 'keyword', 'passageTitle', 
           'vocabularyCount', 'comprehensiveCount', 
-          'inputData', 'passageData', 'vocabularyData', 'comprehensiveData'
+          'inputData', 'passageData', 'vocabularyData', 'comprehensiveData',
+          'paragraphCount', 'vocabularyWordsCount'
         ]
       },
       {

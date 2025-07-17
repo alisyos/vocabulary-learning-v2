@@ -62,6 +62,10 @@ export async function POST(request: NextRequest) {
     // 세트 ID 생성 (타임스탬프 기반)
     const setId = `set_${Date.now()}`;
 
+    // 문단수와 어휘수 계산
+    const paragraphCount = body.editablePassage.paragraphs?.length || 0;
+    const vocabularyWordsCount = body.editablePassage.footnote?.length || 0;  // 지문의 용어 개수
+
     try {
       // 1. 메인 데이터 시트에 저장 (각 세트의 요약 정보)
       const mainData = [
@@ -81,7 +85,9 @@ export async function POST(request: NextRequest) {
           JSON.stringify(body.input),
           JSON.stringify(body.editablePassage),
           JSON.stringify(body.vocabularyQuestions),
-          JSON.stringify(body.comprehensiveQuestions)
+          JSON.stringify(body.comprehensiveQuestions),
+          paragraphCount,
+          vocabularyWordsCount
         ]
       ];
       
@@ -116,7 +122,7 @@ export async function POST(request: NextRequest) {
           q.options ? JSON.stringify(q.options) : '',
           q.answer,
           q.explanation,
-          q.isSupplementary ? 'true' : 'false', // 보완 문제 여부 (문자열)
+          q.isSupplementary ? 'TRUE' : 'FALSE', // 보완 문제 여부 (문자열)
           q.originalQuestionId || '' // 원본 문제 ID (보완 문제가 아닌 경우 빈 문자열)
         ]);
         
