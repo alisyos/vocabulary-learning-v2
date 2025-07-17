@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     
     // 메인 데이터 조회
     const finalSetsData = await readFromSheet('final_sets');
-    const [finalHeaders, ...finalRows] = finalSetsData;
+    const [, ...finalRows] = finalSetsData;
     
     const mainData = finalRows.find(row => row[1] === setId);
     if (!mainData) {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     
     // 어휘 문제 상세 데이터 조회
     const vocabDetailsData = await readFromSheet('vocabulary_details');
-    const [vocabHeaders, ...vocabRows] = vocabDetailsData;
+    const [, ...vocabRows] = vocabDetailsData;
     const vocabularyQuestions = vocabRows
       .filter(row => row[1] === setId)
       .map(row => ({
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     
     // 종합 문제 상세 데이터 조회
     const compDetailsData = await readFromSheet('comprehensive_details');
-    const [compHeaders, ...compRows] = compDetailsData;
+    const [, ...compRows] = compDetailsData;
     const comprehensiveQuestions = compRows
       .filter(row => row[1] === setId)
       .map(row => ({
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     
     // 문제 유형별 통계 조회
     const typeStatsData = await readFromSheet('question_type_stats');
-    const [statsHeaders, ...statsRows] = typeStatsData;
+    const [, ...statsRows] = typeStatsData;
     const questionTypeStats = statsRows
       .filter(row => row[1] === setId)
       .map(row => ({

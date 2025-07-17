@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 
 interface DataSet {
@@ -40,7 +39,6 @@ interface ApiResponse {
 }
 
 export default function ManagePage() {
-  const router = useRouter();
   const [dataSets, setDataSets] = useState<DataSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,12 +56,7 @@ export default function ManagePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   
-  // 데이터 로드
-  useEffect(() => {
-    fetchDataSets();
-  }, [filters.subject, filters.grade, filters.area]);
-  
-  const fetchDataSets = async () => {
+  const fetchDataSets = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -87,7 +80,12 @@ export default function ManagePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.subject, filters.grade, filters.area]);
+  
+  // 데이터 로드
+  useEffect(() => {
+    fetchDataSets();
+  }, [fetchDataSets]);
   
   // 검색 필터링
   const filteredDataSets = dataSets.filter(item => {

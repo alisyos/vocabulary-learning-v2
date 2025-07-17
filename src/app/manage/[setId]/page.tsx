@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 
 interface SetDetails {
@@ -18,10 +17,14 @@ interface SetDetails {
   passageTitle: string;
   vocabularyCount: number;
   comprehensiveCount: number;
-  inputData: any;
-  passageData: any;
-  vocabularyData: any;
-  comprehensiveData: any;
+  inputData: Record<string, unknown> | null;
+  passageData: {
+    title: string;
+    paragraphs: string[];
+    footnote: string[];
+  } | null;
+  vocabularyData: VocabularyQuestion[] | null;
+  comprehensiveData: ComprehensiveQuestion[] | null;
   createdAt: string;
   totalQuestions: number;
 }
@@ -55,7 +58,12 @@ interface ApiResponse {
   setDetails: SetDetails;
   vocabularyQuestions: VocabularyQuestion[];
   comprehensiveQuestions: ComprehensiveQuestion[];
-  questionTypeStats: any[];
+  questionTypeStats: {
+    timestamp: string;
+    setId: string;
+    questionType: string;
+    count: number;
+  }[];
   summary: {
     totalVocabularyQuestions: number;
     totalComprehensiveQuestions: number;
@@ -66,22 +74,18 @@ interface ApiResponse {
 }
 
 export default function SetDetailPage({ params }: { params: { setId: string } }) {
-  const router = useRouter();
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'passage' | 'vocabulary' | 'comprehensive'>('overview');
+  const [setId, setSetId] = useState<string>('');
   
-  useEffect(() => {
-    fetchSetDetails();
-  }, [params.setId]);
-  
-  const fetchSetDetails = async () => {
+  const fetchSetDetails = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await fetch(`/api/get-set-details?setId=${params.setId}`);
+      const response = await fetch(`/api/get-set-details?setId=${id}`);
       const result: ApiResponse = await response.json();
       
       if (result.success) {
@@ -94,7 +98,17 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+  
+  useEffect(() => {
+    const initializeParams = async () => {
+      const resolvedParams = await params;
+      setSetId(resolvedParams.setId);
+      fetchSetDetails(resolvedParams.setId);
+    };
+    
+    initializeParams();
+  }, [params, fetchSetDetails]);
   
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('ko-KR', {
@@ -106,7 +120,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     });
   };
   
-  const downloadAsJson = () => {
+  const downloadAsJson = useCallback(() => {
     if (!data) return;
     
     const exportData = {
@@ -127,7 +141,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
+  }, [data]);
   
   if (loading) {
     return (

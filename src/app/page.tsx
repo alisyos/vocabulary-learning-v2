@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import Header from '@/components/Header';
 import PassageForm from '@/components/PassageForm';
 import PassageDisplay from '@/components/PassageDisplay';
