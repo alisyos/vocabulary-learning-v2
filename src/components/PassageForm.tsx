@@ -25,7 +25,7 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
   const [loadingFieldData, setLoadingFieldData] = useState(true);
   const [fieldDataError, setFieldDataError] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionSuccess, setConnectionSuccess] = useState(false);
+
   const [availableOptions, setAvailableOptions] = useState({
     subjects: [] as string[],
     grades: [] as string[],
@@ -84,9 +84,6 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
               setAvailableOptions(prev => ({ ...prev, subjects: ['사회', '과학'] }));
             } else {
               setAvailableOptions(prev => ({ ...prev, subjects: uniqueSubjects }));
-              setConnectionSuccess(true);
-              // 3초 후 성공 메시지 숨김
-              setTimeout(() => setConnectionSuccess(false), 3000);
             }
           }
         } else {
@@ -131,8 +128,6 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
                    const uniqueSubjects = [...new Set(data.map((item: FieldData) => item.subject))].filter(Boolean) as string[];
            setAvailableOptions(prev => ({ ...prev, subjects: uniqueSubjects }));
            setFieldDataError(null);
-           setConnectionSuccess(true);
-           setTimeout(() => setConnectionSuccess(false), 3000);
         } else {
           setFieldDataError('필드 데이터를 가져올 수 없습니다.');
         }
@@ -261,55 +256,69 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
     });
   };
 
+  // 연결 상태 표시 함수
+  const getConnectionStatus = () => {
+    if (loadingFieldData) {
+      return {
+        icon: <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>,
+        text: "연결 중",
+        color: "text-blue-600"
+      };
+    }
+    
+    if (fieldDataError) {
+      return {
+        icon: <svg className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>,
+        text: "연결 문제",
+        color: "text-yellow-600"
+      };
+    }
+    
+    if (fieldData.length > 0) {
+      return {
+        icon: <svg className="h-4 w-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+        </svg>,
+        text: "연결됨",
+        color: "text-green-600"
+      };
+    }
+    
+    return {
+      icon: <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+      </svg>,
+      text: "미연결",
+      color: "text-gray-500"
+    };
+  };
+
+  const connectionStatus = getConnectionStatus();
+
   return (
     <div className="bg-white rounded-lg shadow-md p-4">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">학습 지문 생성</h2>
-      
-      {/* 필드 데이터 상태 표시 */}
-      {loadingFieldData && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-          <div className="flex items-center">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-            <span className="text-sm text-blue-700">Google Sheets에서 필드 데이터를 가져오는 중...</span>
-          </div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-gray-800">학습 지문 생성</h2>
+        <div className="flex items-center space-x-2" title={fieldDataError || "Google Sheets 연결 상태"}>
+          {connectionStatus.icon}
+          <span className={`text-xs font-medium ${connectionStatus.color}`}>
+            {connectionStatus.text}
+          </span>
+          {fieldDataError && (
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={testingConnection}
+              className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-1 rounded transition-colors disabled:opacity-50"
+              title="연결 재시도"
+            >
+              재시도
+            </button>
+          )}
         </div>
-      )}
-      
-             {fieldDataError && (
-         <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-           <div className="flex">
-             <div className="flex-shrink-0">
-               <svg className="h-4 w-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-               </svg>
-             </div>
-             <div className="ml-2 flex-1">
-               <p className="text-sm text-yellow-700 font-medium">Google Sheets 연결 문제</p>
-               <p className="text-xs text-yellow-600 mt-1">{fieldDataError}</p>
-               <p className="text-xs text-yellow-600 mt-1">기본 데이터로 작동하며, 선택 옵션이 제한될 수 있습니다.</p>
-               <button
-                 type="button"
-                 onClick={handleTestConnection}
-                 disabled={testingConnection}
-                 className="mt-2 bg-yellow-600 text-white text-xs px-3 py-1 rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
-               >
-                 {testingConnection ? '연결 테스트 중...' : '연결 테스트 및 재시도'}
-               </button>
-             </div>
-           </div>
-                  </div>
-       )}
-       
-       {connectionSuccess && (
-         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-           <div className="flex items-center">
-             <svg className="h-4 w-4 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-             </svg>
-             <span className="text-sm text-green-700">Google Sheets 연결 성공! 필드 데이터가 정상적으로 로드되었습니다.</span>
-           </div>
-         </div>
-       )}
+      </div>
        
        <form onSubmit={handleSubmit} className="space-y-4">
         {/* 구분 선택 */}

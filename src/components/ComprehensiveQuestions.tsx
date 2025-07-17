@@ -25,6 +25,8 @@ export default function ComprehensiveQuestions({
   const [localQuestions, setLocalQuestions] = useState<ComprehensiveQuestion[]>(comprehensiveQuestions);
   const [selectedQuestionType, setSelectedQuestionType] = useState<ComprehensiveQuestionType>('Random');
   const [generatingComp, setGeneratingComp] = useState(false);
+  const [includeSupplementary, setIncludeSupplementary] = useState(true);
+  const [questionCount, setQuestionCount] = useState<number>(12);
 
   const questionTypeOptions: ComprehensiveQuestionType[] = [
     'Random',
@@ -33,6 +35,8 @@ export default function ComprehensiveQuestions({
     '핵심 내용 요약',
     '핵심어/핵심문장 찾기'
   ];
+
+  const questionCountOptions = [4, 8, 12];
 
   // 종합 문제 생성
   const handleGenerateComprehensive = async () => {
@@ -47,7 +51,9 @@ export default function ComprehensiveQuestions({
         body: JSON.stringify({
           passage: `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`,
           division: division,
-          questionType: selectedQuestionType
+          questionType: selectedQuestionType,
+          questionCount: questionCount,
+          includeSupplementary: includeSupplementary
         }),
       });
 
@@ -135,55 +141,153 @@ export default function ComprehensiveQuestions({
     }
   };
 
-  if (currentStep === 'generation') {
+    if (currentStep === 'generation') {
     return (
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800">5단계: 종합 문제 생성</h2>
-          <span className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
-            문제 생성
-          </span>
-        </div>
-
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">문제 유형 선택</h3>
-          <div className="bg-gray-50 p-4 rounded-lg mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              문제 형태 *
-            </label>
-            <select
-              value={selectedQuestionType}
-              onChange={(e) => setSelectedQuestionType(e.target.value as ComprehensiveQuestionType)}
-              className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            >
-              {questionTypeOptions.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-            
-            <div className="mt-3 text-sm text-gray-600">
-              <p><strong>선택된 유형:</strong> {selectedQuestionType}</p>
-              {selectedQuestionType === 'Random' ? (
-                <p>• 4가지 유형을 3개씩 총 12개 문제가 생성됩니다.</p>
-              ) : (
-                <p>• {selectedQuestionType} 유형으로 12개 문제가 생성됩니다.</p>
-              )}
+      <>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center space-x-4">
+              <h2 className="text-xl font-bold text-gray-800">5단계: 종합 문제 생성</h2>
+              <button
+                onClick={handleGenerateComprehensive}
+                disabled={generatingComp}
+                className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+              >
+                {generatingComp 
+                  ? '생성 중...' 
+                  : includeSupplementary 
+                    ? `${questionCount + (questionCount * 2)}개 생성`
+                    : `${questionCount}개 생성`
+                }
+              </button>
             </div>
+            <span className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
+              문제 생성
+            </span>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">문제 유형 선택</h3>
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                문제 형태 *
+              </label>
+              <select
+                value={selectedQuestionType}
+                onChange={(e) => setSelectedQuestionType(e.target.value as ComprehensiveQuestionType)}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              >
+                {questionTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+              
+              <div className="mt-3 text-sm text-gray-600">
+                <p><strong>선택된 유형:</strong> {selectedQuestionType}</p>
+                {selectedQuestionType === 'Random' ? (
+                  <p>• 4가지 유형을 {questionCount / 4}개씩 총 {questionCount}개 문제가 생성됩니다.</p>
+                ) : (
+                  <p>• {selectedQuestionType} 유형으로 {questionCount}개 문제가 생성됩니다.</p>
+                )}
+                {includeSupplementary && (
+                  <p className="text-orange-600 font-medium">• 보완 문제 포함 시 총 {questionCount + (questionCount * 2)}개 문제가 생성됩니다. (기본 {questionCount}개 + 보완 {questionCount * 2}개)</p>
+                )}
+              </div>
+            </div>
+             
+            {/* 문제 개수 선택 */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                문제 개수 *
+              </label>
+              <select
+                value={questionCount}
+                onChange={(e) => setQuestionCount(Number(e.target.value))}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              >
+                {questionCountOptions.map((count) => (
+                  <option key={count} value={count}>
+                    {count}개
+                  </option>
+                ))}
+              </select>
+              <div className="mt-1 text-xs text-gray-600">
+                <p>• 선택된 유형으로 생성되는 기본 문제 개수입니다.</p>
+                {includeSupplementary && (
+                  <p>• 보완 문제 포함 시 총 문제 수: 기본 {questionCount}개 + 보완 {questionCount * 2}개 = <strong>{questionCount + (questionCount * 2)}개</strong></p>
+                )}
+              </div>
+            </div>
+
+            {/* 보완 문제 선택 */}
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="supplementary"
+                  checked={includeSupplementary}
+                  onChange={(e) => setIncludeSupplementary(e.target.checked)}
+                  className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 mt-0.5"
+                />
+                <div className="flex-1">
+                  <label htmlFor="supplementary" className="text-sm font-medium text-gray-800 cursor-pointer">
+                    보완 문제 생성
+                  </label>
+                  <div className="mt-1 text-xs text-gray-600">
+                    <p>• 오답 시 학습 강화를 위한 추가 문제를 생성합니다</p>
+                    <p>• 각 기본 문제당 2개의 보완 문제가 추가로 생성됩니다</p>
+                    <p>• 총 문제 수: 기본 {questionCount}개 + 보완 {questionCount * 2}개 = <strong>{questionCount + (questionCount * 2)}개</strong></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              onClick={handleGenerateComprehensive}
+              disabled={generatingComp}
+              className="bg-orange-600 text-white px-8 py-3 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {generatingComp 
+                ? '종합 문제 생성 중...' 
+                : includeSupplementary 
+                  ? `${questionCount + (questionCount * 2)}개 종합 문제 생성하기 (보완 문제 포함)`
+                  : `${questionCount}개 종합 문제 생성하기`
+              }
+            </button>
           </div>
         </div>
 
-        <div className="flex justify-center">
-          <button
-            onClick={handleGenerateComprehensive}
-            disabled={generatingComp}
-            className="bg-orange-600 text-white px-8 py-3 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+        {/* 종합 문제 생성 로딩 모달 */}
+        {generatingComp && (
+          <div 
+            className="fixed inset-0 flex items-center justify-center z-50"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
           >
-            {generatingComp ? '종합 문제 생성 중...' : '12개 종합 문제 생성하기'}
-          </button>
-        </div>
-      </div>
+            <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
+              {/* 로딩 스피너 */}
+              <div className="w-12 h-12 border-3 border-gray-200 border-t-orange-600 rounded-full animate-spin mx-auto mb-4"></div>
+              
+              {/* 메시지 */}
+              <h3 className="text-lg font-medium text-gray-800 mb-1">
+                종합 문제 생성 중
+              </h3>
+              <p className="text-sm text-gray-500 mb-2">
+                {includeSupplementary 
+                  ? `${questionCount}개 기본 문제 + ${questionCount * 2}개 보완 문제를 생성하고 있습니다`
+                  : `${questionCount}개 종합 문제를 생성하고 있습니다`
+                }
+              </p>
+              <p className="text-xs text-gray-400">
+                잠시만 기다려주세요
+              </p>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -213,37 +317,104 @@ export default function ComprehensiveQuestions({
         {/* 문제 유형별 분류 표시 */}
         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
           <h4 className="text-sm font-medium text-gray-700 mb-2">문제 유형별 분포</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-3">
             {['단답형', '문단별 순서 맞추기', '핵심 내용 요약', '핵심어/핵심문장 찾기'].map(type => {
               const count = localQuestions.filter(q => q.type === type).length;
+              const supplementaryCount = localQuestions.filter(q => q.type === type && q.isSupplementary).length;
+              const mainCount = count - supplementaryCount;
               return (
                 <div key={type} className="bg-white p-2 rounded text-center">
                   <div className="font-medium">{type}</div>
                   <div className="text-gray-600">{count}개</div>
+                  {supplementaryCount > 0 && (
+                    <div className="text-xs text-blue-600">
+                      (기본 {mainCount}개 + 보완 {supplementaryCount}개)
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
+          {localQuestions.some(q => q.isSupplementary) && (
+            <div className="text-xs text-center text-gray-600 bg-white p-2 rounded">
+              총 {localQuestions.length}개 문제 (기본 {localQuestions.filter(q => !q.isSupplementary).length}개 + 보완 {localQuestions.filter(q => q.isSupplementary).length}개)
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">
-          {localQuestions.map((question, qIndex) => (
-            <div key={question.id} className="border border-gray-200 rounded-lg p-4">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <h4 className="text-md font-medium text-gray-800">문제 {qIndex + 1}</h4>
-                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                    {question.type}
-                  </span>
+          {(() => {
+            // 기본 문제와 해당 보완 문제들을 그룹으로 정렬
+            const basicQuestions = localQuestions.filter(q => !q.isSupplementary);
+            const supplementaryQuestions = localQuestions.filter(q => q.isSupplementary);
+            
+            // 기본 문제 순서대로 배치하되, 각 기본 문제 바로 뒤에 해당 보완 문제들 배치
+            const orderedQuestions: ComprehensiveQuestion[] = [];
+            
+            basicQuestions.forEach(basicQ => {
+              // 기본 문제 먼저 추가
+              orderedQuestions.push(basicQ);
+              
+              // 해당 기본 문제의 보완 문제들 찾아서 추가
+              const relatedSupplementary = supplementaryQuestions.filter(
+                supQ => supQ.originalQuestionId === basicQ.id
+              );
+              orderedQuestions.push(...relatedSupplementary);
+            });
+            
+            return orderedQuestions.map((question, qIndex) => {
+              // 보완 문제인 경우 원본 문제 정보 표시
+              const originalQuestion = question.isSupplementary 
+                ? localQuestions.find(q => q.id === question.originalQuestionId)
+                : null;
+              
+              // 기본 문제 번호 계산 (보완 문제는 기본 문제 번호를 참조)
+              const basicQuestionNumber = question.isSupplementary
+                ? basicQuestions.findIndex(q => q.id === question.originalQuestionId) + 1
+                : basicQuestions.findIndex(q => q.id === question.id) + 1;
+            
+            return (
+              <div key={question.id} className={`border rounded-lg p-4 ${
+                question.isSupplementary 
+                  ? 'border-blue-200 bg-blue-50 ml-6' 
+                  : 'border-orange-200 bg-orange-50'
+              }`}>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <h4 className="text-md font-medium text-gray-800">
+                      {question.isSupplementary 
+                        ? `📚 보완 문제 (${originalQuestion?.type || '알 수 없음'} 유형)` 
+                        : `🎯 기본 문제 ${basicQuestionNumber}`
+                      }
+                    </h4>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                      {question.type}
+                    </span>
+                    {question.isSupplementary && (
+                      <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded font-medium">
+                        보완 문제
+                      </span>
+                    )}
+                    {originalQuestion && (
+                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">
+                        → 기본 문제: {originalQuestion.question.substring(0, 20)}...
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      // 실제 localQuestions 배열에서의 인덱스를 찾아 삭제
+                      const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                      if (actualIndex !== -1) {
+                        removeQuestion(actualIndex);
+                      }
+                    }}
+                    className="text-red-500 hover:text-red-700 text-sm"
+                    title="문제 삭제"
+                  >
+                    ✕ 삭제
+                  </button>
                 </div>
-                <button
-                  onClick={() => removeQuestion(qIndex)}
-                  className="text-red-500 hover:text-red-700 text-sm"
-                  title="문제 삭제"
-                >
-                  ✕ 삭제
-                </button>
-              </div>
 
               {/* 문제 유형 변경 */}
               <div className="mb-3">
@@ -252,7 +423,12 @@ export default function ComprehensiveQuestions({
                 </label>
                 <select
                   value={question.type}
-                  onChange={(e) => handleQuestionUpdate(qIndex, 'type', e.target.value)}
+                  onChange={(e) => {
+                    const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                    if (actualIndex !== -1) {
+                      handleQuestionUpdate(actualIndex, 'type', e.target.value);
+                    }
+                  }}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
                 >
                   <option value="단답형">단답형</option>
@@ -269,7 +445,12 @@ export default function ComprehensiveQuestions({
                 </label>
                 <textarea
                   value={question.question}
-                  onChange={(e) => handleQuestionUpdate(qIndex, 'question', e.target.value)}
+                  onChange={(e) => {
+                    const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                    if (actualIndex !== -1) {
+                      handleQuestionUpdate(actualIndex, 'question', e.target.value);
+                    }
+                  }}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm min-h-[80px] resize-vertical"
                   placeholder="질문을 입력하세요"
                 />
@@ -283,7 +464,12 @@ export default function ComprehensiveQuestions({
                       선택지
                     </label>
                     <button
-                      onClick={() => addOption(qIndex)}
+                      onClick={() => {
+                        const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                        if (actualIndex !== -1) {
+                          addOption(actualIndex);
+                        }
+                      }}
                       className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
                     >
                       + 선택지 추가
@@ -298,12 +484,22 @@ export default function ComprehensiveQuestions({
                         <input
                           type="text"
                           value={option}
-                          onChange={(e) => handleOptionUpdate(qIndex, oIndex, e.target.value)}
+                          onChange={(e) => {
+                            const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                            if (actualIndex !== -1) {
+                              handleOptionUpdate(actualIndex, oIndex, e.target.value);
+                            }
+                          }}
                           className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
                           placeholder={`선택지 ${oIndex + 1}`}
                         />
                         <button
-                          onClick={() => removeOption(qIndex, oIndex)}
+                          onClick={() => {
+                            const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                            if (actualIndex !== -1) {
+                              removeOption(actualIndex, oIndex);
+                            }
+                          }}
                           className="text-red-500 hover:text-red-700 text-sm px-2"
                           title="선택지 삭제"
                         >
@@ -313,10 +509,13 @@ export default function ComprehensiveQuestions({
                     )) || (
                       <button
                         onClick={() => {
-                          const updated = [...localQuestions];
-                          updated[qIndex].options = ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'];
-                          setLocalQuestions(updated);
-                          onUpdate(updated);
+                          const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                          if (actualIndex !== -1) {
+                            const updated = [...localQuestions];
+                            updated[actualIndex].options = ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'];
+                            setLocalQuestions(updated);
+                            onUpdate(updated);
+                          }
                         }}
                         className="w-full p-2 border-2 border-dashed border-gray-300 rounded-md text-gray-500 hover:border-gray-400"
                       >
@@ -336,14 +535,24 @@ export default function ComprehensiveQuestions({
                   <input
                     type="text"
                     value={question.answer}
-                    onChange={(e) => handleQuestionUpdate(qIndex, 'answer', e.target.value)}
+                    onChange={(e) => {
+                      const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                      if (actualIndex !== -1) {
+                        handleQuestionUpdate(actualIndex, 'answer', e.target.value);
+                      }
+                    }}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
                     placeholder="정답을 입력하세요"
                   />
                 ) : (
                   <select
                     value={question.answer}
-                    onChange={(e) => handleQuestionUpdate(qIndex, 'answer', e.target.value)}
+                    onChange={(e) => {
+                      const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                      if (actualIndex !== -1) {
+                        handleQuestionUpdate(actualIndex, 'answer', e.target.value);
+                      }
+                    }}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
                   >
                     {question.options?.map((option, index) => (
@@ -362,13 +571,20 @@ export default function ComprehensiveQuestions({
                 </label>
                 <textarea
                   value={question.explanation}
-                  onChange={(e) => handleQuestionUpdate(qIndex, 'explanation', e.target.value)}
+                  onChange={(e) => {
+                    const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                    if (actualIndex !== -1) {
+                      handleQuestionUpdate(actualIndex, 'explanation', e.target.value);
+                    }
+                  }}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm min-h-[60px] resize-vertical"
                   placeholder="해설을 입력하세요"
                 />
               </div>
             </div>
-          ))}
+          );
+        });
+          })()}
         </div>
       </div>
 

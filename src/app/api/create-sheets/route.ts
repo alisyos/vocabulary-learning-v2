@@ -34,29 +34,29 @@ export async function POST() {
       {
         name: 'final_sets',
         headers: [
-          'timestamp', 'set_id', 'division', 'subject', 'grade', 'area', 
-          'maintopic', 'subtopic', 'keyword', 'passage_title', 
-          'vocabulary_count', 'comprehensive_count', 
-          'input_json', 'passage_json', 'vocabulary_json', 'comprehensive_json'
+          'timestamp', 'setId', 'division', 'subject', 'grade', 'area', 
+          'maintopic', 'subtopic', 'keyword', 'passageTitle', 
+          'vocabularyCount', 'comprehensiveCount', 
+          'inputData', 'passageData', 'vocabularyData', 'comprehensiveData'
         ]
       },
       {
         name: 'vocabulary_details', 
         headers: [
-          'timestamp', 'set_id', 'question_id', 'term', 'question', 
-          'options_json', 'answer', 'explanation'
+          'timestamp', 'setId', 'questionId', 'term', 'question', 
+          'options', 'answer', 'explanation'
         ]
       },
       {
         name: 'comprehensive_details',
         headers: [
-          'timestamp', 'set_id', 'question_id', 'type', 'question', 
-          'options_json', 'answer', 'explanation'
+          'timestamp', 'setId', 'questionId', 'type', 'question', 
+          'options', 'answer', 'explanation', 'isSupplementary', 'originalQuestionId'
         ]
       },
       {
         name: 'question_type_stats',
-        headers: ['timestamp', 'set_id', 'question_type', 'count']
+        headers: ['timestamp', 'setId', 'questionType', 'count']
       }
     ];
     

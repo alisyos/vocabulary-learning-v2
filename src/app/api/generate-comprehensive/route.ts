@@ -7,6 +7,8 @@ interface ComprehensiveGenerationRequest {
   passage: string;  // 지문 내용 (수정된 지문)
   division: string; // 구분 (난이도 조절용)
   questionType: ComprehensiveQuestionType; // 문제 유형
+  questionCount?: number; // 생성할 문제 개수 (기본값: 12)
+  includeSupplementary?: boolean; // 보완 문제 포함 여부
 }
 
 interface GeneratedQuestionSet {
@@ -32,7 +34,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Generating comprehensive questions:', body.questionType);
+    // 기본값 설정
+    const questionCount = body.questionCount || 12;
+    
+    // 문제 개수 검증 (4, 8, 12만 허용)
+    if (![4, 8, 12].includes(questionCount)) {
+      return NextResponse.json(
+        { error: '문제 개수는 4, 8, 12 중 하나여야 합니다.' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`Generating ${questionCount} comprehensive questions:`, body.questionType);
 
     const comprehensiveQuestions: ComprehensiveQuestion[] = [];
     
@@ -40,31 +53,41 @@ export async function POST(request: NextRequest) {
     let typesToGenerate: string[] = [];
     
     if (body.questionType === 'Random') {
-      // Random 선택 시: 4가지 유형을 3개씩 총 12개
-      typesToGenerate = [
-        '단답형', '단답형', '단답형',
-        '문단별 순서 맞추기', '문단별 순서 맞추기', '문단별 순서 맞추기',
-        '핵심 내용 요약', '핵심 내용 요약', '핵심 내용 요약',
-        '핵심어/핵심문장 찾기', '핵심어/핵심문장 찾기', '핵심어/핵심문장 찾기'
-      ];
+      // Random 선택 시: 4가지 유형을 고르게 분배
+      const questionsPerType = questionCount / 4; // 4개→1개씩, 8개→2개씩, 12개→3개씩
+      const questionTypes = ['단답형', '문단별 순서 맞추기', '핵심 내용 요약', '핵심어/핵심문장 찾기'];
+      
+      questionTypes.forEach(type => {
+        for (let i = 0; i < questionsPerType; i++) {
+          typesToGenerate.push(type);
+        }
+      });
     } else {
-      // 특정 유형 선택 시: 해당 유형 12개
-      typesToGenerate = Array(12).fill(body.questionType);
+      // 특정 유형 선택 시: 해당 유형으로 지정된 개수만큼
+      typesToGenerate = Array(questionCount).fill(body.questionType);
     }
 
-    // 각 유형별로 문제 생성 (3개씩 묶어서 처리)
-    for (let i = 0; i < typesToGenerate.length; i += 3) {
-      const currentType = typesToGenerate[i];
-      
+    // 유형별로 그룹화하여 문제 생성
+    const typeGroups: { [key: string]: number } = {};
+    
+    // 각 유형별 개수 계산
+    typesToGenerate.forEach(type => {
+      typeGroups[type] = (typeGroups[type] || 0) + 1;
+    });
+
+    console.log('Type groups to generate:', typeGroups);
+
+    // 각 유형별로 정확한 개수만큼 문제 생성
+    for (const [currentType, count] of Object.entries(typeGroups)) {
       try {
-        // 프롬프트 생성 (3개씩)
+        // 해당 유형의 문제 생성 (기본 3개 생성 후 필요한 만큼 사용)
         const prompt = generateComprehensivePrompt(
           currentType,
           body.passage,
           body.division
         );
 
-        console.log(`Generating ${currentType} questions (set ${Math.floor(i/3) + 1})`);
+        console.log(`Generating ${count} ${currentType} questions`);
 
         // GPT API 호출
         const result = await generateQuestion(prompt);
@@ -74,9 +97,11 @@ export async function POST(request: NextRequest) {
           const questionSet = result as GeneratedQuestionSet;
           
           if (questionSet.questions && Array.isArray(questionSet.questions)) {
-            questionSet.questions.forEach((q, index) => {
+            // 요청한 개수만큼만 추가 (API가 더 많이 반환할 수 있으므로)
+            const questionsToAdd = questionSet.questions.slice(0, count);
+            questionsToAdd.forEach((q, index) => {
               comprehensiveQuestions.push({
-                id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${i + index + 1}_${Date.now()}`,
+                id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${index + 1}_${Date.now()}`,
                 type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
                 question: q.question || '',
                 options: q.options || undefined,
@@ -90,10 +115,10 @@ export async function POST(request: NextRequest) {
       } catch (setError) {
         console.error(`Error generating ${currentType} questions:`, setError);
         
-        // 실패한 세트는 기본 문제로 대체
-        for (let j = 0; j < 3; j++) {
+        // 실패 시 기본 문제 생성 (요청한 개수만큼)
+        for (let j = 0; j < count; j++) {
           comprehensiveQuestions.push({
-            id: `comp_fallback_${i + j + 1}_${Date.now()}`,
+            id: `comp_fallback_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${j + 1}_${Date.now()}`,
             type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
             question: `${currentType} 문제 ${j + 1}`,
             options: currentType !== '단답형' ? ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'] : undefined,
@@ -104,16 +129,96 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`Generated ${comprehensiveQuestions.length} comprehensive questions`);
+    // 보완 문제 생성 (선택사항)
+    if (body.includeSupplementary) {
+      console.log('Generating supplementary questions...');
+      const supplementaryQuestions: ComprehensiveQuestion[] = [];
+      
+      // 각 기본 문제당 2개의 보완 문제 생성
+      for (const originalQuestion of comprehensiveQuestions) {
+        for (let supIndex = 1; supIndex <= 2; supIndex++) {
+          try {
+            // 보완 문제용 프롬프트 생성
+            const supplementaryPrompt = `다음 종합 문제의 보완 문제 ${supIndex}번을 생성해주세요.
+
+원본 문제:
+유형: ${originalQuestion.type}
+질문: ${originalQuestion.question}
+정답: ${originalQuestion.answer}
+
+지문:
+${body.passage}
+
+요구사항:
+- 원본 문제와 같은 유형이지만 다른 관점에서 접근
+- 학습 강화를 위한 추가 연습 문제
+- 난이도: ${body.division}에 적합
+- 오답 시 학습 도움이 되는 내용
+
+JSON 형식으로 1개 문제만 생성:
+{
+  "question": "질문 내용",
+  "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"] (객관식인 경우만),
+  "answer": "정답",
+  "explanation": "해설"
+}`;
+
+            const supplementaryResult = await generateQuestion(supplementaryPrompt);
+            
+            if (supplementaryResult?.question) {
+              supplementaryQuestions.push({
+                id: `comp_sup_${originalQuestion.id}_${supIndex}_${Date.now()}`,
+                type: originalQuestion.type,
+                question: supplementaryResult.question,
+                options: supplementaryResult.options,
+                answer: supplementaryResult.answer,
+                explanation: supplementaryResult.explanation || '보완 문제입니다.',
+                isSupplementary: true, // 보완 문제 표시
+                originalQuestionId: originalQuestion.id // 원본 문제 ID 참조
+              });
+            }
+          } catch (supError) {
+            console.error(`Error generating supplementary question ${supIndex} for ${originalQuestion.id}:`, supError);
+            
+            // 실패 시 기본 보완 문제 생성
+            supplementaryQuestions.push({
+              id: `comp_sup_fallback_${originalQuestion.id}_${supIndex}_${Date.now()}`,
+              type: originalQuestion.type,
+              question: `${originalQuestion.type} 보완 문제 ${supIndex}`,
+              options: originalQuestion.type !== '단답형' ? ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'] : undefined,
+              answer: originalQuestion.type !== '단답형' ? '선택지 1' : '기본 답안',
+              explanation: '보완 문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.',
+              isSupplementary: true,
+              originalQuestionId: originalQuestion.id // 원본 문제 ID 참조
+            });
+          }
+        }
+      }
+      
+      // 기본 문제와 보완 문제 합치기
+      comprehensiveQuestions.push(...supplementaryQuestions);
+      console.log(`Generated ${supplementaryQuestions.length} supplementary questions`);
+    }
+
+    console.log(`Generated total ${comprehensiveQuestions.length} comprehensive questions (${body.includeSupplementary ? 'with supplementary' : 'basic only'})`);
 
     return NextResponse.json({
       comprehensiveQuestions,
       totalGenerated: comprehensiveQuestions.length,
       questionType: body.questionType,
+      questionCount: questionCount,
+      includeSupplementary: body.includeSupplementary,
       typeDistribution: body.questionType === 'Random' 
-        ? { '단답형': 3, '문단별 순서 맞추기': 3, '핵심 내용 요약': 3, '핵심어/핵심문장 찾기': 3 }
-        : { [body.questionType]: 12 },
-      message: '종합 문제가 성공적으로 생성되었습니다.'
+        ? { 
+            '단답형': questionCount / 4, 
+            '문단별 순서 맞추기': questionCount / 4, 
+            '핵심 내용 요약': questionCount / 4, 
+            '핵심어/핵심문장 찾기': questionCount / 4 
+          }
+        : { [body.questionType]: questionCount },
+      basicCount: comprehensiveQuestions.filter(q => !q.isSupplementary).length,
+      supplementaryCount: body.includeSupplementary ? comprehensiveQuestions.filter(q => q.isSupplementary).length : 0,
+      message: `종합 문제 ${questionCount}개가 성공적으로 생성되었습니다.${body.includeSupplementary ? ` (보완 문제 ${questionCount * 2}개 포함)` : ''}`
     });
 
   } catch (error) {

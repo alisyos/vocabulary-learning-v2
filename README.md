@@ -128,8 +128,12 @@ timestamp | setId | questionId | term | question | options | answer | explanatio
 
 #### comprehensive_details 시트 (종합 문제 상세)
 ```
-timestamp | setId | questionId | type | question | options | answer | explanation
+timestamp | setId | questionId | type | question | options | answer | explanation | isSupplementary | originalQuestionId
 ```
+
+**새로 추가된 필드:**
+- `isSupplementary`: 보완 문제 여부 (boolean, true/false)
+- `originalQuestionId`: 보완 문제의 경우 원본 문제 ID (string, 보완 문제가 아닌 경우 null)
 
 #### question_type_stats 시트 (문제 유형별 통계)
 ```
@@ -326,3 +330,98 @@ MIT License
 4. **교육 기관**: 표준화된 학습 자료 관리
 
 **🚀 완전한 7단계 워크플로우로 고품질 학습 콘텐츠를 생성하세요!**
+
+---
+
+## 🎨 모달 디자인 가이드라인
+
+시스템 전반에 걸쳐 일관된 사용자 경험을 위한 표준 모달 디자인 규칙입니다.
+
+### 📋 표준 모달 구조
+
+```tsx
+{/* 로딩 모달 예시 */}
+{isLoading && (
+  <div 
+    className="fixed inset-0 flex items-center justify-center z-50"
+    style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+  >
+    <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
+      {/* 로딩 스피너 */}
+      <div className="w-12 h-12 border-3 border-gray-200 border-t-{color}-600 rounded-full animate-spin mx-auto mb-4"></div>
+      
+      {/* 제목 */}
+      <h3 className="text-lg font-medium text-gray-800 mb-1">
+        메인 제목
+      </h3>
+      
+      {/* 상세 메시지 */}
+      <p className="text-sm text-gray-500 mb-2">
+        진행 상황에 대한 상세 설명
+      </p>
+      
+      {/* 안내 문구 */}
+      <p className="text-xs text-gray-400">
+        잠시만 기다려주세요
+      </p>
+    </div>
+  </div>
+)}
+```
+
+### 🎯 디자인 원칙
+
+**🌟 배경 오버레이:**
+- 투명도: `rgba(0, 0, 0, 0.5)` (50% 불투명도)
+- z-index: `z-50` 사용
+- 배경 클릭 시 닫기 없음 (로딩 중 방해 방지)
+
+**📦 모달 카드:**
+- 배경: `bg-white` (완전 불투명)
+- 효과: `backdrop-blur-sm` (뒷배경 블러)
+- 패딩: `p-8` (충분한 여백)
+- 모서리: `rounded-xl` (둥근 모서리)
+- 그림자: `shadow-lg` (입체감)
+- 테두리: `border border-gray-100` (은은한 구분선)
+
+**⚡ 로딩 스피너:**
+- 크기: `w-12 h-12` (48px)
+- 두께: `border-3` (3px)
+- 기본색: `border-gray-200`
+- 활성색: `border-t-{theme}-600` (테마별 색상)
+- 애니메이션: `animate-spin` (회전)
+
+**📝 텍스트 구조:**
+1. **제목**: `text-lg font-medium text-gray-800 mb-1`
+2. **상세 메시지**: `text-sm text-gray-500 mb-2`
+3. **안내 문구**: `text-xs text-gray-400`
+
+### 🎨 테마별 스피너 색상
+
+- **지문 생성**: `border-t-blue-600` (파란색)
+- **어휘 문제**: `border-t-purple-600` (보라색)
+- **종합 문제**: `border-t-green-600` (초록색)
+- **저장/백업**: `border-t-red-600` (빨간색)
+- **일반 처리**: `border-t-gray-600` (회색)
+
+### 📋 적용된 모달 사례
+
+**✅ 현재 적용:**
+- 1단계: 지문 생성 모달 (파란색 테마)
+- 3단계: 어휘 문제 생성 모달 (보라색 테마)
+
+**🔄 향후 적용 권장:**
+- 5단계: 종합 문제 생성 모달
+- 7단계: 최종 저장 모달
+- API 에러 처리 모달
+- 확인/취소 다이얼로그
+
+### 💡 개발 팁
+
+1. **일관성 유지**: 모든 모달에서 동일한 구조와 클래스 사용
+2. **테마 적용**: 각 단계별로 적절한 색상 테마 선택
+3. **메시지 명확성**: 사용자가 현재 상황을 명확히 이해할 수 있는 메시지 작성
+4. **접근성 고려**: `z-50` 사용으로 다른 요소들보다 최상위 표시
+5. **성능 최적화**: 조건부 렌더링으로 필요할 때만 모달 생성
+
+---

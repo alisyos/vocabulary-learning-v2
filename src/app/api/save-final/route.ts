@@ -115,7 +115,9 @@ export async function POST(request: NextRequest) {
           q.question,
           q.options ? JSON.stringify(q.options) : '',
           q.answer,
-          q.explanation
+          q.explanation,
+          q.isSupplementary ? 'true' : 'false', // 보완 문제 여부 (문자열)
+          q.originalQuestionId || '' // 원본 문제 ID (보완 문제가 아닌 경우 빈 문자열)
         ]);
         
         await saveToSheet('comprehensive_details', compData);

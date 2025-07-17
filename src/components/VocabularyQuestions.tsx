@@ -24,9 +24,45 @@ export default function VocabularyQuestions({
 }: VocabularyQuestionsProps) {
   const [localQuestions, setLocalQuestions] = useState<VocabularyQuestion[]>(vocabularyQuestions);
   const [generatingVocab, setGeneratingVocab] = useState(false);
+  
+  // 선택된 용어들 관리
+  const [selectedTerms, setSelectedTerms] = useState<string[]>(
+    editablePassage.footnote.map((_, index) => index.toString())
+  );
+
+  // 용어 선택/해제
+  const handleTermToggle = (termIndex: string) => {
+    setSelectedTerms(prev => 
+      prev.includes(termIndex) 
+        ? prev.filter(id => id !== termIndex)
+        : [...prev, termIndex]
+    );
+  };
+
+  // 전체 선택/해제
+  const handleSelectAll = () => {
+    const allTermIndices = editablePassage.footnote.map((_, index) => index.toString());
+    setSelectedTerms(prev => 
+      prev.length === allTermIndices.length ? [] : allTermIndices
+    );
+  };
+
+  // 선택된 용어들 가져오기
+  const getSelectedTerms = () => {
+    return selectedTerms
+      .map(index => editablePassage.footnote[parseInt(index)])
+      .filter(Boolean);
+  };
 
   // 어휘 문제 생성
   const handleGenerateVocabulary = async () => {
+    const selectedTermsList = getSelectedTerms();
+    
+    if (selectedTermsList.length === 0) {
+      alert('어휘 문제를 생성할 용어를 선택해주세요.');
+      return;
+    }
+
     setGeneratingVocab(true);
     
     try {
@@ -36,7 +72,7 @@ export default function VocabularyQuestions({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          terms: editablePassage.footnote,
+          terms: selectedTermsList,
           passage: `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`,
           division: division
         }),
@@ -106,26 +142,78 @@ export default function VocabularyQuestions({
 
   if (currentStep === 'generation') {
     return (
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800">3단계: 어휘 문제 생성</h2>
-          <span className="text-sm text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
-            문제 생성
-          </span>
-        </div>
+      <>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center space-x-4">
+              <h2 className="text-xl font-bold text-gray-800">3단계: 어휘 문제 생성</h2>
+              <button
+                onClick={handleGenerateVocabulary}
+                disabled={generatingVocab || selectedTerms.length === 0}
+                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+              >
+                {generatingVocab 
+                  ? '생성 중...' 
+                  : selectedTerms.length === 0 
+                    ? '용어 선택 필요'
+                    : `${selectedTerms.length}개 문제 생성`
+                }
+              </button>
+            </div>
+            <span className="text-sm text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+              문제 생성
+            </span>
+          </div>
 
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">추출된 용어 목록</h3>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold text-gray-800">추출된 용어 목록</h3>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                {selectedTerms.length}/{editablePassage.footnote.length}개 선택됨
+              </span>
+              <button
+                onClick={handleSelectAll}
+                className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded transition-colors"
+              >
+                {selectedTerms.length === editablePassage.footnote.length ? '전체 해제' : '전체 선택'}
+              </button>
+            </div>
+          </div>
+          
           <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-2">
-              총 {editablePassage.footnote.length}개의 용어가 추출되었습니다:
+            <p className="text-sm text-gray-600 mb-3">
+              문제로 만들 용어를 선택하세요 (총 {editablePassage.footnote.length}개):
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {editablePassage.footnote.map((footnote, index) => (
-                <div key={index} className="text-sm bg-white p-2 rounded border">
-                  {footnote.split(':')[0]?.trim() || footnote}
-                </div>
-              ))}
+              {editablePassage.footnote.map((footnote, index) => {
+                const termIndex = index.toString();
+                const isSelected = selectedTerms.includes(termIndex);
+                const termName = footnote.split(':')[0]?.trim() || footnote;
+                
+                return (
+                  <label 
+                    key={index} 
+                    className={`
+                      flex items-center space-x-3 p-3 rounded border cursor-pointer transition-all
+                      ${isSelected 
+                        ? 'bg-blue-50 border-blue-200 text-blue-900' 
+                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                      }
+                    `}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleTermToggle(termIndex)}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium flex-1">
+                      {termName}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -133,13 +221,43 @@ export default function VocabularyQuestions({
         <div className="flex justify-center">
           <button
             onClick={handleGenerateVocabulary}
-            disabled={generatingVocab || editablePassage.footnote.length === 0}
+            disabled={generatingVocab || selectedTerms.length === 0}
             className="bg-purple-600 text-white px-8 py-3 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
           >
-            {generatingVocab ? '어휘 문제 생성 중...' : `${editablePassage.footnote.length}개 어휘 문제 생성하기`}
+            {generatingVocab 
+              ? '어휘 문제 생성 중...' 
+              : selectedTerms.length === 0 
+                ? '용어를 선택해주세요'
+                : `선택된 ${selectedTerms.length}개 용어로 문제 생성하기`
+            }
           </button>
         </div>
       </div>
+
+      {/* 어휘 문제 생성 로딩 모달 */}
+      {generatingVocab && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+        >
+          <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
+            {/* 로딩 스피너 */}
+            <div className="w-12 h-12 border-3 border-gray-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
+            
+            {/* 메시지 */}
+            <h3 className="text-lg font-medium text-gray-800 mb-1">
+              어휘 문제 생성 중
+            </h3>
+            <p className="text-sm text-gray-500 mb-2">
+              선택된 {selectedTerms.length}개 용어로 문제를 생성하고 있습니다
+            </p>
+            <p className="text-xs text-gray-400">
+              잠시만 기다려주세요
+            </p>
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 
@@ -147,7 +265,16 @@ export default function VocabularyQuestions({
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">4단계: 어휘 문제 검토 및 수정</h2>
+        <div className="flex items-center space-x-4">
+          <h2 className="text-xl font-bold text-gray-800">4단계: 어휘 문제 검토 및 수정</h2>
+          <button
+            onClick={onNext}
+            disabled={loading || localQuestions.length === 0}
+            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+          >
+            {loading ? '처리 중...' : '5단계: 종합 문제 생성하기'}
+          </button>
+        </div>
         <span className="text-sm text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
           검토 및 수정
         </span>
@@ -266,7 +393,7 @@ export default function VocabularyQuestions({
       </div>
 
       {/* 다음 단계 버튼 */}
-      <div className="flex justify-end pt-4 border-t">
+      <div className="flex justify-center pt-4 border-t">
         <button
           onClick={onNext}
           disabled={loading || localQuestions.length === 0}

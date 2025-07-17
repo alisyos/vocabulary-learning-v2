@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import Header from '@/components/Header';
 import PassageForm from '@/components/PassageForm';
 import PassageDisplay from '@/components/PassageDisplay';
 import PassageReview from '@/components/PassageReview';
@@ -13,7 +15,8 @@ import {
   EditablePassage,
   VocabularyQuestion,
   ComprehensiveQuestion,
-  WorkflowData
+  WorkflowData,
+  WorkflowStep
 } from '@/types';
 
 export default function Home() {
@@ -145,6 +148,46 @@ export default function Home() {
       currentStep: 'passage-generation',
       loading: false
     });
+  };
+
+  // 특정 단계로 이동
+  const handleNavigateToStep = (stepKey: string) => {
+    // 이동 가능한지 확인
+    if (!isStepAccessible(stepKey)) {
+      return;
+    }
+
+    setWorkflowData(prev => ({
+      ...prev,
+      currentStep: stepKey as WorkflowStep
+    }));
+  };
+
+  // 단계 접근 가능 여부 확인
+  const isStepAccessible = (stepKey: string): boolean => {
+    const { generatedPassage, editablePassage, vocabularyQuestions, comprehensiveQuestions } = workflowData;
+
+    switch (stepKey) {
+      case 'passage-generation':
+        return true; // 항상 접근 가능
+      
+      case 'passage-review':
+        return !!generatedPassage; // 지문이 생성되었을 때
+      
+      case 'vocabulary-generation':
+      case 'vocabulary-review':
+        return !!editablePassage; // 지문이 수정되었을 때
+      
+      case 'comprehensive-generation':
+      case 'comprehensive-review':
+        return vocabularyQuestions.length > 0; // 어휘 문제가 생성되었을 때
+      
+      case 'final-save':
+        return comprehensiveQuestions.length > 0; // 종합 문제가 생성되었을 때
+      
+      default:
+        return false;
+    }
   };
 
   // 워크플로우 단계별 렌더링
@@ -289,48 +332,74 @@ export default function Home() {
     }
   };
 
-  // 워크플로우 진행 상태 표시
+  // 워크플로우 진행 상태 표시 (네비게이션 기능 포함)
   const renderProgressBar = () => {
     const steps = [
-      { key: 'passage-generation', label: '1. 지문 생성' },
-      { key: 'passage-review', label: '2. 지문 검토' },
-      { key: 'vocabulary-generation', label: '3. 어휘 문제 생성' },
-      { key: 'vocabulary-review', label: '4. 어휘 문제 검토' },
-      { key: 'comprehensive-generation', label: '5. 종합 문제 생성' },
-      { key: 'comprehensive-review', label: '6. 종합 문제 검토' },
-      { key: 'final-save', label: '7. 저장' }
+      { key: 'passage-generation', label: '지문 생성' },
+      { key: 'passage-review', label: '지문 검토' },
+      { key: 'vocabulary-generation', label: '어휘 문제 생성' },
+      { key: 'vocabulary-review', label: '어휘 문제 검토' },
+      { key: 'comprehensive-generation', label: '종합 문제 생성' },
+      { key: 'comprehensive-review', label: '종합 문제 검토' },
+      { key: 'final-save', label: '저장' }
     ];
 
     const currentIndex = steps.findIndex(step => step.key === workflowData.currentStep);
 
     return (
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-8">
-        <div className="flex items-center justify-between">
-          {steps.map((step, index) => (
-            <div key={step.key} className="flex items-center">
-              <div className={`
-                w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
-                ${index <= currentIndex 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-600'
-                }
-              `}>
-                {index + 1}
-              </div>
-              <span className={`
-                ml-2 text-sm font-medium
-                ${index <= currentIndex ? 'text-blue-600' : 'text-gray-400'}
-              `}>
-                {step.label}
-              </span>
-              {index < steps.length - 1 && (
+      <div className="mb-8">
+        <div className="grid grid-cols-7 gap-2">
+          {steps.map((step, index) => {
+            const isAccessible = isStepAccessible(step.key);
+            const isCurrent = step.key === workflowData.currentStep;
+            const isActive = index <= currentIndex;
+
+            return (
+              <button
+                key={step.key}
+                onClick={() => handleNavigateToStep(step.key)}
+                disabled={!isAccessible}
+                className={`
+                  relative px-2 py-2 rounded-lg transition-all duration-200
+                  flex flex-col items-center text-center
+                  ${isActive 
+                    ? 'bg-blue-600 text-white shadow-md' 
+                    : 'bg-white text-gray-600 border border-gray-200'
+                  }
+                  ${isAccessible 
+                    ? 'hover:shadow-lg hover:scale-105 cursor-pointer' 
+                    : 'cursor-not-allowed opacity-50'
+                  }
+                  ${isCurrent ? 'ring-2 ring-blue-300 ring-offset-2' : ''}
+                `}
+                title={isAccessible ? `${step.label}로 이동` : '아직 접근할 수 없습니다'}
+              >
+                {/* 단계 번호 */}
                 <div className={`
-                  w-8 h-0.5 mx-4
-                  ${index < currentIndex ? 'bg-blue-600' : 'bg-gray-200'}
-                `} />
-              )}
-            </div>
-          ))}
+                  w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mb-1
+                  ${isActive 
+                    ? 'bg-white text-blue-600' 
+                    : 'bg-gray-100 text-gray-500'
+                  }
+                `}>
+                  {index + 1}
+                </div>
+                
+                {/* 단계 라벨 */}
+                <span className={`
+                  text-xs font-medium leading-tight whitespace-nowrap
+                  ${isActive ? 'text-white' : 'text-gray-600'}
+                `}>
+                  {step.label}
+                </span>
+                
+                {/* 현재 단계 표시 */}
+                {isCurrent && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full border-2 border-white"></div>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -338,15 +407,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Header />
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            학습 지문 및 문제 생성 시스템
-          </h1>
-          <p className="text-gray-600">
-            AI를 활용하여 교육과정 기반의 맞춤형 학습 콘텐츠를 생성합니다
-          </p>
-        </div>
 
         {/* 진행 상태 바 */}
         {renderProgressBar()}
@@ -356,7 +418,10 @@ export default function Home() {
 
         {/* 로딩 상태 */}
         {workflowData.loading && (
-          <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div 
+            className="fixed inset-0 flex items-center justify-center z-50"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          >
             <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
               {/* 로딩 스피너 */}
               <div className="w-12 h-12 border-3 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
@@ -368,7 +433,13 @@ export default function Home() {
                   : '처리 중'
                 }
               </h3>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 mb-2">
+                {workflowData.currentStep === 'passage-generation' 
+                  ? '교육과정에 맞는 맞춤형 지문을 생성하고 있습니다' 
+                  : '요청을 처리하고 있습니다'
+                }
+              </p>
+              <p className="text-xs text-gray-400">
                 잠시만 기다려주세요
               </p>
             </div>

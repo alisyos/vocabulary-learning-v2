@@ -141,6 +141,8 @@ export interface ComprehensiveQuestion {
   options?: string[];   // 객관식인 경우만
   answer: string;
   explanation: string;
+  isSupplementary?: boolean; // 보완 문제 여부
+  originalQuestionId?: string; // 보완 문제의 경우 원본 문제 ID
 }
 
 // 워크플로우 전체 데이터
