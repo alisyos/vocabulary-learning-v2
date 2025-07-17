@@ -18,6 +18,20 @@ export async function POST(request: NextRequest) {
     // 필요한 시트 정의
     const requiredSheets = [
       {
+        name: 'field',
+        headers: ['subject', 'grade', 'area', 'maintopic', 'subtopic', 'keyword'],
+        sampleData: [
+          ['사회', '3학년', '일반사회', '우리나라의 정치', '민주주의와 시민 참여', '민주주의, 시민 참여, 선거'],
+          ['사회', '4학년', '일반사회', '사회 제도와 기관', '지방 자치와 시민 생활', '지방자치, 시민참여, 공공서비스'],
+          ['사회', '5학년', '지리', '우리나라의 자연환경', '산지와 평야', '산맥, 평야, 지형'],
+          ['사회', '6학년', '역사', '조선시대의 문화', '과학 기술의 발달', '한글, 인쇄술, 측우기'],
+          ['과학', '3학년', '생물', '동물의 생활', '동물의 특징', '서식지, 먹이, 생김새'],
+          ['과학', '4학년', '물리', '물질의 상태', '물의 상태 변화', '고체, 액체, 기체'],
+          ['과학', '5학년', '지구과학', '날씨와 기후', '구름과 비', '수증기, 응결, 강수'],
+          ['과학', '6학년', '화학', '연소와 소화', '연소의 조건', '산소, 가연성물질, 발화점']
+        ]
+      },
+      {
         name: 'final_sets',
         headers: [
           'timestamp', 'set_id', 'division', 'subject', 'grade', 'area', 
@@ -91,6 +105,19 @@ export async function POST(request: NextRequest) {
             values: [sheetConfig.headers]
           }
         });
+        
+        // 샘플 데이터 추가 (field 시트의 경우)
+        if (sheetConfig.sampleData && sheetConfig.name === 'field') {
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: `${sheetConfig.name}!A2:${String.fromCharCode(65 + sheetConfig.headers.length - 1)}${sheetConfig.sampleData.length + 1}`,
+            valueInputOption: 'USER_ENTERED',
+            requestBody: {
+              values: sheetConfig.sampleData
+            }
+          });
+          console.log(`Sample data added to "${sheetConfig.name}" sheet`);
+        }
         
         createdSheets.push(sheetConfig.name);
         console.log(`Sheet "${sheetConfig.name}" created successfully`);

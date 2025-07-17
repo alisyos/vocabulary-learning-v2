@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     console.log('Spreadsheet access successful. Available sheets:', sheetNames);
     
     // 필요한 시트들이 존재하는지 확인
-    const requiredSheets = ['final_sets', 'vocabulary_details', 'comprehensive_details', 'question_type_stats'];
+    const requiredSheets = ['field', 'final_sets', 'vocabulary_details', 'comprehensive_details', 'question_type_stats'];
     const missingSheets = requiredSheets.filter(sheet => !sheetNames.includes(sheet));
     
     return NextResponse.json({

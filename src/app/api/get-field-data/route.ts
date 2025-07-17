@@ -9,9 +9,24 @@ export async function GET() {
     
     console.log('Field data fetched successfully:', fieldData.length, 'records');
     
+    if (fieldData.length === 0) {
+      console.warn('Field data is empty - Google Sheets field sheet may be empty or missing');
+    }
+    
     return NextResponse.json(fieldData);
   } catch (error) {
     console.error('Error fetching field data:', error);
+    
+    // 구체적인 오류 정보 로깅
+    if (error instanceof Error) {
+      if (error.message.includes('field')) {
+        console.error('Field sheet may not exist in the spreadsheet');
+      } else if (error.message.includes('authentication')) {
+        console.error('Google Sheets authentication failed');
+      } else if (error.message.includes('spreadsheet')) {
+        console.error('Spreadsheet access failed - check SPREADSHEET_ID and permissions');
+      }
+    }
     
     // Google Sheets 연결 실패 시 기본값 반환
     const fallbackData = [

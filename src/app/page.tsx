@@ -179,15 +179,26 @@ export default function Home() {
 
       case 'passage-review':
         return (
-          <div className="max-w-4xl mx-auto">
-            {editablePassage && (
-              <PassageReview
-                editablePassage={editablePassage}
-                onUpdate={handlePassageUpdate}
-                onNext={handleMoveToVocabularyGeneration}
-                loading={loading}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* 좌측: 학습 지문 생성 폼 (고정) */}
+            <div className="lg:col-span-1">
+              <PassageForm 
+                onSubmit={handlePassageGeneration} 
+                loading={loading} 
               />
-            )}
+            </div>
+
+            {/* 우측: 지문 검토 및 수정 */}
+            <div className="lg:col-span-2">
+              {editablePassage && (
+                <PassageReview
+                  editablePassage={editablePassage}
+                  onUpdate={handlePassageUpdate}
+                  onNext={handleMoveToVocabularyGeneration}
+                  loading={loading}
+                />
+              )}
+            </div>
           </div>
         );
 
@@ -346,14 +357,20 @@ export default function Home() {
 
         {/* 로딩 상태 */}
         {workflowData.loading && (
-          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-700">
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
+              {/* 로딩 스피너 */}
+              <div className="w-12 h-12 border-3 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+              
+              {/* 메시지 */}
+              <h3 className="text-lg font-medium text-gray-800 mb-1">
                 {workflowData.currentStep === 'passage-generation' 
-                  ? '지문을 생성하고 있습니다...' 
-                  : '처리 중입니다...'
+                  ? '지문 생성 중' 
+                  : '처리 중'
                 }
+              </h3>
+              <p className="text-sm text-gray-500">
+                잠시만 기다려주세요
               </p>
             </div>
           </div>
