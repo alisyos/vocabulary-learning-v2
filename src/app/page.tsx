@@ -3,22 +3,34 @@
 import { useState } from 'react';
 import PassageForm from '@/components/PassageForm';
 import PassageDisplay from '@/components/PassageDisplay';
-import QuestionForm from '@/components/QuestionForm';
-import QuestionDisplay from '@/components/QuestionDisplay';
-import { PassageInput, QuestionInput, Passage, Question, DivisionType } from '@/types';
+import PassageReview from '@/components/PassageReview';
+import VocabularyQuestions from '@/components/VocabularyQuestions';
+import ComprehensiveQuestions from '@/components/ComprehensiveQuestions';
+import FinalSave from '@/components/FinalSave';
+import { 
+  PassageInput, 
+  Passage, 
+  EditablePassage,
+  VocabularyQuestion,
+  ComprehensiveQuestion,
+  WorkflowData, 
+  WorkflowStep
+} from '@/types';
 
 export default function Home() {
-  const [passageLoading, setPassageLoading] = useState(false);
-  const [questionLoading, setQuestionLoading] = useState(false);
-  const [passage, setPassage] = useState<Passage | null>(null);
-  const [questions, setQuestions] = useState<Question | null>(null);
-  const [currentDivision, setCurrentDivision] = useState<DivisionType | ''>('');
+  const [workflowData, setWorkflowData] = useState<WorkflowData>({
+    input: {} as PassageInput,
+    generatedPassage: null,
+    editablePassage: null,
+    vocabularyQuestions: [],
+    comprehensiveQuestions: [],
+    currentStep: 'passage-generation',
+    loading: false
+  });
 
-  const handlePassageSubmit = async (input: PassageInput) => {
-    setPassageLoading(true);
-    setPassage(null);
-    setQuestions(null);
-    setCurrentDivision(input.division);
+  // 1단계: 지문 생성
+  const handlePassageGeneration = async (input: PassageInput) => {
+    setWorkflowData(prev => ({ ...prev, loading: true, input }));
 
     try {
       const response = await fetch('/api/generate-passage', {
@@ -33,111 +45,315 @@ export default function Home() {
         throw new Error('지문 생성에 실패했습니다.');
       }
 
-      const result = await response.json();
-      setPassage(result);
+      const result: Passage = await response.json();
+      
+      // 생성된 지문을 편집 가능한 형태로 변환
+      const editablePassage: EditablePassage = {
+        title: result.passages[0]?.title || '',
+        paragraphs: result.passages[0]?.paragraphs || [],
+        footnote: result.passages[0]?.footnote || []
+      };
+
+      setWorkflowData(prev => ({
+        ...prev,
+        generatedPassage: result,
+        editablePassage,
+        currentStep: 'passage-review',
+        loading: false
+      }));
+
     } catch (error) {
       console.error('Error:', error);
       alert('지문 생성 중 오류가 발생했습니다.');
-    } finally {
-      setPassageLoading(false);
+      setWorkflowData(prev => ({ ...prev, loading: false }));
     }
   };
 
-  const handleQuestionSubmit = async (input: QuestionInput) => {
-    setQuestionLoading(true);
-    setQuestions(null);
+  // 2단계: 지문 검토 및 수정
+  const handlePassageUpdate = (updatedPassage: EditablePassage) => {
+    setWorkflowData(prev => ({
+      ...prev,
+      editablePassage: updatedPassage
+    }));
+  };
 
-    try {
-      const response = await fetch('/api/generate-question', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(input),
-      });
+  // 3단계로 이동: 어휘 문제 생성
+  const handleMoveToVocabularyGeneration = () => {
+    setWorkflowData(prev => ({
+      ...prev,
+      currentStep: 'vocabulary-generation'
+    }));
+  };
 
-      if (!response.ok) {
-        throw new Error('문제 생성에 실패했습니다.');
-      }
+  // 3단계: 어휘 문제 생성 완료 후 4단계로 이동
+  const handleVocabularyGenerated = (questions: VocabularyQuestion[]) => {
+    setWorkflowData(prev => ({
+      ...prev,
+      vocabularyQuestions: questions,
+      currentStep: 'vocabulary-review'
+    }));
+  };
 
-      const result = await response.json();
-      setQuestions(result);
-    } catch (error) {
-      console.error('Error:', error);
-      alert('문제 생성 중 오류가 발생했습니다.');
-    } finally {
-      setQuestionLoading(false);
+  // 4단계: 어휘 문제 업데이트
+  const handleVocabularyUpdate = (questions: VocabularyQuestion[]) => {
+    setWorkflowData(prev => ({
+      ...prev,
+      vocabularyQuestions: questions
+    }));
+  };
+
+  // 5단계로 이동: 종합 문제 생성
+  const handleMoveToComprehensiveGeneration = () => {
+    setWorkflowData(prev => ({
+      ...prev,
+      currentStep: 'comprehensive-generation'
+    }));
+  };
+
+  // 5단계: 종합 문제 생성 완료 후 6단계로 이동
+  const handleComprehensiveGenerated = (questions: ComprehensiveQuestion[]) => {
+    setWorkflowData(prev => ({
+      ...prev,
+      comprehensiveQuestions: questions,
+      currentStep: 'comprehensive-review'
+    }));
+  };
+
+  // 6단계: 종합 문제 업데이트
+  const handleComprehensiveUpdate = (questions: ComprehensiveQuestion[]) => {
+    setWorkflowData(prev => ({
+      ...prev,
+      comprehensiveQuestions: questions
+    }));
+  };
+
+  // 7단계로 이동: 최종 저장
+  const handleMoveToFinalSave = () => {
+    setWorkflowData(prev => ({
+      ...prev,
+      currentStep: 'final-save'
+    }));
+  };
+
+  // 새로운 세트 시작 (모든 데이터 초기화)
+  const handleStartNewSet = () => {
+    setWorkflowData({
+      input: {} as PassageInput,
+      generatedPassage: null,
+      editablePassage: null,
+      vocabularyQuestions: [],
+      comprehensiveQuestions: [],
+      currentStep: 'passage-generation',
+      loading: false
+    });
+  };
+
+  // 워크플로우 단계별 렌더링
+  const renderCurrentStep = () => {
+    const { currentStep, loading, editablePassage, generatedPassage, vocabularyQuestions, comprehensiveQuestions, input } = workflowData;
+
+    switch (currentStep) {
+      case 'passage-generation':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* 입력 폼 */}
+            <div className="lg:col-span-1">
+              <PassageForm 
+                onSubmit={handlePassageGeneration} 
+                loading={loading} 
+              />
+            </div>
+
+            {/* 결과 표시 */}
+            <div className="lg:col-span-2">
+              {generatedPassage && (
+                <PassageDisplay
+                  passage={generatedPassage}
+                  onGenerateQuestions={() => {}} // 비활성화
+                  questionsLoading={false}
+                />
+              )}
+            </div>
+          </div>
+        );
+
+      case 'passage-review':
+        return (
+          <div className="max-w-4xl mx-auto">
+            {editablePassage && (
+              <PassageReview
+                editablePassage={editablePassage}
+                onUpdate={handlePassageUpdate}
+                onNext={handleMoveToVocabularyGeneration}
+                loading={loading}
+              />
+            )}
+          </div>
+        );
+
+      case 'vocabulary-generation':
+        return (
+          <div className="max-w-4xl mx-auto">
+            {editablePassage && (
+              <VocabularyQuestions
+                editablePassage={editablePassage}
+                division={input.division || ''}
+                vocabularyQuestions={vocabularyQuestions}
+                onUpdate={handleVocabularyGenerated}
+                onNext={() => {}} // 생성 단계에서는 사용 안함
+                loading={loading}
+                currentStep="generation"
+              />
+            )}
+          </div>
+        );
+
+      case 'vocabulary-review':
+        return (
+          <div className="max-w-4xl mx-auto">
+            {editablePassage && (
+              <VocabularyQuestions
+                editablePassage={editablePassage}
+                division={input.division || ''}
+                vocabularyQuestions={vocabularyQuestions}
+                onUpdate={handleVocabularyUpdate}
+                onNext={handleMoveToComprehensiveGeneration}
+                loading={loading}
+                currentStep="review"
+              />
+            )}
+          </div>
+        );
+
+      case 'comprehensive-generation':
+        return (
+          <div className="max-w-4xl mx-auto">
+            {editablePassage && (
+              <ComprehensiveQuestions
+                editablePassage={editablePassage}
+                division={input.division || ''}
+                comprehensiveQuestions={comprehensiveQuestions}
+                onUpdate={handleComprehensiveGenerated}
+                onNext={() => {}} // 생성 단계에서는 사용 안함
+                loading={loading}
+                currentStep="generation"
+              />
+            )}
+          </div>
+        );
+
+      case 'comprehensive-review':
+        return (
+          <div className="max-w-4xl mx-auto">
+            {editablePassage && (
+              <ComprehensiveQuestions
+                editablePassage={editablePassage}
+                division={input.division || ''}
+                comprehensiveQuestions={comprehensiveQuestions}
+                onUpdate={handleComprehensiveUpdate}
+                onNext={handleMoveToFinalSave}
+                loading={loading}
+                currentStep="review"
+              />
+            )}
+          </div>
+        );
+
+      case 'final-save':
+        return (
+          <div className="max-w-4xl mx-auto">
+            {editablePassage && (
+              <FinalSave
+                input={input}
+                editablePassage={editablePassage}
+                vocabularyQuestions={vocabularyQuestions}
+                comprehensiveQuestions={comprehensiveQuestions}
+                onComplete={handleStartNewSet}
+              />
+            )}
+          </div>
+        );
+
+      default:
+        return <div>알 수 없는 단계입니다.</div>;
     }
   };
 
-  const handleGenerateQuestions = (passageText: string) => {
-    if (!currentDivision) {
-      alert('학년 정보가 없습니다.');
-      return;
-    }
+  // 워크플로우 진행 상태 표시
+  const renderProgressBar = () => {
+    const steps = [
+      { key: 'passage-generation', label: '1. 지문 생성' },
+      { key: 'passage-review', label: '2. 지문 검토' },
+      { key: 'vocabulary-generation', label: '3. 어휘 문제 생성' },
+      { key: 'vocabulary-review', label: '4. 어휘 문제 검토' },
+      { key: 'comprehensive-generation', label: '5. 종합 문제 생성' },
+      { key: 'comprehensive-review', label: '6. 종합 문제 검토' },
+      { key: 'final-save', label: '7. 저장' }
+    ];
 
-    const input: QuestionInput = {
-      division: currentDivision as DivisionType,
-      passage: passageText,
-      questionType: '객관식',
-    };
+    const currentIndex = steps.findIndex(step => step.key === workflowData.currentStep);
 
-    handleQuestionSubmit(input);
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-8">
+        <div className="flex items-center justify-between">
+          {steps.map((step, index) => (
+            <div key={step.key} className="flex items-center">
+              <div className={`
+                w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
+                ${index <= currentIndex 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-200 text-gray-600'
+                }
+              `}>
+                {index + 1}
+              </div>
+              <span className={`
+                ml-2 text-sm font-medium
+                ${index <= currentIndex ? 'text-blue-600' : 'text-gray-400'}
+              `}>
+                {step.label}
+              </span>
+              {index < steps.length - 1 && (
+                <div className={`
+                  w-8 h-0.5 mx-4
+                  ${index < currentIndex ? 'bg-blue-600' : 'bg-gray-200'}
+                `} />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
-        <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
             학습 지문 및 문제 생성 시스템
           </h1>
           <p className="text-gray-600">
-            AI를 활용하여 과목별 학습 지문과 문제를 자동으로 생성합니다
+            AI를 활용하여 교육과정 기반의 맞춤형 학습 콘텐츠를 생성합니다
           </p>
-        </header>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* 왼쪽: 입력 폼 */}
-          <div className="lg:col-span-1 space-y-4">
-            <PassageForm 
-              onSubmit={handlePassageSubmit} 
-              loading={passageLoading} 
-            />
-            
-            {passage && currentDivision && (
-              <QuestionForm
-                passage={passage.passages[0]?.paragraphs.join('\n\n') || ''}
-                division={currentDivision as DivisionType}
-                onSubmit={handleQuestionSubmit}
-                loading={questionLoading}
-              />
-            )}
-          </div>
-
-          {/* 오른쪽: 결과 표시 */}
-          <div className="lg:col-span-2 space-y-6">
-            {passage && (
-              <PassageDisplay
-                passage={passage}
-                onGenerateQuestions={handleGenerateQuestions}
-                questionsLoading={questionLoading}
-              />
-            )}
-
-            {questions && (
-              <QuestionDisplay questions={questions} />
-            )}
-          </div>
         </div>
 
+        {/* 진행 상태 바 */}
+        {renderProgressBar()}
+
+        {/* 현재 단계 렌더링 */}
+        {renderCurrentStep()}
+
         {/* 로딩 상태 */}
-        {(passageLoading || questionLoading) && (
+        {workflowData.loading && (
           <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-lg text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-700">
-                {passageLoading ? '지문을 생성하고 있습니다...' : '문제를 생성하고 있습니다...'}
+                {workflowData.currentStep === 'passage-generation' 
+                  ? '지문을 생성하고 있습니다...' 
+                  : '처리 중입니다...'
+                }
               </p>
             </div>
           </div>

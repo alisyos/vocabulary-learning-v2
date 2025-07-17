@@ -95,3 +95,66 @@ export interface ShortAnswerQuestion {
 
 // 문제 전체 타입
 export type Question = MultipleChoiceQuestion | ShortAnswerQuestion;
+
+// === 새로운 워크플로우 타입들 ===
+
+// 워크플로우 단계
+export type WorkflowStep = 
+  | 'passage-generation'     // 1. 지문 생성
+  | 'passage-review'        // 2. 지문 검토&수정
+  | 'vocabulary-generation' // 3. 어휘 문제 생성
+  | 'vocabulary-review'     // 4. 어휘 문제 검토&수정
+  | 'comprehensive-generation' // 5. 종합 문제 생성
+  | 'comprehensive-review'  // 6. 종합 문제 검토&수정
+  | 'final-save';          // 7. 저장
+
+// 편집 가능한 지문 (사용자가 수정 가능)
+export interface EditablePassage {
+  title: string;
+  paragraphs: string[];
+  footnote: string[];
+}
+
+// 어휘 문제 (각 용어당 1개씩)
+export interface VocabularyQuestion {
+  id: string;
+  term: string;        // 용어
+  question: string;    // 질문
+  options: string[];   // 보기 1~5
+  answer: string;      // 정답
+  explanation: string; // 해설
+}
+
+// 종합 문제 유형
+export type ComprehensiveQuestionType = 
+  | 'Random'                    // 랜덤 (4가지 유형 3개씩)
+  | '단답형'                    // 주관식 단답형
+  | '문단별 순서 맞추기'         // 객관식 문단별 순서 맞추기
+  | '핵심 내용 요약'            // 객관식 핵심 내용 요약
+  | '핵심어/핵심문장 찾기';      // 객관식 핵심어/핵심문장 찾기
+
+// 종합 문제 개별 문제
+export interface ComprehensiveQuestion {
+  id: string;
+  type: Exclude<ComprehensiveQuestionType, 'Random'>;
+  question: string;
+  options?: string[];   // 객관식인 경우만
+  answer: string;
+  explanation: string;
+}
+
+// 워크플로우 전체 데이터
+export interface WorkflowData {
+  // 기본 입력 정보
+  input: PassageInput;
+  
+  // 각 단계별 데이터
+  generatedPassage: Passage | null;           // 1. 생성된 지문
+  editablePassage: EditablePassage | null;    // 2. 편집 가능한 지문
+  vocabularyQuestions: VocabularyQuestion[];  // 3,4. 어휘 문제들
+  comprehensiveQuestions: ComprehensiveQuestion[]; // 5,6. 종합 문제들
+  
+  // 상태 관리
+  currentStep: WorkflowStep;
+  loading: boolean;
+}
