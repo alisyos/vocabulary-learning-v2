@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   PassageInput, 
   EditablePassage, 
@@ -44,6 +45,7 @@ export default function FinalSave({
   comprehensiveQuestions,
   onComplete
 }: FinalSaveProps) {
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -200,7 +202,8 @@ export default function FinalSave({
           input,
           editablePassage,
           vocabularyQuestions,
-          comprehensiveQuestions
+          comprehensiveQuestions,
+          userId: user?.userId || ''
         }),
       });
 

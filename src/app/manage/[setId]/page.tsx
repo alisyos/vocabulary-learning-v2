@@ -252,7 +252,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
 
   const addComprehensiveQuestion = () => {
     const baseId = `comp_${Date.now()}`;
-    const timestamp = new Date().toISOString();
+
     
     // 기본 문제 생성
     const mainQuestion: ComprehensiveQuestion = {

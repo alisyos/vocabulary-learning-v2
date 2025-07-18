@@ -162,8 +162,48 @@ export interface WorkflowData {
 }
 
 // ============================================================================
-// 정규화된 구조 타입들 (DB 연동 준비 완료)
+// 사용자 인증 시스템 타입들
 // ============================================================================
+
+// 사용자 정보
+export interface User {
+  userId: string;
+  name: string;
+  isLoggedIn: boolean;
+}
+
+// 로그인 요청
+export interface LoginRequest {
+  userId: string;
+  password: string;
+}
+
+// 로그인 응답
+export interface LoginResponse {
+  success: boolean;
+  user?: User;
+  message?: string;
+}
+
+// 세션 정보
+export interface SessionInfo {
+  user: User | null;
+  isLoading: boolean;
+}
+
+// 하드코딩된 계정 정보
+export interface Account {
+  userId: string;
+  password: string;
+  name: string;
+}
+
+// ============================================================================
+// 정규화된 구조 타입들 (DB 연동 준비 완료) - 업데이트
+// ============================================================================
+
+// 콘텐츠 상태 타입
+export type ContentStatus = '검수 전' | '검수완료';
 
 // 콘텐츠 세트 (content_sets_v2 테이블)
 export interface ContentSet {
@@ -182,7 +222,7 @@ export interface ContentSet {
   vocabularyWordsCount: number;
   vocabularyQuestionCount: number;
   comprehensiveQuestionCount: number;
-  status: 'draft' | 'completed' | 'archived';
+  status: ContentStatus; // 검수 상태
   createdAt: string;
   updatedAt: string;
 }
@@ -265,17 +305,17 @@ export interface UsageStatisticsV2 {
 
 // 정규화된 구조의 전체 콘텐츠 상세 정보
 export interface ContentSetDetailsV2 {
-  contentSet: ContentSetV2;
-  passage: PassageV2 | null;
-  vocabularyTerms: VocabularyTermV2[];
-  vocabularyQuestions: VocabularyQuestionV2[];
-  comprehensiveQuestions: ComprehensiveQuestionV2[];
+  contentSet: ContentSet;
+  passage: PassageData | null;
+  vocabularyTerms: VocabularyTerm[];
+  vocabularyQuestions: VocabularyQuestionData[];
+  comprehensiveQuestions: ComprehensiveQuestionData[];
 }
 
 // API 응답을 위한 타입들
 export interface ContentSetsResponseV2 {
   success: boolean;
-  data: ContentSetV2[];
+  data: ContentSet[];
   stats: {
     totalSets: number;
     subjects: string[];

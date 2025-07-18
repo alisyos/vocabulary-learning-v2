@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
+import AuthGuard from '@/components/AuthGuard';
 
 interface DataSet {
   timestamp: string;
@@ -23,7 +24,7 @@ interface DataSet {
   updatedAt: string;
   paragraphCount: number;
   vocabularyWordsCount: number;
-  status: string;
+  status: '검수 전' | '검수완료'; // 상태값 타입 명시
   
   // 하위 호환성을 위한 별칭들
   maintopic?: string;
@@ -50,6 +51,8 @@ interface ApiResponse {
   error?: string;
 }
 
+
+
 export default function ManagePage() {
   const [dataSets, setDataSets] = useState<DataSet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,12 +64,35 @@ export default function ManagePage() {
     subject: '',
     grade: '',
     area: '',
+    user: '',
+    status: '',
     search: ''
   });
   
   // 페이지네이션
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
+  
+  // 삭제 관련 상태
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    setId: string;
+    title: string;
+  }>({
+    isOpen: false,
+    setId: '',
+    title: ''
+  });
+  const [deleting, setDeleting] = useState(false);
+  
+  // 상태 변경 관련 상태
+  const [statusUpdating, setStatusUpdating] = useState<{
+    setId: string;
+    loading: boolean;
+  }>({
+    setId: '',
+    loading: false
+  });
   
   const fetchDataSets = useCallback(async () => {
     setLoading(true);
@@ -77,6 +103,8 @@ export default function ManagePage() {
       if (filters.subject) params.append('subject', filters.subject);
       if (filters.grade) params.append('grade', filters.grade);
       if (filters.area) params.append('area', filters.area);
+      if (filters.user) params.append('user', filters.user);
+      if (filters.status) params.append('status', filters.status);
       
       const response = await fetch(`/api/get-saved-sets?${params.toString()}`);
       const result: ApiResponse = await response.json();
@@ -98,15 +126,41 @@ export default function ManagePage() {
     } finally {
       setLoading(false);
     }
-  }, [filters.subject, filters.grade, filters.area]);
+  }, [filters.subject, filters.grade, filters.area, filters.user, filters.status]);
   
   // 데이터 로드
   useEffect(() => {
     fetchDataSets();
   }, [fetchDataSets]);
   
-  // 검색 필터링
+  // 전체 필터링 (과목, 학년, 영역, 사용자, 검색)
   const filteredDataSets = dataSets.filter(item => {
+    // 과목 필터
+    if (filters.subject && item.subject !== filters.subject) {
+      return false;
+    }
+    
+    // 학년 필터
+    if (filters.grade && item.grade !== filters.grade) {
+      return false;
+    }
+    
+    // 영역 필터
+    if (filters.area && item.area !== filters.area) {
+      return false;
+    }
+    
+    // 사용자 필터
+    if (filters.user && item.userId !== filters.user) {
+      return false;
+    }
+    
+    // 상태값 필터
+    if (filters.status && item.status !== filters.status) {
+      return false;
+    }
+    
+    // 검색 필터
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
       return (
@@ -116,6 +170,7 @@ export default function ManagePage() {
         (item.keywords || item.keyword || '').toLowerCase().includes(searchTerm)
       );
     }
+    
     return true;
   });
   
@@ -124,53 +179,159 @@ export default function ManagePage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedData = filteredDataSets.slice(startIndex, startIndex + itemsPerPage);
   
-  // 날짜 포맷팅
+  // 날짜 포맷팅 (직접 포맷팅)
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
+    const date = new Date(dateString);
+    const year = String(date.getFullYear()).slice(-2);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    
+    const datePart = `${year}.${month}.${day}`;
+    const timePart = `${hour}:${minute}`;
+    
+    return { datePart, timePart };
+  };
+
+  // 구분 텍스트 단축
+  const formatDivision = (division: string) => {
+    switch(division) {
+      case '초등학교 중학년(3-4학년)':
+        return '중학년';
+      case '초등학교 고학년(5-6학년)':
+        return '고학년';
+      case '중학생(1-3학년)':
+        return '중학생';
+      default:
+        return division;
+    }
+  };
+
+  // 상태값 변경 함수
+  const updateStatus = async (setId: string, newStatus: '검수 전' | '검수완료') => {
+    setStatusUpdating({ setId, loading: true });
+    
+    try {
+      const response = await fetch('/api/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          setId,
+          status: newStatus
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // 데이터 새로고침
+        await fetchDataSets();
+        alert(`상태가 '${newStatus}'로 변경되었습니다.`);
+      } else {
+        alert(result.error || '상태 변경에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('상태 변경 오류:', error);
+      alert('상태 변경 중 오류가 발생했습니다.');
+    } finally {
+      setStatusUpdating({ setId: '', loading: false });
+    }
+  };
+
+  // 삭제 모달 열기
+  const openDeleteModal = (setId: string, title: string, status: '검수 전' | '검수완료') => {
+    if (status === '검수완료') {
+      alert('검수완료 상태의 콘텐츠는 삭제할 수 없습니다. 먼저 상태를 "검수 전"으로 변경해주세요.');
+      return;
+    }
+    
+    setDeleteModal({
+      isOpen: true,
+      setId,
+      title
     });
+  };
+
+  // 삭제 모달 닫기
+  const closeDeleteModal = () => {
+    setDeleteModal({
+      isOpen: false,
+      setId: '',
+      title: ''
+    });
+  };
+
+  // 콘텐츠 세트 삭제
+  const handleDelete = async () => {
+    if (!deleteModal.setId) return;
+    
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/delete-set?setId=${deleteModal.setId}`, {
+        method: 'DELETE',
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // 성공 시 데이터 새로고침
+        await fetchDataSets();
+        alert('콘텐츠 세트가 성공적으로 삭제되었습니다.');
+        closeDeleteModal();
+      } else {
+        alert(`삭제 실패: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('삭제 중 오류:', error);
+      alert('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeleting(false);
+    }
   };
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AuthGuard>
+      <div className="min-h-screen bg-gray-50">
       <Header />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 통계 카드 */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-              <div className="text-sm text-gray-600">총 콘텐츠 세트</div>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="text-xl font-bold text-blue-600">{stats.total}</div>
+              <div className="text-xs text-gray-600">총 콘텐츠 세트</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-2xl font-bold text-indigo-600">{stats.totalVocabularyWords || 0}</div>
-              <div className="text-sm text-gray-600">어휘 수</div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="text-xl font-bold text-indigo-600">
+                {dataSets.reduce((sum, item) => sum + (item.vocabularyWordsCount || 0), 0)}
+              </div>
+              <div className="text-xs text-gray-600">어휘 수</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-2xl font-bold text-purple-600">{stats.totalVocabularyQuestions}</div>
-              <div className="text-sm text-gray-600">어휘 문제</div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="text-xl font-bold text-purple-600">{stats.totalVocabularyQuestions}</div>
+              <div className="text-xs text-gray-600">어휘 문제</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-2xl font-bold text-green-600">{stats.totalComprehensiveQuestions}</div>
-              <div className="text-sm text-gray-600">종합 문제</div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="text-xl font-bold text-green-600">{stats.totalComprehensiveQuestions}</div>
+              <div className="text-xs text-gray-600">종합 문제</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-2xl font-bold text-orange-600">
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="text-xl font-bold text-orange-600">
                 {stats.totalVocabularyQuestions + stats.totalComprehensiveQuestions}
               </div>
-              <div className="text-sm text-gray-600">총 문제 수</div>
+              <div className="text-xs text-gray-600">총 문제 수</div>
             </div>
           </div>
         )}
         
         {/* 필터 및 검색 */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          {/* 첫 번째 줄: 과목, 학년, 영역 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">과목</label>
               <select
@@ -210,6 +371,40 @@ export default function ManagePage() {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* 두 번째 줄: 사용자, 상태값, 검색 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">사용자</label>
+              <select
+                value={filters.user}
+                onChange={(e) => setFilters(prev => ({ ...prev, user: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">전체</option>
+                <option value="song">song</option>
+                <option value="user1">user1</option>
+                <option value="user2">user2</option>
+                <option value="user3">user3</option>
+                <option value="user4">user4</option>
+                <option value="user5">user5</option>
+                <option value="ahn">ahn</option>
+                <option value="test">test</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">상태값</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">전체</option>
+                <option value="검수 전">검수 전</option>
+                <option value="검수완료">검수완료</option>
+              </select>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">검색</label>
               <input
@@ -227,7 +422,7 @@ export default function ManagePage() {
               {filteredDataSets.length}개의 콘텐츠 세트 ({stats?.total}개 중)
             </p>
             <button
-              onClick={() => setFilters({ subject: '', grade: '', area: '', search: '' })}
+              onClick={() => setFilters({ subject: '', grade: '', area: '', user: '', status: '', search: '' })}
               className="text-sm text-blue-600 hover:text-blue-800"
             >
               필터 초기화
@@ -256,7 +451,7 @@ export default function ManagePage() {
           <div className="bg-white rounded-lg shadow p-8 text-center">
             <div className="text-gray-400 mb-4">📝</div>
             <p className="text-gray-600 mb-4">
-              {filters.search || filters.subject || filters.grade || filters.area 
+              {filters.search || filters.subject || filters.grade || filters.area || filters.user || filters.status
                 ? '검색 조건에 맞는 콘텐츠가 없습니다.' 
                 : '저장된 콘텐츠가 없습니다.'}
             </p>
@@ -281,6 +476,9 @@ export default function ManagePage() {
                       과목
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      생성자
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       구분
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -302,10 +500,13 @@ export default function ManagePage() {
                       어휘수
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      어휘문제수
+                      어휘문제
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      종합문제수
+                      종합문제
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      상태값
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       작업
@@ -315,14 +516,20 @@ export default function ManagePage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedData.map((item) => (
                     <tr key={item.setId} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(item.createdAt)}
+                      <td className="px-2 py-3 text-xs text-gray-500 text-center">
+                        <div className="leading-tight space-y-0.5">
+                          <div className="font-medium">{formatDate(item.createdAt).datePart}</div>
+                          <div className="text-gray-400">{formatDate(item.createdAt).timePart}</div>
+                        </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.subject}
                       </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {item.userId || '-'}
+                      </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.division}
+                        {formatDivision(item.division)}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.grade}
@@ -348,17 +555,57 @@ export default function ManagePage() {
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600">
                         {item.comprehensiveQuestionCount || item.comprehensiveCount || 0}
                       </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          item.status === '검수완료' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {item.status}
+                        </span>
+                      </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-1">
+                        <div className="flex items-center justify-center space-x-3">
+                          {/* 상세보기 아이콘 */}
                           <button
                             onClick={() => window.open(`/manage/${item.setId}`, '_blank')}
-                            className="text-blue-600 hover:text-blue-900 text-xs"
+                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
+                            title="상세보기"
                           >
-                            상세
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
                           </button>
-                          <span className="text-gray-300">|</span>
-                          <button className="text-red-600 hover:text-red-900 text-xs">
-                            삭제
+                          
+                          {/* 상태 변경 아이콘 */}
+                          <button
+                            onClick={() => updateStatus(
+                              item.setId, 
+                              item.status === '검수 전' ? '검수완료' : '검수 전'
+                            )}
+                            disabled={statusUpdating.setId === item.setId && statusUpdating.loading}
+                            className="text-purple-600 hover:text-purple-800 hover:bg-purple-50 p-1 rounded transition-colors disabled:opacity-50"
+                            title={item.status === '검수 전' ? '검수완료로 변경' : '검수 전으로 변경'}
+                          >
+                            {statusUpdating.setId === item.setId && statusUpdating.loading ? (
+                              <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            )}
+                          </button>
+                          
+                          {/* 삭제 아이콘 */}
+                          <button 
+                            onClick={() => openDeleteModal(item.setId, item.passageTitle, item.status)}
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded transition-colors"
+                            title="삭제"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
                           </button>
                         </div>
                       </td>
@@ -446,7 +693,56 @@ export default function ManagePage() {
             </div>
           </>
         )}
+
+        {/* 삭제 확인 모달 */}
+        {deleteModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900">콘텐츠 삭제 확인</h3>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  다음 콘텐츠를 정말 삭제하시겠습니까?
+                </p>
+                <p className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded">
+                  {deleteModal.title}
+                </p>
+                <p className="text-xs text-red-600 mt-2">
+                  ⚠️ 이 작업은 되돌릴 수 없습니다. 모든 관련 데이터가 완전히 삭제됩니다.
+                </p>
+              </div>
+              
+              <div className="flex space-x-3 justify-end">
+                <button
+                  onClick={closeDeleteModal}
+                  disabled={deleting}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-4 py-2 text-sm text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center space-x-2"
+                >
+                  {deleting && (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                  <span>{deleting ? '삭제 중...' : '삭제'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+      </div>
+    </AuthGuard>
   );
 } 

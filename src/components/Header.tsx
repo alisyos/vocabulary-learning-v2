@@ -1,10 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   
   const navigation = [
     {
@@ -80,10 +83,47 @@ export default function Header() {
             ))}
           </nav>
           
-          {/* 추가 액션 (향후 확장용) */}
-          <div className="flex items-center space-x-3">
-            {/* 연결 상태 표시 (향후 추가 가능) */}
-            <div className="hidden sm:flex items-center text-xs text-gray-500">
+          {/* 사용자 정보 및 액션 */}
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <>
+                {/* 사용자 정보 */}
+                <div className="hidden sm:flex items-center text-sm text-gray-700">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-2">
+                    <span className="text-blue-600 font-medium text-xs">
+                      {user.name.charAt(0)}
+                    </span>
+                  </div>
+                  <span className="font-medium">{user.name}</span>
+                  <span className="text-gray-500 ml-1">({user.userId})</span>
+                </div>
+                
+                {/* 로그아웃 버튼 */}
+                <button
+                  onClick={async () => {
+                    await logout();
+                    router.push('/login');
+                  }}
+                  className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded-md hover:border-gray-400 transition-colors"
+                  title="로그아웃"
+                >
+                  <span className="mr-1">🚪</span>
+                  <span className="hidden sm:inline">로그아웃</span>
+                </button>
+              </>
+            ) : (
+              /* 로그인 버튼 */
+              <Link
+                href="/login"
+                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              >
+                <span className="mr-1">🔑</span>
+                로그인
+              </Link>
+            )}
+            
+            {/* 연결 상태 표시 */}
+            <div className="hidden lg:flex items-center text-xs text-gray-500">
               <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
               <span>온라인</span>
             </div>

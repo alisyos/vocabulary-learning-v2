@@ -1,5 +1,4 @@
 import { google } from 'googleapis';
-import { PassageInput, QuestionInput } from '@/types';
 
 // Google Sheets 클라이언트 초기화
 export async function getGoogleSheetsClient() {
@@ -205,7 +204,7 @@ export async function saveContentSetV2(contentSetData: {
       contentSetData.vocabularyWordsCount,
       contentSetData.vocabularyQuestionCount,
       contentSetData.comprehensiveQuestionCount,
-      contentSetData.status || 'completed',
+      contentSetData.status || '검수 전', // 기본값을 '검수 전'으로 변경
       timestamp, // created_at
       timestamp  // updated_at
     ]
@@ -681,7 +680,7 @@ export async function addSystemPrompt(promptData: {
       ''  // updatedBy
     ];
 
-    await appendToSheet('system_prompts', [newRow]);
+    await saveToSheet('system_prompts', [newRow]);
     
     return {
       success: true,
@@ -731,7 +730,7 @@ export async function initializeSystemPrompts() {
       'system'  // updatedBy
     ]);
 
-    await appendToSheet('system_prompts', rows);
+    await saveToSheet('system_prompts', rows);
     
     return {
       success: true,

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Header from '@/components/Header';
+import AuthGuard from '@/components/AuthGuard';
 import PassageForm from '@/components/PassageForm';
 import PassageDisplay from '@/components/PassageDisplay';
 import PassageReview from '@/components/PassageReview';
@@ -405,46 +406,48 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-      <div className="container mx-auto px-4 py-8">
+    <AuthGuard>
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
 
-        {/* 진행 상태 바 */}
-        {renderProgressBar()}
+          {/* 진행 상태 바 */}
+          {renderProgressBar()}
 
-        {/* 현재 단계 렌더링 */}
-        {renderCurrentStep()}
+          {/* 현재 단계 렌더링 */}
+          {renderCurrentStep()}
 
-        {/* 로딩 상태 */}
-        {workflowData.loading && (
-          <div 
-            className="fixed inset-0 flex items-center justify-center z-50"
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-          >
-            <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
-              {/* 로딩 스피너 */}
-              <div className="w-12 h-12 border-3 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-              
-              {/* 메시지 */}
-              <h3 className="text-lg font-medium text-gray-800 mb-1">
-                {workflowData.currentStep === 'passage-generation' 
-                  ? '지문 생성 중' 
-                  : '처리 중'
-                }
-              </h3>
-              <p className="text-sm text-gray-500 mb-2">
-                {workflowData.currentStep === 'passage-generation' 
-                  ? '교육과정에 맞는 맞춤형 지문을 생성하고 있습니다' 
-                  : '요청을 처리하고 있습니다'
-                }
-              </p>
-              <p className="text-xs text-gray-400">
-                잠시만 기다려주세요
-              </p>
+          {/* 로딩 상태 */}
+          {workflowData.loading && (
+            <div 
+              className="fixed inset-0 flex items-center justify-center z-50"
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+            >
+              <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
+                {/* 로딩 스피너 */}
+                <div className="w-12 h-12 border-3 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+                
+                {/* 메시지 */}
+                <h3 className="text-lg font-medium text-gray-800 mb-1">
+                  {workflowData.currentStep === 'passage-generation' 
+                    ? '지문 생성 중' 
+                    : '처리 중'
+                  }
+                </h3>
+                <p className="text-sm text-gray-500 mb-2">
+                  {workflowData.currentStep === 'passage-generation' 
+                    ? '교육과정에 맞는 맞춤형 지문을 생성하고 있습니다' 
+                    : '요청을 처리하고 있습니다'
+                  }
+                </p>
+                <p className="text-xs text-gray-400">
+                  잠시만 기다려주세요
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 }

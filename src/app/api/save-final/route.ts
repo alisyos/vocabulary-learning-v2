@@ -19,6 +19,7 @@ interface FinalSaveRequestV2 {
   editablePassage: EditablePassage;
   vocabularyQuestions: VocabularyQuestion[];
   comprehensiveQuestions: ComprehensiveQuestion[];
+  userId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -38,24 +39,40 @@ export async function POST(request: NextRequest) {
     const timestamp = new Date().toISOString();
     const setId = `set_${Date.now()}`;
 
-    // 1. 콘텐츠 세트 메인 정보 저장
-    await saveContentSetV2({
+    // 디버깅: 저장될 데이터 로그 출력
+    const contentSetData = {
       setId,
-      userId: '', // 향후 사용자 시스템 도입 시 사용
+      userId: body.userId || '', // 로그인한 사용자 ID
       division: body.input.division,
       subject: body.input.subject,
       grade: body.input.grade,
       area: body.input.area,
-      mainTopic: body.input.maintopic,
-      subTopic: body.input.subtopic,
-      keywords: body.input.keyword,
+      mainTopic: body.input.maintopic || '',
+      subTopic: body.input.subtopic || '',
+      keywords: body.input.keyword || '',
       passageTitle: body.editablePassage.title,
       paragraphCount: body.editablePassage.paragraphs?.length || 0,
       vocabularyWordsCount: body.editablePassage.footnote?.length || 0,
       vocabularyQuestionCount: body.vocabularyQuestions.length,
       comprehensiveQuestionCount: body.comprehensiveQuestions.length,
-      status: 'completed'
-    });
+      status: '검수 전' // 기본값을 '검수 전'으로 변경
+    };
+
+    console.log('=== 저장될 콘텐츠 세트 데이터 ===');
+    console.log('원본 input:', JSON.stringify(body.input, null, 2));
+    console.log('setId:', contentSetData.setId);
+    console.log('userId:', contentSetData.userId);
+    console.log('division:', contentSetData.division, '(type:', typeof contentSetData.division, ')');
+    console.log('subject:', contentSetData.subject);
+    console.log('grade:', contentSetData.grade);
+    console.log('area:', contentSetData.area);
+    console.log('mainTopic:', contentSetData.mainTopic);
+    console.log('subTopic:', contentSetData.subTopic);
+    console.log('keywords:', contentSetData.keywords);
+    console.log('================================');
+
+    // 1. 콘텐츠 세트 메인 정보 저장
+    await saveContentSetV2(contentSetData);
 
     // 2. 지문 데이터 저장
     await savePassageV2({
