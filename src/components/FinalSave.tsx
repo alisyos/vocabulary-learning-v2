@@ -58,6 +58,7 @@ export default function FinalSave({
     details?: string;
     createdSheets?: string[];
     existingSheets?: string[];
+    updatedSheets?: string[]; // 스키마 업데이트된 시트들 추가
     spreadsheetUrl?: string;
   } | null>(null);
   const [connectionTest, setConnectionTest] = useState<{
@@ -386,6 +387,8 @@ export default function FinalSave({
               <p><strong>대주제:</strong> {input.maintopic}</p>
               <p><strong>소주제:</strong> {input.subtopic}</p>
               <p><strong>핵심 개념어:</strong> {input.keyword}</p>
+              <p><strong>지문 길이:</strong> {input.length}</p>
+              <p><strong>유형:</strong> {input.textType || '선택 안함'}</p>
             </div>
           </div>
 
@@ -565,9 +568,20 @@ export default function FinalSave({
                     </div>
                   )}
                   
+                  {migrationResult.updatedSheets && migrationResult.updatedSheets.length > 0 && (
+                    <div className="p-2 bg-orange-100 border border-orange-200 rounded text-sm">
+                      <p className="text-orange-800 font-medium">스키마 업데이트된 시트:</p>
+                      <ul className="list-disc list-inside text-orange-700 mt-1">
+                        {migrationResult.updatedSheets.map((sheet: string, index: number) => (
+                          <li key={index}>{sheet}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
                   {migrationResult.existingSheets && migrationResult.existingSheets.length > 0 && (
                     <div className="p-2 bg-blue-100 border border-blue-200 rounded text-sm">
-                      <p className="text-blue-800 font-medium">이미 존재하는 시트:</p>
+                      <p className="text-blue-800 font-medium">최신 상태 시트:</p>
                       <ul className="list-disc list-inside text-blue-700 mt-1">
                         {migrationResult.existingSheets.map((sheet: string, index: number) => (
                           <li key={index}>{sheet}</li>

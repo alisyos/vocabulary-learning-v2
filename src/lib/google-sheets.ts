@@ -180,6 +180,8 @@ export async function saveContentSetV2(contentSetData: {
   subTopic: string;
   keywords: string;
   passageTitle: string;
+  passageLength: string; // 지문 길이 정보 추가
+  textType?: string; // 지문 유형 정보 추가 (선택사항)
   paragraphCount: number;
   vocabularyWordsCount: number;
   vocabularyQuestionCount: number;
@@ -200,6 +202,8 @@ export async function saveContentSetV2(contentSetData: {
       contentSetData.subTopic,
       contentSetData.keywords,
       contentSetData.passageTitle,
+      contentSetData.passageLength, // 지문 길이 추가
+      contentSetData.textType || '선택안함', // 지문 유형 추가 (선택 안함일 경우 '선택안함')
       contentSetData.paragraphCount,
       contentSetData.vocabularyWordsCount,
       contentSetData.vocabularyQuestionCount,
@@ -387,7 +391,7 @@ export async function getContentSetsV2(filters?: {
     const [headers, ...rows] = rawData;
     
     let contentSets = rows
-      .filter(row => row.length >= 10)
+      .filter(row => row.length >= 12)
       .map(row => ({
         timestamp: row[0],
         setId: row[1],
@@ -400,13 +404,15 @@ export async function getContentSetsV2(filters?: {
         subTopic: row[8],
         keywords: row[9],
         passageTitle: row[10],
-        paragraphCount: parseInt(row[11]) || 0,
-        vocabularyWordsCount: parseInt(row[12]) || 0,
-        vocabularyQuestionCount: parseInt(row[13]) || 0,
-        comprehensiveQuestionCount: parseInt(row[14]) || 0,
-        status: row[15] || 'completed',
-        createdAt: row[16],
-        updatedAt: row[17]
+        passageLength: row[11], // 지문 길이 추가
+        textType: row[12] || null, // 지문 유형 추가 (선택사항이므로 null 허용)
+        paragraphCount: parseInt(row[13]) || 0,
+        vocabularyWordsCount: parseInt(row[14]) || 0,
+        vocabularyQuestionCount: parseInt(row[15]) || 0,
+        comprehensiveQuestionCount: parseInt(row[16]) || 0,
+        status: row[17] || 'completed',
+        createdAt: row[18],
+        updatedAt: row[19]
       }));
 
     // 필터 적용
@@ -487,8 +493,10 @@ export async function getContentSetDetailsV2(setId: string) {
         subTopic: contentSet[8],
         keywords: contentSet[9],
         passageTitle: contentSet[10],
-        status: contentSet[15],
-        createdAt: contentSet[16]
+        passageLength: contentSet[11], // 지문 길이 추가
+        textType: contentSet[12] || null, // 지문 유형 추가 (선택사항)
+        status: contentSet[17],
+        createdAt: contentSet[18]
       },
       passage: passage ? {
         title: passage[2],

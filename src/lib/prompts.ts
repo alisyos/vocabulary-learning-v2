@@ -709,6 +709,181 @@ ${comprehensiveOutputFormats[questionType as keyof typeof comprehensiveOutputFor
 export function getDefaultPrompts() {
   const defaultPrompts = [];
 
+  // 0. 전체 지문생성 시스템 프롬프트
+  const fullPassagePrompt = `###지시사항
+다음 입력값을 받아 학습 지문(passage)을 생성하십시오. 출력은 하나의 영역으로 구분합니다.
+- passage: 입력 조건을 반영해 생성한 지문
+
+모든 지문은 질문형·호기심 유발형 제목을 사용하고, 실생활 예시를 활용해 추상 개념을 설명해야 하며, 임의(random) 로직은 사용하지 않습니다.
+
+###작성절차
+1. 키워드 도출
+- 구분·과목·학년·영역·지문 길이를 파싱하여 ① 핵심 개념(기초→심화), ② 생활 연계 예시, ③ 학년별 어휘 수준을 도출합니다.
+2. 지문(passages) 생성
+- 도출한 가이드를 조합해 제목 1개와 본문을 작성합니다.
+- 본문은 입력된 지문 길이 옵션(단락 수·문장 수) 규칙을 정확히 준수합니다.
+- **용어 설명 필수 요구사항**: 지문에 등장하는 모든 학습 관련 용어들을 footnote에 포함시켜야 합니다. 최소 20개 이상의 용어를 추출하여 설명하세요.
+  * 핵심 개념어와 관련 용어들
+  * 지문에 직접 언급된 전문 용어들
+  * 학년 수준에 맞는 중요한 어휘들
+  * 관련 배경 지식이 필요한 용어들
+  * 생활 속에서 사용되는 관련 용어들도 포함
+- **용어 설명 형식**: 각 용어에 대해 "용어: 설명 (예시: 예시문장)" 형태로 작성하세요.
+  * 설명: 학년 수준에 맞는 간단하고 명확한 설명
+  * 예시문장: 해당 용어가 실제로 사용되는 자연스러운 문장
+3. 흥미 요소 적용
+- 도입부에 실생활 상황·질문을 배치하여 독자의 호기심을 자극합니다.
+- 단순 설명문뿐 아니라 비교·예측·원인결과 등 다양한 서술 방식을 활용합니다.
+4. 출력 생성
+- 아래 [공통 출력 스키마] 형식을 준수한 JSON만 출력하십시오.
+- 지정된 키가 없거나 데이터를 찾을 수 없으면 **"-"**로 표기합니다.
+- **footnote는 반드시 20개 이상의 용어 설명을 포함해야 하며, 각 용어는 설명과 예시문장을 모두 포함해야 합니다.**
+
+###구분
+{division_prompt}
+
+###지문 길이
+{length_prompt}
+
+###과목
+{subject}
+
+###학년
+{grade}
+
+###영역
+{area_prompt}
+
+###대주제
+{maintopic}
+위 대주제를 중심으로 {area} 영역의 학습 내용과 연결하여 지문을 구성하세요.
+
+###소주제
+{subtopic}
+이 소주제를 구체적으로 다루며, 대주제와의 연관성을 명확히 하여 지문을 작성하세요.
+
+###핵심 개념어
+{keyword}
+이 핵심 개념어들을 지문에 자연스럽게 포함시키고, 학년 수준에 맞게 설명하세요. footnote에는 이 용어들을 포함하여 최소 20개 이상의 관련 용어 해설을 추가하세요.
+
+###글의 유형 (선택사항)
+{texttype_prompt}
+
+###출력형식(JSON)
+{output_format}
+
+※ 위의 {변수명} 부분은 실제 사용 시 동적으로 치환됩니다.`;
+
+  defaultPrompts.push({
+    promptId: 'passage_system_full',
+    category: 'passage' as const,
+    subCategory: 'system' as const,
+    name: '전체 지문생성 시스템 프롬프트',
+    key: 'fullSystemPrompt',
+    promptText: fullPassagePrompt,
+    description: '지문 생성에 사용되는 완전한 시스템 프롬프트 템플릿'
+  });
+
+  // 0-1. 전체 어휘 문제 생성 시스템 프롬프트
+  const fullVocabularyPrompt = `###지시사항
+주어진 용어에 대한 어휘 문제를 1개 생성하십시오.
+- 용어의 의미, 사용법, 맥락을 정확히 이해했는지 평가하는 객관식 문제를 생성합니다.
+- 5지선다 형태로 출제하며, 오답 보기도 그럴듯하게 구성해야 합니다.
+- 지문의 맥락과 연결하여 문제를 구성하되, 용어 자체의 이해에 초점을 맞춥니다.
+
+###대상 용어
+**용어명**: {term_name}
+**용어 설명**: {term_description}
+
+###지문 맥락
+{passage}
+
+###구분 (난이도 조절)
+{division_prompt}
+
+###출력형식(JSON)
+다음 JSON 형식으로만 출력하십시오:
+{
+  "question": "용어의 의미나 사용법을 묻는 질문",
+  "options": [
+    "정답 선택지",
+    "오답 선택지 1", 
+    "오답 선택지 2",
+    "오답 선택지 3",
+    "오답 선택지 4"
+  ],
+  "answer": "정답 선택지",
+  "explanation": "정답인 이유와 오답인 이유를 포함한 해설"
+}
+
+###문제 생성 가이드라인
+1. **질문 유형**:
+   - 용어의 정의를 직접 묻는 문제
+   - 용어가 사용된 맥락에서의 의미를 묻는 문제
+   - 용어와 관련된 개념이나 예시를 묻는 문제
+   - 용어를 다른 상황에 적용하는 문제
+
+2. **선택지 구성**:
+   - 정답: 용어의 정확한 의미 또는 올바른 사용법
+   - 오답 1: 비슷하지만 미묘하게 다른 의미
+   - 오답 2: 관련 있지만 틀린 개념
+   - 오답 3: 일반적인 오해나 혼동 가능한 내용
+   - 오답 4: 명백히 틀렸지만 그럴듯한 내용
+
+3. **해설 작성**:
+   - 정답인 이유를 명확히 설명
+   - 주요 오답들이 왜 틀렸는지 간단히 설명
+   - 용어의 핵심 개념을 강화하는 내용 포함
+
+※ 위의 {변수명} 부분은 실제 사용 시 동적으로 치환됩니다.`;
+
+  defaultPrompts.push({
+    promptId: 'vocabulary_system_full',
+    category: 'vocabulary' as const,
+    subCategory: 'system' as const,
+    name: '전체 어휘 문제 생성 시스템 프롬프트',
+    key: 'fullSystemPrompt',
+    promptText: fullVocabularyPrompt,
+    description: '어휘 문제 생성에 사용되는 완전한 시스템 프롬프트 템플릿'
+  });
+
+  // 0-2. 전체 종합 문제 생성 시스템 프롬프트
+  const fullComprehensivePrompt = `###지시사항
+주어진 지문을 바탕으로 **{question_type}** 유형의 문제 3개를 생성하십시오.
+- 지문의 전체적인 이해와 핵심 내용 파악을 평가하는 문제를 생성합니다.
+- 각 문제는 서로 다른 관점이나 내용을 다뤄야 합니다.
+- 지문에 직접 언급된 내용이나 논리적으로 추론 가능한 내용만을 바탕으로 출제합니다.
+
+###지문
+{passage}
+
+###구분 (난이도 조절)  
+{division_prompt}
+
+###문제 유형 가이드라인
+{question_type_prompt}
+
+###출력형식(JSON)
+{output_format}
+
+###주의사항
+- 반드시 위의 JSON 형식을 정확히 준수하십시오.
+- 각 문제는 서로 다른 내용이나 관점을 다뤄야 합니다.
+- 정답과 해설은 지문에 명확히 근거해야 합니다.
+- 객관식 문제의 오답 선택지도 그럴듯하게 구성하십시오.
+
+※ 위의 {변수명} 부분은 실제 사용 시 동적으로 치환됩니다.`;
+
+  defaultPrompts.push({
+    promptId: 'comprehensive_system_full',
+    category: 'comprehensive' as const,
+    subCategory: 'system' as const,
+    name: '전체 종합 문제 생성 시스템 프롬프트',
+    key: 'fullSystemPrompt',
+    promptText: fullComprehensivePrompt,
+    description: '종합 문제 생성에 사용되는 완전한 시스템 프롬프트 템플릿'
+  });
+
   // 1. 구분별 프롬프트 (Division)
   Object.entries(divisionPrompts).forEach(([key, value]) => {
     defaultPrompts.push({
@@ -873,6 +1048,16 @@ export async function getPromptFromDB(category: string, subCategory: string, key
 function getDefaultPromptByKey(category: string, subCategory: string, key: string): string {
   // 기존 하드코딩된 객체들에서 찾기
   switch (subCategory) {
+    case 'system':
+      // 전체 시스템 프롬프트들을 반환
+      if (category === 'passage' && key === 'fullSystemPrompt') {
+        return getDefaultPrompts().find(p => p.promptId === 'passage_system_full')?.promptText || '';
+      } else if (category === 'vocabulary' && key === 'fullSystemPrompt') {
+        return getDefaultPrompts().find(p => p.promptId === 'vocabulary_system_full')?.promptText || '';
+      } else if (category === 'comprehensive' && key === 'fullSystemPrompt') {
+        return getDefaultPrompts().find(p => p.promptId === 'comprehensive_system_full')?.promptText || '';
+      }
+      return '';
     case 'division':
       return divisionPrompts[key as keyof typeof divisionPrompts] || '';
     case 'area':

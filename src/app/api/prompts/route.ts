@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
 
     // 서브카테고리 정의
     const subCategoryNames: { [key: string]: string } = {
+      'system': '전체 시스템 프롬프트',
       'division': '구분별 (학습 단계)',
       'area': '영역별 (교과 영역)',
       'length': '길이별 (출력 형식)',

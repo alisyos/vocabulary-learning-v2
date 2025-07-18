@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
       subTopic: body.input.subtopic || '',
       keywords: body.input.keyword || '',
       passageTitle: body.editablePassage.title,
+      passageLength: body.input.length, // 지문 길이 정보 추가
+      textType: body.input.textType, // 지문 유형 정보 추가 (선택사항)
       paragraphCount: body.editablePassage.paragraphs?.length || 0,
       vocabularyWordsCount: body.editablePassage.footnote?.length || 0,
       vocabularyQuestionCount: body.vocabularyQuestions.length,

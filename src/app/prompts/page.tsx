@@ -18,6 +18,7 @@ export default function PromptsPage() {
   const [saving, setSaving] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'passage' | 'vocabulary' | 'comprehensive'>('passage');
 
   // 프롬프트 데이터 로드
   const loadPrompts = async () => {
@@ -130,6 +131,18 @@ export default function PromptsPage() {
     setEditing(null);
   };
 
+  // 현재 활성 탭의 프롬프트 그룹 가져오기
+  const getCurrentTabGroup = () => {
+    return promptGroups.find(group => group.category === activeTab);
+  };
+
+  // 탭 설정
+  const tabs = [
+    { id: 'passage' as const, label: '지문생성', color: 'blue' },
+    { id: 'vocabulary' as const, label: '어휘 문제 생성', color: 'purple' },
+    { id: 'comprehensive' as const, label: '종합 문제 생성', color: 'green' }
+  ];
+
   useEffect(() => {
     loadPrompts();
   }, []);
@@ -154,11 +167,6 @@ export default function PromptsPage() {
     <div className="min-h-screen bg-gray-50">
       <Header />
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">프롬프트 관리</h1>
-          <p className="text-gray-600">시스템에서 사용하는 AI 프롬프트를 확인하고 수정할 수 있습니다.</p>
-        </div>
-
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex">
@@ -209,112 +217,136 @@ export default function PromptsPage() {
         )}
 
         {isInitialized && promptGroups.length > 0 && (
-          <div className="space-y-8">
-            {promptGroups.map((group) => (
-              <div key={group.category} className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">{group.categoryName}</h2>
-                </div>
-                
-                <div className="p-6">
-                  {group.subCategories.map((subCat) => (
-                    <div key={subCat.subCategory} className="mb-8 last:mb-0">
-                      <h3 className="text-lg font-medium text-gray-800 mb-4">{subCat.subCategoryName}</h3>
-                      
-                      <div className="space-y-4">
-                        {subCat.prompts.map((prompt) => (
-                          <div key={prompt.promptId} className="border border-gray-200 rounded-lg p-4">
-                            <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <h4 className="text-md font-medium text-gray-900">{prompt.name}</h4>
-                                {prompt.description && (
-                                  <p className="text-sm text-gray-500 mt-1">{prompt.description}</p>
-                                )}
-                                <div className="flex items-center space-x-4 mt-2">
-                                  <span className="text-xs text-gray-400">버전: {prompt.version}</span>
-                                  <span className="text-xs text-gray-400">ID: {prompt.promptId}</span>
-                                  {prompt.isDefault && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                      기본값
-                                    </span>
+          <div className="space-y-6">
+            {/* 탭 네비게이션 */}
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                      activeTab === tab.id
+                        ? `border-${tab.color}-500 text-${tab.color}-600`
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* 탭 컨텐츠 */}
+            <div className="mt-6">
+              {getCurrentTabGroup() && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                  <div className={`bg-${tabs.find(t => t.id === activeTab)?.color}-50 px-6 py-4 border-b border-gray-200`}>
+                    <h2 className={`text-xl font-semibold text-${tabs.find(t => t.id === activeTab)?.color}-900`}>
+                      {getCurrentTabGroup()?.categoryName}
+                    </h2>
+                  </div>
+                  
+                  <div className="p-6">
+                    {getCurrentTabGroup()?.subCategories.map((subCat) => (
+                      <div key={subCat.subCategory} className="mb-8 last:mb-0">
+                        <h3 className="text-lg font-medium text-gray-800 mb-4">{subCat.subCategoryName}</h3>
+                        
+                        <div className="space-y-4">
+                          {subCat.prompts.map((prompt) => (
+                            <div key={prompt.promptId} className="border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div>
+                                  <h4 className="text-md font-medium text-gray-900">{prompt.name}</h4>
+                                  {prompt.description && (
+                                    <p className="text-sm text-gray-500 mt-1">{prompt.description}</p>
                                   )}
+                                  <div className="flex items-center space-x-4 mt-2">
+                                    <span className="text-xs text-gray-400">버전: {prompt.version}</span>
+                                    <span className="text-xs text-gray-400">ID: {prompt.promptId}</span>
+                                    {prompt.isDefault && (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        기본값
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
+                                
+                                <button
+                                  onClick={() => startEditing(prompt)}
+                                  className={`ml-4 inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500`}
+                                >
+                                  수정
+                                </button>
                               </div>
                               
-                              <button
-                                onClick={() => startEditing(prompt)}
-                                className="ml-4 inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                              >
-                                수정
-                              </button>
+                              {editing?.promptId === prompt.promptId ? (
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      프롬프트 내용
+                                    </label>
+                                    <textarea
+                                      value={editing.promptText}
+                                      onChange={(e) => setEditing({ ...editing, promptText: e.target.value })}
+                                      rows={10}
+                                      className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-${tabs.find(t => t.id === activeTab)?.color}-500 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500 text-sm font-mono`}
+                                      placeholder="프롬프트 내용을 입력하세요..."
+                                    />
+                                  </div>
+                                  
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      변경 사유 (선택사항)
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={editing.changeReason}
+                                      onChange={(e) => setEditing({ ...editing, changeReason: e.target.value })}
+                                      className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-${tabs.find(t => t.id === activeTab)?.color}-500 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500 text-sm`}
+                                      placeholder="변경한 이유를 간단히 적어주세요..."
+                                    />
+                                  </div>
+                                  
+                                  <div className="flex justify-end space-x-3">
+                                    <button
+                                      onClick={cancelEditing}
+                                      className={`px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500`}
+                                    >
+                                      취소
+                                    </button>
+                                    <button
+                                      onClick={savePrompt}
+                                      disabled={saving}
+                                      className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-${tabs.find(t => t.id === activeTab)?.color}-600 hover:bg-${tabs.find(t => t.id === activeTab)?.color}-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500 disabled:opacity-50`}
+                                    >
+                                      {saving ? (
+                                        <div className="flex items-center">
+                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                          저장 중...
+                                        </div>
+                                      ) : (
+                                        '저장'
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-gray-50 rounded-md p-4">
+                                  <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono overflow-x-auto">
+                                    {prompt.promptText}
+                                  </pre>
+                                </div>
+                              )}
                             </div>
-                            
-                            {editing?.promptId === prompt.promptId ? (
-                              <div className="space-y-4">
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    프롬프트 내용
-                                  </label>
-                                  <textarea
-                                    value={editing.promptText}
-                                    onChange={(e) => setEditing({ ...editing, promptText: e.target.value })}
-                                    rows={10}
-                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm font-mono"
-                                    placeholder="프롬프트 내용을 입력하세요..."
-                                  />
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    변경 사유 (선택사항)
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={editing.changeReason}
-                                    onChange={(e) => setEditing({ ...editing, changeReason: e.target.value })}
-                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
-                                    placeholder="변경한 이유를 간단히 적어주세요..."
-                                  />
-                                </div>
-                                
-                                <div className="flex justify-end space-x-3">
-                                  <button
-                                    onClick={cancelEditing}
-                                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                  >
-                                    취소
-                                  </button>
-                                  <button
-                                    onClick={savePrompt}
-                                    disabled={saving}
-                                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                                  >
-                                    {saving ? (
-                                      <div className="flex items-center">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                        저장 중...
-                                      </div>
-                                    ) : (
-                                      '저장'
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="bg-gray-50 rounded-md p-4">
-                                <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono overflow-x-auto">
-                                  {prompt.promptText}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
         )}
       </main>

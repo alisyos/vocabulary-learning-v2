@@ -13,6 +13,8 @@ interface SetDetails {
   subTopic: string;      // v2 구조: subTopic
   keywords: string;      // v2 구조: keywords (복수형)
   passageTitle: string;
+  passageLength: string; // 지문 길이 정보 추가
+  textType?: string;     // 지문 유형 정보 추가 (선택사항)
   status: string;
   createdAt: string;
   
@@ -375,7 +377,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 기본 정보 카드 */}
         <div className="bg-white rounded-lg shadow mb-8 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">교육과정 정보</h3>
               <p className="text-sm text-gray-900">{setDetails.division}</p>
@@ -385,6 +387,14 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">핵심 개념어</h3>
               <p className="text-sm text-gray-900">{setDetails.keywords || setDetails.keyword}</p>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">지문 길이</h3>
+              <p className="text-sm text-gray-900">{setDetails.passageLength || '정보 없음'}</p>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">지문 유형</h3>
+              <p className="text-sm text-gray-900">{setDetails.textType || '선택 안함'}</p>
             </div>
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">생성 정보</h3>

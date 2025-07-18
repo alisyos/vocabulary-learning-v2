@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
     const newSheets = {
       'content_sets_v2': [
         'timestamp', 'set_id', 'user_id', 'division', 'subject', 'grade', 'area', 
-        'main_topic', 'sub_topic', 'keywords', 'passage_title', 'paragraph_count', 
-        'vocabulary_words_count', 'vocabulary_question_count', 'comprehensive_question_count', 
+        'main_topic', 'sub_topic', 'keywords', 'passage_title', 'passage_length', 'text_type',
+        'paragraph_count', 'vocabulary_words_count', 'vocabulary_question_count', 'comprehensive_question_count', 
         'status', 'created_at', 'updated_at'
       ],
       'passages_v2': [
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
     const existingSheetNames = spreadsheet.data.sheets?.map(sheet => sheet.properties?.title).filter(Boolean) || [];
     const createdSheets: string[] = [];
     const existingSheets: string[] = [];
+    const updatedSheets: string[] = [];
 
     // 각 시트 생성
     for (const [sheetName, headers] of Object.entries(newSheets)) {
@@ -98,12 +99,56 @@ export async function POST(request: NextRequest) {
           createdSheets.push(sheetName);
           console.log(`✓ ${sheetName} 시트 생성 및 헤더 추가 완료`);
           
-          // API 제한 방지를 위한 잠시 대기
-          await new Promise(resolve => setTimeout(resolve, 300));
         } else {
-          existingSheets.push(sheetName);
-          console.log(`${sheetName} 시트가 이미 존재합니다.`);
+          // 기존 시트의 스키마 확인 및 업데이트
+          console.log(`${sheetName} 시트가 이미 존재합니다. 스키마를 확인합니다...`);
+          
+          // 현재 헤더 확인
+          const currentHeaderResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: `${sheetName}!1:1`
+          });
+          
+          const currentHeaders = currentHeaderResponse.data.values?.[0] || [];
+          console.log(`현재 ${sheetName} 헤더:`, currentHeaders);
+          console.log(`필요한 ${sheetName} 헤더:`, headers);
+          
+          // 헤더 순서 및 누락된 컬럼 확인
+          const missingHeaders = headers.filter(header => !currentHeaders.includes(header));
+          const headerOrderMatches = JSON.stringify(currentHeaders.slice(0, headers.length)) === JSON.stringify(headers);
+          
+          if (missingHeaders.length > 0 || !headerOrderMatches) {
+            console.log(`${sheetName}에 누락된 컬럼들:`, missingHeaders);
+            console.log(`${sheetName} 헤더 순서 확인:`, headerOrderMatches ? '일치' : '불일치');
+            
+            // 전체 헤더를 올바른 순서로 재배치
+            // 기존 데이터는 유지하면서 헤더만 정확한 순서로 설정
+            const updatedHeaders = [...headers]; // 정확한 순서의 헤더 사용
+            
+            // 헤더 업데이트
+            await sheets.spreadsheets.values.update({
+              spreadsheetId,
+              range: `${sheetName}!A1:${String.fromCharCode(65 + updatedHeaders.length - 1)}1`,
+              valueInputOption: 'USER_ENTERED',
+              requestBody: {
+                values: [updatedHeaders]
+              }
+            });
+            
+            if (missingHeaders.length > 0) {
+              updatedSheets.push(`${sheetName} (${missingHeaders.length}개 컬럼 추가: ${missingHeaders.join(', ')})`);
+            } else {
+              updatedSheets.push(`${sheetName} (헤더 순서 재정렬)`);
+            }
+            console.log(`✓ ${sheetName} 시트 스키마 업데이트 완료`);
+          } else {
+            existingSheets.push(sheetName);
+            console.log(`${sheetName} 시트는 이미 최신 스키마입니다.`);
+          }
         }
+        
+        // API 제한 방지를 위한 잠시 대기
+        await new Promise(resolve => setTimeout(resolve, 300));
         
       } catch (error) {
         console.error(`✗ ${sheetName} 시트 생성 실패:`, error);
@@ -113,16 +158,18 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'v2 정규화된 시트 생성이 완료되었습니다.',
+      message: 'v2 정규화된 시트 동기화가 완료되었습니다.',
       createdSheets,
       existingSheets,
+      updatedSheets, // 스키마 업데이트된 시트들 추가
       totalSheets: Object.keys(newSheets).length,
       spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
       nextSteps: [
-        '1. 생성된 시트들을 확인해주세요.',
-        '2. 이제 v2 구조로 콘텐츠를 저장할 수 있습니다.',
-        '3. 기존 데이터 마이그레이션은 별도로 진행하세요.'
-      ]
+        createdSheets.length > 0 ? '1. 새로 생성된 시트들을 확인해주세요.' : '',
+        updatedSheets.length > 0 ? '2. 스키마가 업데이트된 시트들을 확인해주세요.' : '',
+        '3. 이제 v2 구조로 콘텐츠를 저장할 수 있습니다.',
+        '4. 기존 데이터는 자동으로 유지됩니다.'
+      ].filter(Boolean)
     });
 
   } catch (error) {

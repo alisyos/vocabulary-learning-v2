@@ -25,7 +25,7 @@
 
 **Google Sheets 컬럼:**
 ```
-timestamp | set_id | user_id | division | subject | grade | area | main_topic | sub_topic | keywords | passage_title | paragraph_count | vocabulary_words_count | vocabulary_question_count | comprehensive_question_count | status | created_at | updated_at
+timestamp | set_id | user_id | division | subject | grade | area | main_topic | sub_topic | keywords | passage_title | passage_length | text_type | paragraph_count | vocabulary_words_count | vocabulary_question_count | comprehensive_question_count | status | created_at | updated_at
 ```
 
 **향후 DB 스키마:**
@@ -42,6 +42,8 @@ CREATE TABLE content_sets (
     sub_topic VARCHAR(200) NOT NULL,
     keywords TEXT NOT NULL,
     passage_title VARCHAR(500) NOT NULL,
+    passage_length ENUM('4-5문장으로 구성한 5-6개 단락', '5-6문장으로 구성한 6개 단락', '1-2문장으로 구성한 10개 단락', '10문장 이하로 구성한 5개 단락', '1-2문장으로 구성한 12개 단락') NOT NULL,
+    text_type ENUM('설명문', '논설문', '탐구문', '뉴스 기사', '인터뷰', '동화', '시', '대본', '소설') NULL,
     paragraph_count INT DEFAULT 0,
     vocabulary_words_count INT DEFAULT 0,
     vocabulary_question_count INT DEFAULT 0,

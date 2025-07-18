@@ -218,6 +218,8 @@ export interface ContentSet {
   subTopic: string;
   keywords: string;
   passageTitle: string;
+  passageLength: PassageLengthType; // 지문 길이 정보 추가
+  textType?: TextType; // 지문 유형 정보 추가 (선택사항)
   paragraphCount: number;
   vocabularyWordsCount: number;
   vocabularyQuestionCount: number;
@@ -389,6 +391,7 @@ export type PromptCategory =
 // 프롬프트 서브 카테고리 (선택 옵션별)
 export type PromptSubCategory = 
   // 지문 생성
+  | 'system'            // 전체 시스템 프롬프트
   | 'division'          // 구분별 (초등 중학년/고학년, 중학생)
   | 'area'              // 영역별 (일반사회, 지리, 역사, 경제, 물리, 화학, 생물, 지구과학)
   | 'length'            // 길이별 (출력 형식)
