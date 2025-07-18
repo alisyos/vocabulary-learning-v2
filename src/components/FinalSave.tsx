@@ -47,6 +47,9 @@ export default function FinalSave({
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  // v2만 지원하므로 saveVersion 상태 제거
+  const [migrating, setMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<any>(null);
   const [connectionTest, setConnectionTest] = useState<{
     success: boolean;
     message?: string;
@@ -64,18 +67,51 @@ export default function FinalSave({
     created?: string[];
   } | null>(null);
 
-  // 데이터 요약 계산
+  // 데이터 요약 계산 (안전한 처리)
   const summary = {
-    passageTitle: editablePassage.title,
-    paragraphCount: editablePassage.paragraphs.length,
-    footnoteCount: editablePassage.footnote.length,
-    vocabularyCount: vocabularyQuestions.length,
-    comprehensiveCount: comprehensiveQuestions.length,
-    typeDistribution: {
+    passageTitle: editablePassage?.title || '',
+    paragraphCount: editablePassage?.paragraphs?.length || 0,
+    footnoteCount: editablePassage?.footnote?.length || 0,
+    vocabularyCount: vocabularyQuestions?.length || 0,
+    comprehensiveCount: comprehensiveQuestions?.length || 0,
+    typeDistribution: comprehensiveQuestions && comprehensiveQuestions.length > 0 ? {
       '단답형': comprehensiveQuestions.filter(q => q.type === '단답형').length,
       '문단별 순서 맞추기': comprehensiveQuestions.filter(q => q.type === '문단별 순서 맞추기').length,
       '핵심 내용 요약': comprehensiveQuestions.filter(q => q.type === '핵심 내용 요약').length,
       '핵심어/핵심문장 찾기': comprehensiveQuestions.filter(q => q.type === '핵심어/핵심문장 찾기').length
+    } : null
+  };
+
+  // v2 구조 시트 생성 실행
+  const handleMigration = async () => {
+    setMigrating(true);
+    
+    try {
+      const response = await fetch('/api/create-v2-sheets-backup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      setMigrationResult(result);
+      
+      if (result.success) {
+        console.log('v2 sheets creation successful:', result);
+      } else {
+        console.error('v2 sheets creation failed:', result.error);
+      }
+      
+    } catch (error) {
+      console.error('Error during v2 sheets creation:', error);
+      setMigrationResult({
+        success: false,
+        error: 'v2 시트 생성 중 네트워크 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : '알 수 없는 오류'
+      });
+    } finally {
+      setMigrating(false);
     }
   };
 
@@ -144,7 +180,10 @@ export default function FinalSave({
     setSaving(true);
     
     try {
-      const response = await fetch('/api/save-final', {
+      // v2 구조를 기본으로 사용
+      const endpoint = '/api/save-final';
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -224,35 +263,44 @@ export default function FinalSave({
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-gray-800 mb-2">저장 완료!</h2>
-              <p className="text-gray-600 mb-6">{saveResult.message}</p>
+              <p className="text-gray-600 mb-2">{saveResult.message}</p>
+              {saveResult.savedData?.newStructure && (
+                <div className="mb-4">
+                  <span className="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                    ✨ v2 정규화된 구조로 저장됨
+                  </span>
+                </div>
+              )}
               
               {saveResult.savedData && (
                 <div className="bg-gray-50 p-4 rounded-lg mb-6 text-left">
                   <h3 className="text-lg font-semibold text-gray-800 mb-3">저장된 데이터 요약</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p><strong>세트 ID:</strong> {saveResult.savedData.setId}</p>
-                      <p><strong>저장 시간:</strong> {new Date(saveResult.savedData.timestamp).toLocaleString('ko-KR')}</p>
-                      <p><strong>지문 제목:</strong> {saveResult.savedData.passageTitle}</p>
+                      <p><strong>세트 ID:</strong> {saveResult.savedData.setId || 'N/A'}</p>
+                      <p><strong>저장 시간:</strong> {saveResult.savedData.timestamp ? new Date(saveResult.savedData.timestamp).toLocaleString('ko-KR') : 'N/A'}</p>
+                      <p><strong>지문 제목:</strong> {saveResult.savedData.passageTitle || 'N/A'}</p>
                     </div>
                     <div>
-                      <p><strong>어휘 문제:</strong> {saveResult.savedData.vocabularyCount}개</p>
-                      <p><strong>종합 문제:</strong> {saveResult.savedData.comprehensiveCount}개</p>
-                      <p><strong>총 문제 수:</strong> {saveResult.savedData.vocabularyCount + saveResult.savedData.comprehensiveCount}개</p>
+                      <p><strong>어휘 문제:</strong> {saveResult.savedData.vocabularyCount || saveResult.savedData.vocabularyQuestionCount || 0}개</p>
+                      <p><strong>종합 문제:</strong> {saveResult.savedData.comprehensiveCount || saveResult.savedData.comprehensiveQuestionCount || 0}개</p>
+                      <p><strong>총 문제 수:</strong> {(saveResult.savedData.vocabularyCount || saveResult.savedData.vocabularyQuestionCount || 0) + (saveResult.savedData.comprehensiveCount || saveResult.savedData.comprehensiveQuestionCount || 0)}개</p>
                     </div>
                   </div>
                   
-                  <div className="mt-4">
-                    <h4 className="font-medium text-gray-800 mb-2">종합 문제 유형별 분포</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                      {Object.entries(saveResult.savedData.typeDistribution).map(([type, count]) => (
-                        <div key={type} className="bg-white p-2 rounded text-center">
-                          <div className="font-medium">{type}</div>
-                          <div className="text-gray-600">{count}개</div>
-                        </div>
-                      ))}
+                  {saveResult.savedData.typeDistribution && (
+                    <div className="mt-4">
+                      <h4 className="font-medium text-gray-800 mb-2">종합 문제 유형별 분포</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        {Object.entries(saveResult.savedData.typeDistribution).map(([type, count]) => (
+                          <div key={type} className="bg-white p-2 rounded text-center">
+                            <div className="font-medium">{type}</div>
+                            <div className="text-gray-600">{count}개</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </>
@@ -347,12 +395,14 @@ export default function FinalSave({
             <h4 className="font-medium text-gray-800 mb-3">종합 문제</h4>
             <div className="space-y-2 text-sm">
               <p><strong>총 문제 수:</strong> {summary.comprehensiveCount}개</p>
-              <div className="mt-3">
-                <p className="font-medium mb-1">유형별 분포:</p>
-                {Object.entries(summary.typeDistribution).map(([type, count]) => (
-                  <p key={type} className="text-xs">• {type}: {count}개</p>
-                ))}
-              </div>
+              {summary.typeDistribution && (
+                <div className="mt-3">
+                  <p className="font-medium mb-1">유형별 분포:</p>
+                  {Object.entries(summary.typeDistribution).map(([type, count]) => (
+                    <p key={type} className="text-xs">• {type}: {count}개</p>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -451,8 +501,113 @@ export default function FinalSave({
         </div>
       )}
 
+      {/* 마이그레이션 결과 */}
+      {migrationResult && (
+        <div className={`mb-6 p-4 rounded-lg border ${
+          migrationResult.success 
+            ? 'bg-green-50 border-green-200' 
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-start gap-3">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+              migrationResult.success ? 'bg-green-100' : 'bg-red-100'
+            }`}>
+              {migrationResult.success ? (
+                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+            </div>
+            <div className="flex-1">
+              <h4 className={`font-medium ${
+                migrationResult.success ? 'text-green-800' : 'text-red-800'
+              }`}>
+                {migrationResult.success ? 'v2 시트 생성 성공' : 'v2 시트 생성 실패'}
+              </h4>
+              <p className={`text-sm mt-1 ${
+                migrationResult.success ? 'text-green-700' : 'text-red-700'
+              }`}>
+                {migrationResult.message || migrationResult.error}
+              </p>
+              
+              {migrationResult.success && (
+                <div className="mt-2 space-y-2">
+                  {migrationResult.createdSheets && migrationResult.createdSheets.length > 0 && (
+                    <div className="p-2 bg-green-100 border border-green-200 rounded text-sm">
+                      <p className="text-green-800 font-medium">새로 생성된 시트:</p>
+                      <ul className="list-disc list-inside text-green-700 mt-1">
+                        {migrationResult.createdSheets.map((sheet: string, index: number) => (
+                          <li key={index}>{sheet}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {migrationResult.existingSheets && migrationResult.existingSheets.length > 0 && (
+                    <div className="p-2 bg-blue-100 border border-blue-200 rounded text-sm">
+                      <p className="text-blue-800 font-medium">이미 존재하는 시트:</p>
+                      <ul className="list-disc list-inside text-blue-700 mt-1">
+                        {migrationResult.existingSheets.map((sheet: string, index: number) => (
+                          <li key={index}>{sheet}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {migrationResult.spreadsheetUrl && (
+                    <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm">
+                      <a 
+                        href={migrationResult.spreadsheetUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline"
+                      >
+                        📊 Google Sheets에서 확인하기
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 저장 방식 안내 */}
+      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <h4 className="font-medium text-blue-800 mb-3">저장 방식</h4>
+        <div className="flex items-start gap-3">
+          <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center mt-1">
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <div className="font-medium text-blue-800">정규화된 구조 (v2)</div>
+            <div className="text-sm text-blue-700">
+              향후 DB 연동에 최적화된 구조로 저장됩니다. 더 빠른 조회와 확장성을 제공합니다.
+            </div>
+            <div className="text-xs text-blue-600 mt-1">
+              ✅ 지문, 어휘, 문제가 별도 테이블로 분리 저장
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 저장 및 다운로드 버튼 */}
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <button
+          onClick={handleMigration}
+          disabled={migrating}
+          className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+        >
+          {migrating ? 'v2 시트 생성 중...' : 'v2 시트 생성하기'}
+        </button>
+        
         <button
           onClick={handleTestConnection}
           disabled={testingConnection}
@@ -464,9 +619,9 @@ export default function FinalSave({
         <button
           onClick={handleFinalSave}
           disabled={saving || (connectionTest !== null && !connectionTest.success)}
-          className="bg-red-600 text-white px-8 py-3 rounded-md hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-lg"
+          className="bg-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-lg"
         >
-          {saving ? '저장 중...' : 'Google Sheets에 최종 저장하기'}
+          {saving ? '저장 중...' : 'Google Sheets에 정규화된 구조로 최종 저장하기'}
         </button>
         
         <button
@@ -479,6 +634,14 @@ export default function FinalSave({
 
       <div className="mt-4 text-center text-sm text-gray-600">
         <p>💡 저장 전에 연결 테스트를 실행하고 로컬 다운로드로 백업본을 만들어두는 것을 권장합니다.</p>
+        <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700">
+          <p className="font-medium">✨ 정규화된 구조 사용 가이드</p>
+          <p className="text-xs mt-1">
+            1. 첫 사용 시: 'v2 시트 생성하기' 버튼으로 새로운 6개 시트 생성<br/>
+            2. 연결 테스트로 Google Sheets 상태 확인<br/>
+            3. '정규화된 구조로 최종 저장하기' 클릭
+          </p>
+        </div>
       </div>
     </div>
   );

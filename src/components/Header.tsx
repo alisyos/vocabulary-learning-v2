@@ -18,6 +18,12 @@ export default function Header() {
       href: '/manage',
       icon: '📚',
       description: '저장된 콘텐츠 관리'
+    },
+    {
+      name: '프롬프트 관리',
+      href: '/prompts',
+      icon: '⚙️',
+      description: 'AI 생성 프롬프트 확인 및 수정'
     }
   ];
   
@@ -101,6 +107,12 @@ export default function Header() {
                       <span className="text-gray-400">상세보기</span>
                     </>
                   )}
+                </>
+              )}
+              {pathname.startsWith('/prompts') && (
+                <>
+                  <span className="mx-2">/</span>
+                  <span className="text-gray-400">프롬프트 관리</span>
                 </>
               )}
             </div>

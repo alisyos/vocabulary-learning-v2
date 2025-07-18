@@ -6,10 +6,10 @@ AI를 활용하여 교육과정 기반의 맞춤형 학습 지문과 문제를 7
 
 - **7단계 워크플로우**: 지문 생성부터 최종 저장까지 체계적인 단계별 진행
 - **완전한 콘텐츠 관리**: 생성된 콘텐츠의 실시간 편집, 조회, 관리
-- **완전한 사용자 제어**: 각 단계에서 검토 및 수정 가능
+- **정규화된 데이터 구조**: 향후 DB 전환에 최적화된 관계형 구조
 - **다양한 문제 유형**: 어휘 문제 + 5가지 종합 문제 유형 (세트 단위 관리)
 - **Cascading Dropdown**: 교육과정 기반의 계층적 선택 시스템 (Google Sheets 연동)
-- **Google Sheets 연동**: 구조화된 데이터 저장 및 백업
+- **Google Sheets 연동**: 정규화된 6개 시트 구조로 구조화 저장
 - **스마트 페이지네이션**: 20/50/100개 단위 표시 및 효율적인 데이터 관리
 - **반응형 UI**: 모바일 및 데스크톱 환경에 최적화
 - **실시간 연결 테스트**: Google Sheets 연결 상태 확인 및 자동 복구
@@ -24,7 +24,7 @@ AI를 활용하여 교육과정 기반의 맞춤형 학습 지문과 문제를 7
 - **리스트 보기**: 생성일, 과목, 구분, 학년, 영역, 대주제, 소주제, 문단수, 어휘수, 어휘문제수, 종합문제수
 - **스마트 필터링**: 과목, 학년, 영역별 필터 및 키워드 검색
 - **페이지네이션**: 20/50/100개 단위 표시, 스마트 페이지 네비게이션
-- **통계 대시보드**: 총 콘텐츠 수, 문제 수, 최근 업데이트 정보
+- **통계 대시보드**: 총 콘텐츠 수, 어휘 수, 문제 수, 최근 업데이트 정보
 
 ### 🔧 상세 편집 (`/manage/[setId]`)
 개별 콘텐츠의 완전한 편집 기능을 제공하는 4개 탭 구조
@@ -69,7 +69,7 @@ AI를 활용하여 교육과정 기반의 맞춤형 학습 지문과 문제를 7
 
 ### 7단계: 최종 저장
 - 전체 콘텐츠 요약 확인
-- Google Sheets 구조화 저장
+- Google Sheets 정규화된 구조로 저장
 - 로컬 JSON 파일 백업
 - 새로운 세트 시작 또는 관리 페이지 이동
 
@@ -77,11 +77,12 @@ AI를 활용하여 교육과정 기반의 맞춤형 학습 지문과 문제를 7
 
 ### 📊 관리 대시보드 (`/manage`)
 
-**📈 통계 카드**
+**📈 통계 카드 (5개)**
 - 총 콘텐츠 세트 수
-- 총 어휘 문제 수  
-- 총 종합 문제 수
-- 전체 문제 수
+- 어휘 수 (전체 지문의 모든 어휘 합계)
+- 어휘 문제 수 (어휘 기반 문제 합계)
+- 종합 문제 수 (독해 기반 문제 합계)
+- 총 문제 수 (어휘 + 종합 문제 합계)
 
 **🔍 고급 필터링**
 - **과목별 필터**: 사회, 과학 등
@@ -158,8 +159,77 @@ AI를 활용하여 교육과정 기반의 맞춤형 학습 지문과 문제를 7
 - **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes
 - **AI**: OpenAI GPT-4.1 API
-- **Database**: Google Sheets API (5개 시트 구조)
+- **Database**: Google Sheets API (정규화된 6개 시트 구조)
 - **Deployment**: Vercel
+
+## 🗄️ 정규화된 데이터베이스 구조
+
+### 📊 Google Sheets 스키마 (6개 시트)
+
+시스템은 향후 별도 DB 서버 전환을 위해 완전히 정규화된 구조를 사용합니다.
+
+#### 1️⃣ field 시트 ⭐ **필수** (계층적 선택을 위한 기본 데이터)
+```
+subject | grade | area | maintopic | subtopic | keyword
+```
+예시 데이터:
+```
+사회 | 3학년 | 일반사회 | 우리나라의 정치 | 민주주의와 시민 참여 | 민주주의, 시민 참여, 선거
+사회 | 4학년 | 일반사회 | 사회 제도와 기관 | 지방 자치와 시민 생활 | 지방자치, 시민참여, 공공서비스
+과학 | 3학년 | 생물 | 동물의 생활 | 동물의 특징 | 서식지, 먹이, 생김새
+```
+
+> 💡 **중요**: field 시트가 없거나 비어있으면 계층적 선택이 작동하지 않고 기본 데이터만 사용됩니다.
+
+#### 2️⃣ content_sets_v2 시트 (메인 콘텐츠 세트 정보)
+```
+timestamp | setId | userId | division | subject | grade | area | mainTopic | subTopic | keywords | passageTitle | paragraphCount | vocabularyWordsCount | vocabularyQuestionCount | comprehensiveQuestionCount | status | createdAt | updatedAt
+```
+
+**정규화된 구조:**
+- 각 콘텐츠 세트의 기본 정보만 저장
+- 지문, 어휘, 문제 데이터는 별도 시트로 분리
+- 관계형 DB 구조로 직접 매핑 가능
+
+#### 3️⃣ passages_v2 시트 (지문 데이터)
+```
+id | contentSetId | title | paragraph1 | paragraph2 | ... | paragraph10 | createdAt | updatedAt
+```
+
+**특징:**
+- 최대 10개 단락 지원
+- 지문별 독립적 관리
+- 제목과 본문 분리 저장
+
+#### 4️⃣ vocabulary_terms_v2 시트 (어휘 용어 데이터)
+```
+id | contentSetId | term | definition | exampleSentence | orderIndex | createdAt
+```
+
+**특징:**
+- 각 용어별 독립적 레코드
+- 정의와 예시문장 분리
+- 순서 관리 (orderIndex)
+
+#### 5️⃣ vocabulary_questions_v2 시트 (어휘 문제 데이터)
+```
+id | contentSetId | vocabularyTermId | questionId | term | question | option1 | option2 | option3 | option4 | option5 | correctAnswer | explanation | createdAt
+```
+
+**특징:**
+- 어휘 용어와 연결 (vocabularyTermId)
+- 5개 선택지 구조화
+- 문제별 독립적 관리
+
+#### 6️⃣ comprehensive_questions_v2 시트 (종합 문제 데이터)
+```
+id | contentSetId | questionId | questionType | question | questionFormat | option1 | option2 | option3 | option4 | option5 | correctAnswer | explanation | isSupplementary | originalQuestionId | questionSetNumber | createdAt
+```
+
+**특징:**
+- 객관식/주관식 구분 (questionFormat)
+- 세트 단위 관리 (questionSetNumber)
+- 보완 문제 시스템 (isSupplementary, originalQuestionId)
 
 ## 🚀 설치 및 실행
 
@@ -203,48 +273,8 @@ npm start
 4. Google Sheets 스프레드시트 생성 및 서비스 계정에 편집 권한 부여
 5. `.env.local`에 관련 정보 설정
 
-### Google Sheets 스키마 (5개 시트)
-
-#### field 시트 ⭐ **필수** (계층적 선택을 위한 기본 데이터)
-```
-subject | grade | area | maintopic | subtopic | keyword
-```
-예시 데이터:
-```
-사회 | 3학년 | 일반사회 | 우리나라의 정치 | 민주주의와 시민 참여 | 민주주의, 시민 참여, 선거
-사회 | 4학년 | 일반사회 | 사회 제도와 기관 | 지방 자치와 시민 생활 | 지방자치, 시민참여, 공공서비스
-과학 | 3학년 | 생물 | 동물의 생활 | 동물의 특징 | 서식지, 먹이, 생김새
-```
-
-> 💡 **중요**: field 시트가 없거나 비어있으면 계층적 선택이 작동하지 않고 기본 데이터만 사용됩니다.
-
-#### final_sets 시트 (메인 데이터) ⭐ **업데이트됨**
-```
-timestamp | setId | division | subject | grade | area | maintopic | subtopic | keyword | passageTitle | vocabularyCount | comprehensiveCount | inputData | passageData | vocabularyData | comprehensiveData | paragraphCount | vocabularyWordsCount
-```
-
-**새로 추가된 필드:**
-- `paragraphCount`: 지문의 실제 단락 개수
-- `vocabularyWordsCount`: 지문에 포함된 용어 개수
-
-#### vocabulary_details 시트 (어휘 문제 상세)
-```
-timestamp | setId | questionId | term | question | options | answer | explanation
-```
-
-#### comprehensive_details 시트 (종합 문제 상세) ⭐ **업데이트됨**
-```
-timestamp | setId | questionId | type | question | options | answer | explanation | isSupplementary | originalQuestionId
-```
-
-**보완 문제 시스템:**
-- `isSupplementary`: 보완 문제 여부 (TRUE/FALSE)
-- `originalQuestionId`: 보완 문제의 경우 기본 문제 ID
-
-#### question_type_stats 시트 (문제 유형별 통계)
-```
-timestamp | setId | questionType | count
-```
+### 초기 시트 생성
+첫 실행 시 "v2 시트 생성하기" 버튼을 클릭하여 정규화된 6개 시트를 자동 생성합니다.
 
 ## 🏗️ 시스템 구조
 
@@ -304,27 +334,30 @@ timestamp | setId | questionType | count
 종합 문제 생성 API
 
 ### POST `/api/save-final`
-최종 저장 API
+최종 저장 API (정규화된 구조)
 
 ### GET `/api/get-field-data`
 교육과정 데이터 조회 API
 
 ### GET `/api/get-saved-sets`
-저장된 콘텐츠 목록 조회 API ⭐ **새로운 기능**
+저장된 콘텐츠 목록 조회 API (정규화된 구조)
 - 필터링: subject, grade, area
 - 페이지네이션: limit 매개변수
 - 통계 정보 포함
 
 ### GET `/api/get-set-details`
-개별 콘텐츠 상세 조회 API ⭐ **새로운 기능**
+개별 콘텐츠 상세 조회 API (정규화된 구조)
 - 완전한 데이터 구조 조회
 - 문제별 상세 정보
 - 편집을 위한 구조화된 데이터
 
-### POST `/api/update-sheets-schema`
-Google Sheets 스키마 업데이트 API ⭐ **새로운 기능**
-- 기존 시트에 새 컬럼 추가
-- 스키마 버전 관리
+### POST `/api/create-v2-sheets-backup`
+정규화된 시트 생성 API
+- 6개 정규화된 시트 자동 생성
+- 헤더 설정 및 초기화
+
+### POST `/api/test-sheets`
+Google Sheets 연결 테스트 API
 
 ## 📁 디렉토리 구조
 
@@ -335,12 +368,13 @@ src/
 │   │   ├── generate-passage/         # 지문 생성
 │   │   ├── generate-vocabulary/      # 어휘 문제 생성
 │   │   ├── generate-comprehensive/   # 종합 문제 생성
-│   │   ├── save-final/              # 최종 저장
+│   │   ├── save-final/              # 최종 저장 (정규화된 구조)
 │   │   ├── get-field-data/          # 교육과정 데이터
-│   │   ├── get-saved-sets/          # 콘텐츠 목록 조회 ⭐
-│   │   ├── get-set-details/         # 콘텐츠 상세 조회 ⭐
-│   │   └── update-sheets-schema/    # 스키마 업데이트 ⭐
-│   ├── manage/                      # 콘텐츠 관리 시스템 ⭐
+│   │   ├── get-saved-sets/          # 콘텐츠 목록 조회 (정규화된 구조)
+│   │   ├── get-set-details/         # 콘텐츠 상세 조회 (정규화된 구조)
+│   │   ├── create-v2-sheets-backup/ # 정규화된 시트 생성
+│   │   └── test-sheets/             # 연결 테스트
+│   ├── manage/                      # 콘텐츠 관리 시스템
 │   │   ├── page.tsx                # 관리 대시보드
 │   │   └── [setId]/               # 상세 편집 페이지
 │   │       └── page.tsx           # 4탭 편집 시스템
@@ -355,13 +389,13 @@ src/
 │   ├── FinalSave.tsx              # 최종 저장 (7단계)
 │   ├── PassageDisplay.tsx         # 지문 표시
 │   ├── QuestionDisplay.tsx        # 문제 표시
-│   └── Header.tsx                 # 공통 헤더 ⭐
+│   └── Header.tsx                 # 공통 헤더
 ├── lib/
-│   ├── google-sheets.ts           # Google Sheets API 연동
+│   ├── google-sheets.ts           # Google Sheets API 연동 (정규화된 구조)
 │   ├── openai.ts                 # OpenAI API 연동
 │   └── prompts.ts                # AI 프롬프트 관리
 └── types/
-    └── index.ts                  # TypeScript 타입 정의
+    └── index.ts                  # TypeScript 타입 정의 (정규화된 구조)
 ```
 
 ## 🚀 배포
@@ -383,7 +417,7 @@ src/
 - 단계 이동 전 데이터 검증
 
 ### 백업 시스템
-- Google Sheets 구조화 저장
+- Google Sheets 정규화된 구조 저장
 - 로컬 JSON 파일 다운로드
 - 저장 실패 시 백업 데이터 제공
 
@@ -393,22 +427,32 @@ src/
 - 단계별 컬러 코딩
 - 반응형 디자인
 
-## 🎯 주요 업데이트 (v2.0)
+## 🎯 주요 업데이트 (v3.0 - 정규화된 구조)
 
 ### 🆕 새로운 기능
 
-**📊 완전한 콘텐츠 관리 시스템**
+**📊 정규화된 데이터베이스 구조**
+- 6개 시트로 완전 분리된 정규화 구조
+- 향후 별도 DB 서버 전환 준비 완료
+- 관계형 데이터베이스 직접 매핑 가능
+
+**📈 향상된 통계 시스템**
+- 5개 통계 카드: 콘텐츠 세트, 어휘 수, 어휘 문제, 종합 문제, 총 문제 수
+- 실시간 집계 계산
+- 정확한 데이터 분석
+
+**🔧 완전한 콘텐츠 관리 시스템**
 - 관리 대시보드 (`/manage`)
 - 스마트 필터링 및 검색
 - 페이지네이션 (20/50/100개)
 - 통계 카드 및 데이터 시각화
 
-**🔧 4탭 편집 시스템**
+**🧠 4탭 편집 시스템**
 - 지문, 어휘, 어휘문제, 종합문제 개별 편집
 - 실시간 저장 기능
 - 새창 편집 환경
 
-**🧠 세트 단위 문제 관리**
+**🎯 세트 단위 문제 관리**
 - 기본문제 + 보완문제 2개 구조
 - 시각적 구분 및 독립적 편집
 - 객관식 정답 드롭다운 선택
@@ -425,6 +469,11 @@ src/
 - 스마트 페이지네이션
 - 향상된 필터링 시스템
 - 반응형 디자인 개선
+
+**⚡ 성능 최적화**
+- JSON 파싱 없이 구조화된 데이터 직접 조회
+- 빠른 데이터 접근과 수정
+- 효율적인 관계형 구조
 
 ## 📊 생성 결과물
 
@@ -448,15 +497,16 @@ src/
   - 메인 워크플로우: `/`
   - 콘텐츠 관리: `/manage`
   - 상세 편집: `/manage/[setId]`
-- **총 API 엔드포인트**: 8개 (3개 새로 추가)
-- **총 컴포넌트**: 8개 (Header 추가)
+- **총 API 엔드포인트**: 9개 (정규화된 구조)
+- **총 컴포넌트**: 8개
+- **데이터베이스**: 정규화된 6개 시트 구조
 
 ## 🎯 시스템 활용 방법
 
 ### 📝 콘텐츠 생성
 1. **신규 생성**: 메인 페이지에서 7단계 워크플로우 진행
 2. **검토 및 수정**: 각 단계에서 완전한 편집 가능
-3. **최종 저장**: Google Sheets 자동 저장 + JSON 백업
+3. **최종 저장**: Google Sheets 정규화된 구조로 자동 저장 + JSON 백업
 
 ### 📊 콘텐츠 관리
 1. **전체 조회**: `/manage`에서 모든 콘텐츠 리스트 확인
@@ -474,13 +524,26 @@ src/
 3. **콘텐츠 제작자**: 대량의 교육 콘텐츠 효율적 생성 및 관리
 4. **교육 기관**: 표준화된 학습 자료 통합 관리
 
+## 🌟 미래 전망
+
+### 🔄 DB 전환 준비 완료
+- 정규화된 구조로 PostgreSQL, MySQL 등 관계형 DB로 직접 매핑 가능
+- 마이그레이션 스크립트 준비 완료
+- 성능 최적화된 쿼리 구조
+
+### 📈 확장 가능성
+- 사용자 관리 시스템 추가
+- 학습 진도 관리 기능
+- 성취도 분석 시스템
+- 교육기관별 맞춤 기능
+
 ## 📝 라이선스
 
 MIT License
 
 ---
 
-**🚀 완전한 7단계 워크플로우 + 통합 관리 시스템으로 고품질 학습 콘텐츠를 생성하고 관리하세요!**
+**🚀 완전한 7단계 워크플로우 + 정규화된 구조 + 통합 관리 시스템으로 고품질 학습 콘텐츠를 생성하고 관리하세요!**
 
 ---
 
@@ -494,6 +557,7 @@ MIT License
 - **어휘 문제**: 보라색 (`purple-600`)
 - **종합 문제**: 초록색 (`green-600`)
 - **저장/관리**: 빨간색 (`red-600`)
+- **어휘 데이터**: 인디고색 (`indigo-600`)
 
 ### 📱 반응형 디자인
 - 모바일 우선 설계

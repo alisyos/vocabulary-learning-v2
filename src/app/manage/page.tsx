@@ -7,20 +7,30 @@ import Header from '@/components/Header';
 interface DataSet {
   timestamp: string;
   setId: string;
+  userId?: string;
   division: string;
   subject: string;
   grade: string;
   area: string;
-  maintopic: string;
-  subtopic: string;
-  keyword: string;
+  mainTopic: string;  // v2 구조: mainTopic
+  subTopic: string;   // v2 구조: subTopic
+  keywords: string;   // v2 구조: keywords (복수형)
   passageTitle: string;
-  vocabularyCount: number;
-  comprehensiveCount: number;
+  vocabularyQuestionCount: number; // v2 구조
+  comprehensiveQuestionCount: number; // v2 구조
   totalQuestions: number;
   createdAt: string;
+  updatedAt: string;
   paragraphCount: number;
   vocabularyWordsCount: number;
+  status: string;
+  
+  // 하위 호환성을 위한 별칭들
+  maintopic?: string;
+  subtopic?: string;
+  keyword?: string;
+  vocabularyCount?: number;
+  comprehensiveCount?: number;
 }
 
 interface ApiResponse {
@@ -72,7 +82,13 @@ export default function ManagePage() {
       const result: ApiResponse = await response.json();
       
       if (result.success) {
-        setDataSets(result.data);
+        // v2 데이터에 totalQuestions 계산 추가
+        const dataWithTotalQuestions = result.data.map(item => ({
+          ...item,
+          totalQuestions: (item.vocabularyQuestionCount || item.vocabularyCount || 0) + 
+                         (item.comprehensiveQuestionCount || item.comprehensiveCount || 0)
+        }));
+        setDataSets(dataWithTotalQuestions);
         setStats(result.stats);
       } else {
         setError(result.error || 'Unknown error');
@@ -95,9 +111,9 @@ export default function ManagePage() {
       const searchTerm = filters.search.toLowerCase();
       return (
         item.passageTitle.toLowerCase().includes(searchTerm) ||
-        item.maintopic.toLowerCase().includes(searchTerm) ||
-        item.subtopic.toLowerCase().includes(searchTerm) ||
-        item.keyword.toLowerCase().includes(searchTerm)
+        (item.mainTopic || item.maintopic || '').toLowerCase().includes(searchTerm) ||
+        (item.subTopic || item.subtopic || '').toLowerCase().includes(searchTerm) ||
+        (item.keywords || item.keyword || '').toLowerCase().includes(searchTerm)
       );
     }
     return true;
@@ -126,10 +142,14 @@ export default function ManagePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 통계 카드 */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow p-6">
               <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
               <div className="text-sm text-gray-600">총 콘텐츠 세트</div>
+            </div>
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="text-2xl font-bold text-indigo-600">{stats.totalVocabularyWords || 0}</div>
+              <div className="text-sm text-gray-600">어휘 수</div>
             </div>
             <div className="bg-white rounded-lg shadow p-6">
               <div className="text-2xl font-bold text-purple-600">{stats.totalVocabularyQuestions}</div>
@@ -311,10 +331,10 @@ export default function ManagePage() {
                         {item.area}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.maintopic}
+                        {item.mainTopic || item.maintopic}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.subtopic}
+                        {item.subTopic || item.subtopic}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.paragraphCount}
@@ -323,10 +343,10 @@ export default function ManagePage() {
                         {item.vocabularyWordsCount}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-purple-600">
-                        {item.vocabularyCount}
+                        {item.vocabularyQuestionCount || item.vocabularyCount || 0}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600">
-                        {item.comprehensiveCount}
+                        {item.comprehensiveQuestionCount || item.comprehensiveCount || 0}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-1">

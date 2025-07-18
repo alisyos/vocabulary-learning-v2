@@ -80,8 +80,9 @@ export async function POST(request: NextRequest) {
     // 각 유형별로 정확한 개수만큼 문제 생성
     for (const [currentType, count] of Object.entries(typeGroups)) {
       try {
-        // 해당 유형의 문제 생성 (기본 3개 생성 후 필요한 만큼 사용)
-        const prompt = generateComprehensivePrompt(
+        // 해당 유형의 문제 생성 (DB에서 조회, 실패 시 기본값 사용)
+        const { generateComprehensivePromptFromDB } = await import('@/lib/prompts');
+        const prompt = await generateComprehensivePromptFromDB(
           currentType,
           body.passage,
           body.division

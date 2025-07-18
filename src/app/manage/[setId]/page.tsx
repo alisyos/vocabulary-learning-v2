@@ -4,71 +4,79 @@ import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 
 interface SetDetails {
-  timestamp: string;
   setId: string;
   division: string;
   subject: string;
   grade: string;
   area: string;
-  maintopic: string;
-  subtopic: string;
-  keyword: string;
+  mainTopic: string;     // v2 구조: mainTopic
+  subTopic: string;      // v2 구조: subTopic
+  keywords: string;      // v2 구조: keywords (복수형)
   passageTitle: string;
-  vocabularyCount: number;
-  comprehensiveCount: number;
-  inputData: Record<string, unknown> | null;
-  passageData: {
-    title: string;
-    paragraphs: string[];
-    footnote: string[];
-  } | null;
-  vocabularyData: VocabularyQuestion[] | null;
-  comprehensiveData: ComprehensiveQuestion[] | null;
+  status: string;
   createdAt: string;
-  totalQuestions: number;
+  
+  // 하위 호환성을 위한 별칭들
+  maintopic?: string;
+  subtopic?: string;
+  keyword?: string;
 }
 
 interface VocabularyQuestion {
-  timestamp: string;
-  setId: string;
+  id: string;
   questionId: string;
   term: string;
   question: string;
   options: string[];
-  answer: string;
+  correctAnswer: string;  // v2 구조: correctAnswer
   explanation: string;
+  
+  // 하위 호환성을 위한 별칭들
+  answer?: string;
 }
 
 interface ComprehensiveQuestion {
-  timestamp: string;
-  setId: string;
+  id: string;
   questionId: string;
-  type: string;
+  questionType: string;        // v2 구조: questionType
   question: string;
-  options: string[] | null;
-  answer: string;
+  questionFormat: string;
+  options?: string[];
+  correctAnswer: string;       // v2 구조: correctAnswer
   explanation: string;
   isSupplementary: boolean;
-  originalQuestionId: string | null;
+  originalQuestionId?: string;
+  questionSetNumber: number;
+  
+  // 하위 호환성을 위한 별칭들
+  type?: string;
+  answer?: string;
+}
+
+interface VocabularyTerm {
+  id: string;
+  term: string;
+  definition: string;
+  exampleSentence: string;
+  orderIndex: number;
+}
+
+interface PassageData {
+  title: string;
+  paragraphs: string[];
 }
 
 interface ApiResponse {
   success: boolean;
-  setDetails: SetDetails;
-  vocabularyQuestions: VocabularyQuestion[];
-  comprehensiveQuestions: ComprehensiveQuestion[];
-  questionTypeStats: {
-    timestamp: string;
-    setId: string;
-    questionType: string;
-    count: number;
-  }[];
-  summary: {
-    totalVocabularyQuestions: number;
-    totalComprehensiveQuestions: number;
-    typeDistribution: Record<string, number>;
-    hasSupplementaryQuestions: boolean;
+  data: {
+    contentSet: SetDetails;
+    passage: PassageData | null;
+    vocabularyTerms: VocabularyTerm[];
+    vocabularyQuestions: VocabularyQuestion[];
+    comprehensiveQuestions: ComprehensiveQuestion[];
   };
+  version: string;
+  message?: string;
   error?: string;
 }
 
@@ -94,18 +102,27 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       const response = await fetch(`/api/get-set-details?setId=${id}`);
       const result: ApiResponse = await response.json();
       
-      if (result.success) {
+      if (result.success && result.data) {
         setData(result);
+        
         // 편집 가능한 상태로 초기화
-        if (result.setDetails.passageData) {
+        if (result.data.passage) {
           setEditablePassage({
-            title: result.setDetails.passageData.title,
-            paragraphs: [...result.setDetails.passageData.paragraphs]
+            title: result.data.passage.title,
+            paragraphs: [...result.data.passage.paragraphs]
           });
-          setEditableVocabulary([...result.setDetails.passageData.footnote]);
         }
-        setEditableVocabQuestions([...result.vocabularyQuestions]);
-        setEditableComprehensive([...result.comprehensiveQuestions]);
+        
+        // v2에서는 어휘 용어가 별도 테이블로 분리됨
+        const vocabularyTermsFormatted = result.data.vocabularyTerms.map(term => 
+          term.exampleSentence 
+            ? `${term.term}: ${term.definition} (예시: ${term.exampleSentence})`
+            : `${term.term}: ${term.definition}`
+        );
+        setEditableVocabulary(vocabularyTermsFormatted);
+        
+        setEditableVocabQuestions([...result.data.vocabularyQuestions]);
+        setEditableComprehensive([...result.data.comprehensiveQuestions]);
       } else {
         setError(result.error || 'Unknown error');
       }
@@ -211,13 +228,12 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
 
   const addVocabQuestion = () => {
     const newQuestion: VocabularyQuestion = {
-      timestamp: new Date().toISOString(),
-      setId: setId,
+      id: '',
       questionId: `vocab_${Date.now()}`,
       term: '새 용어',
       question: '새 질문을 입력하세요.',
       options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
-      answer: '선택지 1',
+      correctAnswer: '선택지 1',
       explanation: '해설을 입력하세요.'
     };
     setEditableVocabQuestions(prev => [...prev, newQuestion]);
@@ -240,43 +256,42 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     
     // 기본 문제 생성
     const mainQuestion: ComprehensiveQuestion = {
-      timestamp: timestamp,
-      setId: setId,
+      id: '',
       questionId: baseId,
-      type: '단답형',
+      questionType: '단답형',
       question: '새 질문을 입력하세요.',
-      options: null,
-      answer: '정답을 입력하세요.',
+      questionFormat: 'short_answer',
+      correctAnswer: '정답을 입력하세요.',
       explanation: '해설을 입력하세요.',
       isSupplementary: false,
-      originalQuestionId: null
+      questionSetNumber: 1
     };
     
     // 보완 문제 2개 생성
     const supplementary1: ComprehensiveQuestion = {
-      timestamp: timestamp,
-      setId: setId,
+      id: '',
       questionId: `${baseId}_supp1`,
-      type: '단답형',
+      questionType: '단답형',
       question: '보완 질문 1을 입력하세요.',
-      options: null,
-      answer: '정답을 입력하세요.',
+      questionFormat: 'short_answer',
+      correctAnswer: '정답을 입력하세요.',
       explanation: '해설을 입력하세요.',
       isSupplementary: true,
-      originalQuestionId: baseId
+      originalQuestionId: baseId,
+      questionSetNumber: 1
     };
     
     const supplementary2: ComprehensiveQuestion = {
-      timestamp: timestamp,
-      setId: setId,
+      id: '',
       questionId: `${baseId}_supp2`,
-      type: '단답형',
+      questionType: '단답형',
       question: '보완 질문 2를 입력하세요.',
-      options: null,
-      answer: '정답을 입력하세요.',
+      questionFormat: 'short_answer',
+      correctAnswer: '정답을 입력하세요.',
       explanation: '해설을 입력하세요.',
       isSupplementary: true,
-      originalQuestionId: baseId
+      originalQuestionId: baseId,
+      questionSetNumber: 1
     };
     
     setEditableComprehensive(prev => [...prev, mainQuestion, supplementary1, supplementary2]);
@@ -322,7 +337,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     );
   }
 
-  const { setDetails } = data;
+  const { contentSet: setDetails } = data.data;
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -341,7 +356,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                 <span>창 닫기</span>
               </button>
               <div className="h-4 w-px bg-gray-300"></div>
-              <h1 className="text-xl font-bold text-gray-900">{setDetails.passageTitle}</h1>
+              <h1 className="text-xl font-bold text-gray-900">{data.data.contentSet.passageTitle}</h1>
             </div>
             <div className="flex items-center space-x-3">
               <button
@@ -365,11 +380,11 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
               <h3 className="text-sm font-medium text-gray-500 mb-2">교육과정 정보</h3>
               <p className="text-sm text-gray-900">{setDetails.division}</p>
               <p className="text-sm text-gray-600">{setDetails.subject} · {setDetails.grade} · {setDetails.area}</p>
-              <p className="text-xs text-gray-500 mt-1">{setDetails.maintopic} &gt; {setDetails.subtopic}</p>
+              <p className="text-xs text-gray-500 mt-1">{setDetails.mainTopic || setDetails.maintopic} &gt; {setDetails.subTopic || setDetails.subtopic}</p>
             </div>
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">핵심 개념어</h3>
-              <p className="text-sm text-gray-900">{setDetails.keyword}</p>
+              <p className="text-sm text-gray-900">{setDetails.keywords || setDetails.keyword}</p>
             </div>
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">생성 정보</h3>
@@ -618,8 +633,8 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
                             <select
-                              value={question.answer}
-                              onChange={(e) => handleVocabQuestionChange(index, 'answer', e.target.value)}
+                              value={question.correctAnswer || question.answer}
+                              onChange={(e) => handleVocabQuestionChange(index, 'correctAnswer', e.target.value)}
                               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             >
                               {question.options.map((option, optIndex) => (
@@ -717,7 +732,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                       <div key={setKey} className="border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
                         <div className="flex justify-between items-center mb-6">
                           <h4 className="text-lg font-semibold text-gray-900">
-                            문제 세트 {setIndex + 1} ({questions[0].type})
+                            문제 세트 {setIndex + 1} ({questions[0].questionType || questions[0].type})
                           </h4>
                           <button
                             onClick={() => {
@@ -748,7 +763,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                                     </h5>
                                     <div className="flex items-center space-x-2 mt-1">
                                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                        {question.type}
+                                        {question.questionType || question.type}
                                       </span>
                                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                         isMainQuestion 
@@ -806,8 +821,8 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                                       <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
                                         <select
-                                          value={question.answer}
-                                          onChange={(e) => handleComprehensiveChange(globalIndex, 'answer', e.target.value)}
+                                          value={question.correctAnswer || question.answer}
+                                          onChange={(e) => handleComprehensiveChange(globalIndex, 'correctAnswer', e.target.value)}
                                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         >
                                           <option value="">정답을 선택하세요</option>
@@ -823,8 +838,8 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                                     <div>
                                       <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
                                       <textarea
-                                        value={question.answer}
-                                        onChange={(e) => handleComprehensiveChange(globalIndex, 'answer', e.target.value)}
+                                        value={question.correctAnswer || question.answer}
+                                        onChange={(e) => handleComprehensiveChange(globalIndex, 'correctAnswer', e.target.value)}
                                         rows={2}
                                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                       />
@@ -848,16 +863,17 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                                       onClick={() => {
                                         // 보완 문제 추가
                                         const newSupplementary: ComprehensiveQuestion = {
-                                          timestamp: new Date().toISOString(),
-                                          setId: setId,
+                                          id: '',
                                           questionId: `comp_supp_${Date.now()}`,
-                                          type: question.type,
+                                          questionType: question.questionType || question.type || '단답형',
                                           question: '보완 질문을 입력하세요.',
-                                          options: question.options ? [...question.options] : null,
-                                          answer: '',
+                                          questionFormat: question.questionFormat || 'short_answer',
+                                          options: question.options ? [...question.options] : undefined,
+                                          correctAnswer: '',
                                           explanation: '해설을 입력하세요.',
                                           isSupplementary: true,
-                                          originalQuestionId: question.questionId
+                                          originalQuestionId: question.questionId,
+                                          questionSetNumber: question.questionSetNumber || 1
                                         };
                                         setEditableComprehensive(prev => [...prev, newSupplementary]);
                                       }}

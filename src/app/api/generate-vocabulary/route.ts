@@ -49,8 +49,9 @@ export async function POST(request: NextRequest) {
           ? term.split(':').map(s => s.trim())
           : [term.trim(), ''];
 
-        // 프롬프트 생성
-        const prompt = generateVocabularyPrompt(
+        // 프롬프트 생성 (DB에서 조회, 실패 시 기본값 사용)
+        const { generateVocabularyPromptFromDB } = await import('@/lib/prompts');
+        const prompt = await generateVocabularyPromptFromDB(
           termName,
           termDescription,
           body.passage,

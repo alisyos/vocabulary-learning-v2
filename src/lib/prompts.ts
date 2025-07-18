@@ -701,3 +701,432 @@ ${comprehensiveOutputFormats[questionType as keyof typeof comprehensiveOutputFor
 - 정답과 해설은 지문에 명확히 근거해야 합니다.
 - 객관식 문제의 오답 선택지도 그럴듯하게 구성하십시오.`;
 }
+
+// ============================================================================
+// 프롬프트 관리 시스템을 위한 기본 데이터 추출 함수
+// ============================================================================
+
+export function getDefaultPrompts() {
+  const defaultPrompts = [];
+
+  // 1. 구분별 프롬프트 (Division)
+  Object.entries(divisionPrompts).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `division_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      category: 'passage' as const,
+      subCategory: 'division' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key}에 대한 학습 수준별 프롬프트`
+    });
+  });
+
+  // 2. 영역별 프롬프트 (Area)
+  Object.entries(areaPrompts).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `area_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      category: 'passage' as const,
+      subCategory: 'area' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key} 영역에 대한 지문 생성 가이드라인`
+    });
+  });
+
+  // 3. 출력 형식별 프롬프트 (Length/Output Format)
+  Object.entries(outputFormats).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `length_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      category: 'passage' as const,
+      subCategory: 'length' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key} 형식의 지문 출력 구조`
+    });
+  });
+
+  // 4. 지문 유형별 프롬프트 (Text Type)
+  Object.entries(textTypePrompts).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `textType_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      category: 'passage' as const,
+      subCategory: 'textType' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key} 유형의 지문 생성 가이드라인`
+    });
+  });
+
+  // 5. 문제 생성 - 학년별 프롬프트 (Question Grade)
+  Object.entries(questionGradePrompts).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `questionGrade_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      category: 'vocabulary' as const,
+      subCategory: 'questionGrade' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key}을 위한 문제 생성 가이드라인`
+    });
+  });
+
+  // 6. 문제 유형별 프롬프트 (Question Type)
+  Object.entries(questionTypePrompts).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `questionType_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      category: 'vocabulary' as const,
+      subCategory: 'questionType' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key} 문제 생성 가이드라인`
+    });
+  });
+
+  // 7. 문제 출력 형식별 프롬프트 (Question Output Format)
+  Object.entries(questionOutputFormats).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `questionOutput_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      category: 'vocabulary' as const,
+      subCategory: 'outputFormat' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key} 문제의 출력 형식`
+    });
+  });
+
+  // 8. 종합 문제 유형별 프롬프트 (Comprehensive Question Type)
+  Object.entries(comprehensiveQuestionPrompts).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `comprehensive_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      category: 'comprehensive' as const,
+      subCategory: 'comprehensiveType' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key} 유형의 종합 문제 생성 가이드라인`
+    });
+  });
+
+  // 9. 종합 문제 출력 형식별 프롬프트 (Comprehensive Output Format)
+  Object.entries(comprehensiveOutputFormats).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `comprehensiveOutput_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      category: 'comprehensive' as const,
+      subCategory: 'outputFormat' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key} 종합 문제의 출력 형식`
+    });
+  });
+
+  // 10. 어휘 문제 기본 프롬프트
+  const vocabularyBasePrompt = `###지시사항
+주어진 용어에 대한 어휘 문제를 1개 생성하십시오.
+- 용어의 의미, 사용법, 맥락을 정확히 이해했는지 평가하는 객관식 문제를 생성합니다.
+- 5지선다 형태로 출제하며, 오답 보기도 그럴듯하게 구성해야 합니다.
+- 지문의 맥락과 연결하여 문제를 구성하되, 용어 자체의 이해에 초점을 맞춥니다.`;
+
+  defaultPrompts.push({
+    promptId: 'vocabulary_base',
+    category: 'vocabulary' as const,
+    subCategory: 'vocabularyBase' as const,
+    name: '어휘 문제 기본 프롬프트',
+    key: 'vocabularyBase',
+    promptText: vocabularyBasePrompt,
+    description: '어휘 문제 생성을 위한 기본 프롬프트'
+  });
+
+  return defaultPrompts;
+}
+
+// ============================================================================
+// DB에서 프롬프트를 조회하는 새로운 함수들
+// ============================================================================
+
+// DB에서 프롬프트를 조회하여 기존 방식으로 사용할 수 있도록 하는 함수
+export async function getPromptFromDB(category: string, subCategory: string, key: string): Promise<string> {
+  try {
+    const { getPromptByKey } = await import('./google-sheets');
+    const prompt = await getPromptByKey(category, subCategory, key);
+    
+    if (prompt && prompt.promptText) {
+      return prompt.promptText;
+    }
+    
+    // DB에서 찾지 못하면 기본값 사용
+    console.warn(`프롬프트를 DB에서 찾지 못함: ${category}/${subCategory}/${key}, 기본값 사용`);
+    return getDefaultPromptByKey(category, subCategory, key);
+  } catch (error) {
+    console.error('DB 프롬프트 조회 실패, 기본값 사용:', error);
+    return getDefaultPromptByKey(category, subCategory, key);
+  }
+}
+
+// 기본값에서 프롬프트를 찾는 헬퍼 함수
+function getDefaultPromptByKey(category: string, subCategory: string, key: string): string {
+  // 기존 하드코딩된 객체들에서 찾기
+  switch (subCategory) {
+    case 'division':
+      return divisionPrompts[key as keyof typeof divisionPrompts] || '';
+    case 'area':
+      return areaPrompts[key as keyof typeof areaPrompts] || '';
+    case 'length':
+      return outputFormats[key as keyof typeof outputFormats] || '';
+    case 'textType':
+      return textTypePrompts[key as keyof typeof textTypePrompts] || '';
+    case 'questionGrade':
+      return questionGradePrompts[key as keyof typeof questionGradePrompts] || '';
+    case 'questionType':
+      return questionTypePrompts[key as keyof typeof questionTypePrompts] || '';
+    case 'outputFormat':
+      if (category === 'vocabulary') {
+        return questionOutputFormats[key as keyof typeof questionOutputFormats] || '';
+      } else if (category === 'comprehensive') {
+        return comprehensiveOutputFormats[key as keyof typeof comprehensiveOutputFormats] || '';
+      }
+      return '';
+    case 'comprehensiveType':
+      return comprehensiveQuestionPrompts[key as keyof typeof comprehensiveQuestionPrompts] || '';
+    default:
+      return '';
+  }
+}
+
+// 새로운 동적 프롬프트 생성 함수들 (DB 조회 사용)
+export async function generatePassagePromptFromDB(
+  division: DivisionType,
+  length: PassageLengthType,
+  subject: SubjectType,
+  grade: GradeType,
+  area: AreaType,
+  maintopic: string,
+  subtopic: string,
+  keyword: string,
+  textType?: TextType
+): Promise<string> {
+  try {
+    // DB에서 각 프롬프트 조회
+    const divisionPrompt = await getPromptFromDB('passage', 'division', division);
+    const lengthPrompt = await getPromptFromDB('passage', 'length', length);
+    const areaPrompt = await getPromptFromDB('passage', 'area', area);
+    
+    let prompt = `###지시사항
+다음 입력값을 받아 학습 지문(passage)을 생성하십시오. 출력은 하나의 영역으로 구분합니다.
+- passage: 입력 조건을 반영해 생성한 지문
+
+모든 지문은 질문형·호기심 유발형 제목을 사용하고, 실생활 예시를 활용해 추상 개념을 설명해야 하며, 임의(random) 로직은 사용하지 않습니다.
+
+###작성절차
+1. 키워드 도출
+- 구분·과목·학년·영역·지문 길이를 파싱하여 ① 핵심 개념(기초→심화), ② 생활 연계 예시, ③ 학년별 어휘 수준을 도출합니다.
+2. 지문(passages) 생성
+- 도출한 가이드를 조합해 제목 1개와 본문을 작성합니다.
+- 본문은 입력된 지문 길이 옵션(단락 수·문장 수) 규칙을 정확히 준수합니다.
+- **용어 설명 필수 요구사항**: 지문에 등장하는 모든 학습 관련 용어들을 footnote에 포함시켜야 합니다. 최소 20개 이상의 용어를 추출하여 설명하세요.
+  * 핵심 개념어와 관련 용어들
+  * 지문에 직접 언급된 전문 용어들
+  * 학년 수준에 맞는 중요한 어휘들
+  * 관련 배경 지식이 필요한 용어들
+  * 생활 속에서 사용되는 관련 용어들도 포함
+- **용어 설명 형식**: 각 용어에 대해 "용어: 설명 (예시: 예시문장)" 형태로 작성하세요.
+  * 설명: 학년 수준에 맞는 간단하고 명확한 설명
+  * 예시문장: 해당 용어가 실제로 사용되는 자연스러운 문장
+3. 흥미 요소 적용
+- 도입부에 실생활 상황·질문을 배치하여 독자의 호기심을 자극합니다.
+- 단순 설명문뿐 아니라 비교·예측·원인결과 등 다양한 서술 방식을 활용합니다.
+4. 출력 생성
+- 아래 [공통 출력 스키마] 형식을 준수한 JSON만 출력하십시오.
+- 지정된 키가 없거나 데이터를 찾을 수 없으면 **"-"**로 표기합니다.
+- **footnote는 반드시 20개 이상의 용어 설명을 포함해야 하며, 각 용어는 설명과 예시문장을 모두 포함해야 합니다.**
+
+###구분
+${divisionPrompt}
+
+###지문 길이
+${length}
+
+###과목
+${subject}
+
+###학년
+${grade}
+
+###영역
+${areaPrompt}
+
+###대주제
+${maintopic}
+위 대주제를 중심으로 ${area} 영역의 학습 내용과 연결하여 지문을 구성하세요.
+
+###소주제
+${subtopic}
+이 소주제를 구체적으로 다루며, 대주제와의 연관성을 명확히 하여 지문을 작성하세요.
+
+###핵심 개념어
+${keyword}
+이 핵심 개념어들을 지문에 자연스럽게 포함시키고, 학년 수준에 맞게 설명하세요. footnote에는 이 용어들을 포함하여 최소 20개 이상의 관련 용어 해설을 추가하세요.`;
+
+    // 선택적 유형 추가
+    if (textType) {
+      const textTypePrompt = await getPromptFromDB('passage', 'textType', textType);
+      if (textTypePrompt) {
+        prompt += `
+
+###글의 유형
+${textTypePrompt}`;
+      }
+    }
+
+    prompt += `
+
+###출력형식(JSON)
+${lengthPrompt}`;
+
+    return prompt;
+  } catch (error) {
+    console.error('DB 프롬프트 생성 실패, 기본 함수 사용:', error);
+    // 실패 시 기존 함수 사용
+    return generatePassagePrompt(division, length, subject, grade, area, maintopic, subtopic, keyword, textType);
+  }
+}
+
+export async function generateQuestionPromptFromDB(
+  division: DivisionType,
+  passage: string,
+  questionType: QuestionType
+): Promise<string> {
+  try {
+    const divisionPrompt = await getPromptFromDB('vocabulary', 'questionGrade', division);
+    const questionTypePrompt = await getPromptFromDB('vocabulary', 'questionType', questionType);
+    const outputFormatPrompt = await getPromptFromDB('vocabulary', 'outputFormat', questionType);
+
+    return `###지시사항
+다음 입력값을 기반으로, 해당 지문 내용을 반영한 **문제 3개**를 생성하십시오.
+- 일반 문제 1개와 보완 문제 2개를 생성합니다.
+- 일반 문제는 학생이 처음 접하는 문제이며, 보완 문제는 오답 시 학습 강화를 위해 생성하는 구조입니다.
+- 구분에 맞는 어휘 수준과 사고 수준을 반영해 난이도를 조절해야 합니다.
+- 문제는 반드시 지문 내용 또는 개념을 기반으로 출제되어야 하며, 임의(random) 구성은 금지됩니다.
+
+###지문
+${passage}
+
+###구분
+${divisionPrompt}
+
+###문제유형
+${questionTypePrompt}
+
+###출력형식(JSON)
+${outputFormatPrompt}`;
+  } catch (error) {
+    console.error('DB 문제 프롬프트 생성 실패, 기본 함수 사용:', error);
+    return generateQuestionPrompt(division, passage, questionType);
+  }
+}
+
+export async function generateVocabularyPromptFromDB(
+  termName: string,
+  termDescription: string,
+  passage: string,
+  division: string
+): Promise<string> {
+  try {
+    const basePrompt = await getPromptFromDB('vocabulary', 'vocabularyBase', 'vocabularyBase');
+    const divisionPrompt = await getPromptFromDB('vocabulary', 'questionGrade', division);
+
+    return `${basePrompt}
+
+###대상 용어
+**용어명**: ${termName}
+**용어 설명**: ${termDescription || '지문에서 추출된 용어'}
+
+###지문 맥락
+${passage}
+
+###구분 (난이도 조절)
+${divisionPrompt}
+
+###출력형식(JSON)
+다음 JSON 형식으로만 출력하십시오:
+{
+  "question": "용어의 의미나 사용법을 묻는 질문",
+  "options": [
+    "정답 선택지",
+    "오답 선택지 1", 
+    "오답 선택지 2",
+    "오답 선택지 3",
+    "오답 선택지 4"
+  ],
+  "answer": "정답 선택지",
+  "explanation": "정답인 이유와 오답인 이유를 포함한 해설"
+}
+
+###문제 생성 가이드라인
+1. **질문 유형**:
+   - 용어의 정의를 직접 묻는 문제
+   - 용어가 사용된 맥락에서의 의미를 묻는 문제
+   - 용어와 관련된 개념이나 예시를 묻는 문제
+   - 용어를 다른 상황에 적용하는 문제
+
+2. **선택지 구성**:
+   - 정답: 용어의 정확한 의미 또는 올바른 사용법
+   - 오답 1: 비슷하지만 미묘하게 다른 의미
+   - 오답 2: 관련 있지만 틀린 개념
+   - 오답 3: 일반적인 오해나 혼동 가능한 내용
+   - 오답 4: 명백히 틀렸지만 그럴듯한 내용
+
+3. **해설 작성**:
+   - 정답인 이유를 명확히 설명
+   - 주요 오답들이 왜 틀렸는지 간단히 설명
+   - 용어의 핵심 개념을 강화하는 내용 포함`;
+  } catch (error) {
+    console.error('DB 어휘 프롬프트 생성 실패, 기본 함수 사용:', error);
+    return generateVocabularyPrompt(termName, termDescription, passage, division);
+  }
+}
+
+export async function generateComprehensivePromptFromDB(
+  questionType: string,
+  passage: string,
+  division: string
+): Promise<string> {
+  try {
+    const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', questionType);
+    const outputPrompt = await getPromptFromDB('comprehensive', 'outputFormat', questionType);
+    const divisionPrompt = await getPromptFromDB('vocabulary', 'questionGrade', division);
+
+    return `###지시사항
+주어진 지문을 바탕으로 **${questionType}** 유형의 문제 3개를 생성하십시오.
+- 지문의 전체적인 이해와 핵심 내용 파악을 평가하는 문제를 생성합니다.
+- 각 문제는 서로 다른 관점이나 내용을 다뤄야 합니다.
+- 지문에 직접 언급된 내용이나 논리적으로 추론 가능한 내용만을 바탕으로 출제합니다.
+
+###지문
+${passage}
+
+###구분 (난이도 조절)  
+${divisionPrompt}
+
+###문제 유형 가이드라인
+${typePrompt}
+
+###출력형식(JSON)
+${outputPrompt}
+
+###주의사항
+- 반드시 위의 JSON 형식을 정확히 준수하십시오.
+- 각 문제는 서로 다른 내용이나 관점을 다뤄야 합니다.
+- 정답과 해설은 지문에 명확히 근거해야 합니다.
+- 객관식 문제의 오답 선택지도 그럴듯하게 구성하십시오.`;
+  } catch (error) {
+    console.error('DB 종합 프롬프트 생성 실패, 기본 함수 사용:', error);
+    return generateComprehensivePrompt(questionType, passage, division);
+  }
+}
