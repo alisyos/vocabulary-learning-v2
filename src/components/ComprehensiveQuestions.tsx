@@ -26,7 +26,7 @@ export default function ComprehensiveQuestions({
   const [selectedQuestionType, setSelectedQuestionType] = useState<ComprehensiveQuestionType>('Random');
   const [generatingComp, setGeneratingComp] = useState(false);
   const [includeSupplementary, setIncludeSupplementary] = useState(true);
-  const [questionCount, setQuestionCount] = useState<number>(12);
+  const [questionCount, setQuestionCount] = useState<number>(8);
 
   const questionTypeOptions: ComprehensiveQuestionType[] = [
     'Random',
@@ -295,7 +295,16 @@ export default function ComprehensiveQuestions({
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">6단계: 종합 문제 검토 및 수정</h2>
+        <div className="flex items-center space-x-4">
+          <h2 className="text-xl font-bold text-gray-800">6단계: 종합 문제 검토 및 수정</h2>
+          <button
+            onClick={onNext}
+            disabled={loading || localQuestions.length === 0}
+            className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+          >
+            {loading ? '처리 중...' : '7단계: 최종 저장하기'}
+          </button>
+        </div>
         <span className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
           검토 및 수정
         </span>
@@ -589,7 +598,7 @@ export default function ComprehensiveQuestions({
       </div>
 
       {/* 다음 단계 버튼 */}
-      <div className="flex justify-end pt-4 border-t">
+      <div className="flex justify-center pt-4 border-t">
         <button
           onClick={onNext}
           disabled={loading || localQuestions.length === 0}

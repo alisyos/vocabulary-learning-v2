@@ -49,7 +49,15 @@ export default function FinalSave({
   const [testingConnection, setTestingConnection] = useState(false);
   // v2만 지원하므로 saveVersion 상태 제거
   const [migrating, setMigrating] = useState(false);
-  const [migrationResult, setMigrationResult] = useState<any>(null);
+  const [migrationResult, setMigrationResult] = useState<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    details?: string;
+    createdSheets?: string[];
+    existingSheets?: string[];
+    spreadsheetUrl?: string;
+  } | null>(null);
   const [connectionTest, setConnectionTest] = useState<{
     success: boolean;
     message?: string;
@@ -264,13 +272,11 @@ export default function FinalSave({
               </div>
               <h2 className="text-2xl font-bold text-gray-800 mb-2">저장 완료!</h2>
               <p className="text-gray-600 mb-2">{saveResult.message}</p>
-              {saveResult.savedData?.newStructure && (
-                <div className="mb-4">
-                  <span className="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                    ✨ v2 정규화된 구조로 저장됨
-                  </span>
-                </div>
-              )}
+              <div className="mb-4">
+                <span className="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                  ✨ v2 정규화된 구조로 저장됨
+                </span>
+              </div>
               
               {saveResult.savedData && (
                 <div className="bg-gray-50 p-4 rounded-lg mb-6 text-left">
@@ -282,9 +288,9 @@ export default function FinalSave({
                       <p><strong>지문 제목:</strong> {saveResult.savedData.passageTitle || 'N/A'}</p>
                     </div>
                     <div>
-                      <p><strong>어휘 문제:</strong> {saveResult.savedData.vocabularyCount || saveResult.savedData.vocabularyQuestionCount || 0}개</p>
-                      <p><strong>종합 문제:</strong> {saveResult.savedData.comprehensiveCount || saveResult.savedData.comprehensiveQuestionCount || 0}개</p>
-                      <p><strong>총 문제 수:</strong> {(saveResult.savedData.vocabularyCount || saveResult.savedData.vocabularyQuestionCount || 0) + (saveResult.savedData.comprehensiveCount || saveResult.savedData.comprehensiveQuestionCount || 0)}개</p>
+                      <p><strong>어휘 문제:</strong> {saveResult.savedData.vocabularyCount || 0}개</p>
+                      <p><strong>종합 문제:</strong> {saveResult.savedData.comprehensiveCount || 0}개</p>
+                      <p><strong>총 문제 수:</strong> {(saveResult.savedData.vocabularyCount || 0) + (saveResult.savedData.comprehensiveCount || 0)}개</p>
                     </div>
                   </div>
                   
@@ -346,7 +352,16 @@ export default function FinalSave({
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">7단계: 최종 저장</h2>
+        <div className="flex items-center space-x-4">
+          <h2 className="text-xl font-bold text-gray-800">7단계: 최종 저장</h2>
+          <button
+            onClick={handleFinalSave}
+            disabled={saving || (connectionTest !== null && !connectionTest.success)}
+            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+          >
+            {saving ? '저장 중...' : '저장하기'}
+          </button>
+        </div>
         <span className="text-sm text-red-600 bg-red-50 px-3 py-1 rounded-full">
           최종 저장
         </span>
@@ -577,26 +592,7 @@ export default function FinalSave({
         </div>
       )}
 
-      {/* 저장 방식 안내 */}
-      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h4 className="font-medium text-blue-800 mb-3">저장 방식</h4>
-        <div className="flex items-start gap-3">
-          <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center mt-1">
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <div className="font-medium text-blue-800">정규화된 구조 (v2)</div>
-            <div className="text-sm text-blue-700">
-              향후 DB 연동에 최적화된 구조로 저장됩니다. 더 빠른 조회와 확장성을 제공합니다.
-            </div>
-            <div className="text-xs text-blue-600 mt-1">
-              ✅ 지문, 어휘, 문제가 별도 테이블로 분리 저장
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       {/* 저장 및 다운로드 버튼 */}
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -605,7 +601,7 @@ export default function FinalSave({
           disabled={migrating}
           className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
         >
-          {migrating ? 'v2 시트 생성 중...' : 'v2 시트 생성하기'}
+          {migrating ? 'Data 시트 동기화 중...' : 'Data 시트 동기화'}
         </button>
         
         <button
@@ -613,7 +609,7 @@ export default function FinalSave({
           disabled={testingConnection}
           className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
         >
-          {testingConnection ? '연결 테스트 중...' : 'Google Sheets 연결 테스트'}
+          {testingConnection ? '연결 테스트 중...' : '연결 테스트'}
         </button>
         
         <button
@@ -621,14 +617,14 @@ export default function FinalSave({
           disabled={saving || (connectionTest !== null && !connectionTest.success)}
           className="bg-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-lg"
         >
-          {saving ? '저장 중...' : 'Google Sheets에 정규화된 구조로 최종 저장하기'}
+          {saving ? '저장 중...' : '저장하기'}
         </button>
         
         <button
           onClick={handleLocalDownload}
           className="bg-gray-600 text-white px-6 py-3 rounded-md hover:bg-gray-700 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors font-medium"
         >
-          로컬 파일로 다운로드
+          로컬파일 다운로드
         </button>
       </div>
 
@@ -637,9 +633,9 @@ export default function FinalSave({
         <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700">
           <p className="font-medium">✨ 정규화된 구조 사용 가이드</p>
           <p className="text-xs mt-1">
-            1. 첫 사용 시: 'v2 시트 생성하기' 버튼으로 새로운 6개 시트 생성<br/>
+            1. 첫 사용 시: &apos;Data 시트 동기화&apos; 버튼으로 새로운 6개 시트 생성<br/>
             2. 연결 테스트로 Google Sheets 상태 확인<br/>
-            3. '정규화된 구조로 최종 저장하기' 클릭
+            3. &apos;저장하기&apos; 클릭
           </p>
         </div>
       </div>

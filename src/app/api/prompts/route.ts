@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSystemPrompts } from '@/lib/google-sheets';
-import { SystemPrompt, PromptGroup, PromptsResponse } from '@/types';
+import { SystemPrompt, PromptGroup, PromptsResponse, PromptCategory, PromptSubCategory } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -70,13 +70,13 @@ export async function GET(request: NextRequest) {
 
       // 서브카테고리 배열로 변환
       const subCategoryArray = Object.entries(subCategories).map(([subCat, subPrompts]) => ({
-        subCategory: subCat,
+        subCategory: subCat as PromptSubCategory,
         subCategoryName: subCategoryNames[subCat] || subCat,
         prompts: subPrompts.sort((a, b) => a.name.localeCompare(b.name))
       }));
 
       groups.push({
-        category: cat.category as any,
+        category: cat.category as PromptCategory,
         categoryName: cat.categoryName,
         subCategories: subCategoryArray
       });

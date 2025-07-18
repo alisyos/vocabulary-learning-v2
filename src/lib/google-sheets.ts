@@ -347,7 +347,7 @@ export async function saveAIGenerationLogV2(logData: {
   contentSetId: string;
   generationType: 'passage' | 'vocabulary' | 'comprehensive';
   promptUsed: string;
-  aiResponse: any;
+  aiResponse: Record<string, unknown>;
   generationTimeMs?: number;
   tokensUsed?: number;
   costUsd?: number;

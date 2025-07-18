@@ -245,7 +245,7 @@ export interface AIGenerationLog {
   contentSetId: string;
   generationType: 'passage' | 'vocabulary' | 'comprehensive';
   promptUsed: string;
-  aiResponse: any; // JSON 형태
+  aiResponse: Record<string, unknown>; // JSON 형태
   generationTimeMs?: number;
   tokensUsed?: number;
   costUsd?: number;
