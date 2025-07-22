@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateSystemPrompt } from '@/lib/supabase';
+import { db } from '@/lib/supabase';
 import { PromptUpdateRequest, PromptUpdateResponse } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 프롬프트 업데이트
-    const result = await updateSystemPrompt(
+    const result = await db.updateSystemPrompt(
       body.promptId, 
       body.promptText, 
       body.changeReason

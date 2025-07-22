@@ -5,10 +5,12 @@ import { SystemPrompt, PromptGroup, PromptsResponse, PromptCategory, PromptSubCa
 export async function GET(request: NextRequest) {
   try {
     let prompts = await db.getSystemPrompts();
+    let isFromDatabase = true;
     
     // 데이터베이스가 비어있거나 초기화되지 않은 경우, 기본 프롬프트를 사용
     if (prompts.length === 0) {
       console.log('데이터베이스가 비어있음. 기본 프롬프트를 사용합니다.');
+      isFromDatabase = false;
       const { getDefaultPrompts } = await import('@/lib/prompts');
       const defaultPrompts = getDefaultPrompts();
       
@@ -87,7 +89,8 @@ export async function GET(request: NextRequest) {
       success: true,
       data: groups,
       version: '1.0',
-      message: '프롬프트 데이터를 성공적으로 조회했습니다.'
+      message: isFromDatabase ? '프롬프트 데이터를 성공적으로 조회했습니다.' : '기본 프롬프트를 사용합니다.',
+      isFromDatabase: isFromDatabase
     };
 
     return NextResponse.json(response);

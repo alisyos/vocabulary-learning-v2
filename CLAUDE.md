@@ -1,15 +1,19 @@
-# 학습 지문 및 문제 생성 시스템 개발 가이드
+# 🎓 학습 지문 및 문제 생성 시스템 개발 가이드
 
-## 프로젝트 개요
-AI 기반 과목별 독해 지문 및 문제 생성 웹 애플리케이션 개발
+## 📋 프로젝트 개요
+AI 기반 과목별 독해 지문 및 문제 생성 웹 애플리케이션
+- **현재 상태**: 프로덕션 배포 준비 완료 ✅
+- **개발 단계**: MVP 완성 + 운영 단계
+- **핵심 기능**: 7단계 콘텐츠 생성 워크플로우
 
-### 기술 스택
-- **Frontend**: Next.js 15.4.1, React 19.1.0, TypeScript 5, Tailwind CSS 4
-- **Backend**: Next.js API Routes
-- **AI**: OpenAI GPT-4 API (OpenAI 5.9.2)
-- **DB**: Supabase (PostgreSQL) - 메인 데이터베이스 ✅ **전환 완료**
-- **Authentication**: React Context 기반 세션 관리
-- **배포**: Vercel
+### 🛠️ 기술 스택
+- **Frontend**: Next.js 15.4.1 (App Router), React 19.1.0, TypeScript 5, Tailwind CSS 4
+- **Backend**: Next.js API Routes (서버리스 함수)
+- **AI Engine**: OpenAI GPT-4 API (OpenAI SDK 5.9.2)
+- **Database**: Supabase PostgreSQL ✅ **완전 전환 완료**
+- **Authentication**: React Context + HTTP-Only 쿠키 세션 관리
+- **Deployment**: Vercel (프로덕션 배포 준비 완료)
+- **Node.js**: 18.0.0+ (Turbopack 개발 서버)
 
 ## 🗄️ 데이터베이스 구조
 
@@ -29,84 +33,144 @@ AI 기반 과목별 독해 지문 및 문제 생성 웹 애플리케이션 개�
 
 ## 주요 기능 요구사항
 
-### C-01. AI 기반 지문 생성
-- **대상**: 초등 중학년(3-4학년), 고학년(5-6학년), 중학생(1-3학년)
-- **과목**: 사회, 과학 (2개 과목)
-- **영역**: 
-  - 사회: 일반사회, 지리, 역사, 경제 (4개)
-  - 과학: 물리, 화학, 생물, 지구과학 (4개)
+### C-01. AI 기반 지문 생성 ✅ **완료**
+- **학년별 대상**: 
+  - 초등 중학년(3-4학년): 4-5문장/단락, 5-6개 단락
+  - 초등 고학년(5-6학년): 5-6문장/단락, 6개 단락 또는 1-2문장/10단락
+  - 중학생(1-3학년): ~10문장/5문단 또는 1-2문장/12단락
+- **과목 및 영역**: 
+  - 사회(4개): 일반사회, 지리, 역사, 경제
+  - 과학(4개): 물리, 화학, 생물, 지구과학
+- **🆕 지문 유형**: 설명문, 논설문, 탐구문, 뉴스 기사, 인터뷰, 동화, 시, 대본, 소설
+- **🆕 지문 길이**: 5가지 옵션 (매우 짧음 ~ 매우 김)
 
-#### 지문 구성 규칙
-- 중학년(3-4학년): 4-5문장/단락, 5-6개 단락
-- 고학년(5-6학년): 5-6문장/단락, 6개 단락 또는 1-2문장/10단락
-- 중학생(1-3학년): ~10문장/5문단 또는 1-2문장/12단락
+### C-02. 문제 및 해설 생성 ✅ **완료**
+- **어휘 문제**: 5지선다, 개념어 기반 (지문당 8-10개)
+- **종합 문제**: 4가지 유형별 1개씩 (총 4개)
+  - 단답형 문제
+  - 문단별 순서 맞추기
+  - 핵심 내용 요약
+  - 핵심어/핵심문장 찾기
+- **보완 문제**: 각 종합 문제당 2개씩 (총 8개)
+- **해설 포함**: 모든 문제에 상세 해설 제공
 
-### C-02. 문제 및 해설 생성
-- **문제 유형**: 객관식, 주관식 단답형
-- **구성**: 일반 문제 1개 + 보완 문제 2개 (총 3개 세트)
-- **해설 포함**: 오답 시 학생에게 제공
-
-### C-03. 시각자료 콘텐츠
+### C-03. 시각자료 콘텐츠 ⏸️ **향후 계획**
 - **출처**: 공공데이터, AI 이미지 생성, 이미지 제공 사이트
 - **제공 기준**: 개념 이해에 필수적인 경우만 (지문당 1건 내외)
+- **현재 상태**: 텍스트 기반 콘텐츠에 집중, 이미지 기능은 향후 추가 예정
+
+## 🌟 핵심 기능 하이라이트
+
+### 🔄 7단계 콘텐츠 생성 워크플로우
+1. **지문 생성** → 교육과정 기반 계층적 선택
+2. **지문 검토** → 실시간 편집 및 수정
+3. **어휘 문제 생성** → 개념어 자동 추출 및 문제 생성
+4. **어휘 문제 검토** → 문제별 개별 편집
+5. **종합 문제 생성** → 4가지 유형 자동 생성
+6. **종합 문제 검토** → 세트별 문제 관리
+7. **최종 저장** → Supabase 트랜잭션 저장
+
+### 📊 콘텐츠 관리 시스템
+- **관리 대시보드**: 필터링, 검색, 상태별 조회
+- **실시간 편집**: 모든 단계에서 즉시 수정 가능
+- **상태 관리**: 검수 전 → 검수 완료 워크플로우
+- **프롬프트 관리**: DB 기반 동적 프롬프트 수정
+
+### 🔐 사용자 인증 시스템
+- **계정 관리**: 8개 하드코딩 계정 (교사용)
+- **세션 관리**: HTTP-Only 쿠키 (7일 만료)
+- **보안**: XSS 방지, 안전한 세션 저장
 
 ## 데이터 구조
 
-### 지문 생성 입력값
+### 📝 지문 생성 입력값 (업데이트됨)
 ```typescript
 interface PassageInput {
+  // 교육과정 정보
   grade: '초등학교 중학년(3-4학년)' | '초등학교 고학년(5-6학년)' | '중학생(1-3학년)';
-  length: string; // 지문 길이 옵션
   subject: '사회' | '과학';
-  area: string; // 영역별 선택지
+  area: string; // 세부 영역 (8개 영역)
+  
+  // 콘텐츠 메타데이터
+  main_topic: string; // 대주제
+  sub_topic: string; // 소주제
+  keywords: string; // 핵심 개념어 (쉼표 분리)
+  
+  // 🆕 지문 구성 옵션
+  passage_length: '매우 짧음' | '짧음' | '보통' | '김' | '매우 김';
+  text_type: '설명문' | '논설문' | '탐구문' | '뉴스 기사' | '인터뷰' | '동화' | '시' | '대본' | '소설';
 }
 ```
 
-### 지문 출력 스키마
+### 📄 지문 출력 스키마 (업데이트됨)
 ```typescript
-interface Passage {
-  passages: {
-    title: string; // 질문형·호기심 유발형 제목
-    paragraphs: string[]; // 단락 배열
-    footnote: string[]; // 개념어 풀이
-  }[];
+interface PassageOutput {
+  title: string; // 질문형·호기심 유발 제목
+  paragraphs: string[]; // 문단 배열 (최대 10개)
+  vocabulary_terms: {
+    term: string;
+    definition: string;
+    example_sentence?: string;
+  }[]; // 🆕 개념어 및 정의
 }
 ```
 
-### 문제 생성 출력 스키마
+### 🧠 문제 생성 출력 스키마 (업데이트됨)
 ```typescript
-interface Question {
-  questionType: '객관식' | '주관식';
-  questions: {
-    type: '일반' | '보완';
-    question: string;
-    options?: string[]; // 객관식만
-    answer: string;
-    explanation: string;
-  }[];
+// 어휘 문제
+interface VocabularyQuestion {
+  term: string; // 문제 대상 용어
+  question: string; // 문제 텍스트
+  options: [string, string, string, string, string]; // 5지선다
+  correct_answer: string; // 정답 (1~5)
+  explanation: string; // 해설
+}
+
+// 종합 문제
+interface ComprehensiveQuestion {
+  question_type: '단답형' | '순서맞추기' | '요약하기' | '핵심어찾기';
+  question_format: 'multiple_choice' | 'short_answer';
+  question: string;
+  options?: string[]; // 객관식만
+  correct_answer: string;
+  explanation: string;
+  is_supplementary: boolean; // 보완 문제 여부
+  question_set_number: number; // 세트 번호
 }
 ```
 
 ### Supabase 테이블 구조 타입 정의
 
 ```typescript
-// 콘텐츠 세트 (content_sets 테이블)
+// 📊 콘텐츠 세트 (content_sets 테이블) - 메인 테이블
 export interface ContentSet {
-  id: string;
-  user_id?: string;
-  division: string;
-  subject: string;
-  grade: string;
-  area: string;
-  main_topic: string;
-  sub_topic: string;
-  keywords: string;
-  title: string;
-  total_passages: number;
-  total_vocabulary_terms: number;
-  total_vocabulary_questions: number;
-  total_comprehensive_questions: number;
-  status: string;
+  id: string; // UUID 기본 키
+  user_id?: string; // 생성자 ID
+  
+  // 교육과정 분류
+  division: string; // 초등학교/중학교
+  grade: string; // 실제 학년 (3-4학년, 5-6학년, 1-3학년)
+  subject: string; // 사회/과학
+  area: string; // 세부 영역 (8개)
+  
+  // 콘텐츠 정보
+  main_topic: string; // 대주제
+  sub_topic: string; // 소주제
+  keywords: string; // 핵심 개념어 (쉼표 분리)
+  title: string; // 지문 제목
+  
+  // 🆕 메타데이터 (새로 추가된 필드)
+  passage_length?: string; // 지문 길이 (매우 짧음~매우 김)
+  text_type?: string; // 지문 유형 (설명문, 논설문 등)
+  
+  // 통계 정보
+  total_passages: number; // 지문 수 (보통 1개)
+  total_vocabulary_terms: number; // 어휘 용어 수
+  total_vocabulary_questions: number; // 어휘 문제 수
+  total_comprehensive_questions: number; // 종합 문제 수
+  
+  // 시스템 필드
+  status: string; // '검수 전' | '검수완료'
   created_at: string;
   updated_at: string;
 }
@@ -347,33 +411,54 @@ export const db = {
 3. **관련 데이터** 통합 조회 (지문, 어휘, 문제)
 4. **실시간 동기화** Supabase 실시간 기능 활용
 
-## 📋 현재 구현 상태
+## 📊 현재 구현 상태 (2025년 1월 기준)
 
-### ✅ 완료된 기능
-1. **7단계 워크플로우**: 지문 생성부터 최종 저장까지 완전 구현
-2. **Supabase PostgreSQL 전환**: Google Sheets에서 완전 전환 완료
-3. **콘텐츠 관리 시스템**: 관리 대시보드 및 상세 편집 기능
-4. **프롬프트 관리 시스템**: DB 기반 프롬프트 관리 완전 구현
-5. **사용자 인증 시스템**: 로그인/로그아웃 및 세션 관리
-6. **콘텐츠 상태 관리**: 검수 전/검수완료 상태 관리
-7. **반응형 UI**: 모바일 및 데스크톱 최적화
+### ✅ 완료된 핵심 기능
+1. **🔄 7단계 콘텐츠 생성 워크플로우** - 완전 구현
+   - 지문 생성 → 검토 → 어휘 문제 → 검토 → 종합 문제 → 검토 → 저장
+2. **🗄️ Supabase PostgreSQL 완전 전환** - 관계형 DB로 성능 향상
+3. **📱 반응형 UI/UX** - 모바일/데스크톱 최적화 완료
+4. **🔐 사용자 인증 시스템** - HTTP-Only 쿠키 기반 보안 세션
+5. **📝 프롬프트 관리 시스템** - DB 기반 동적 프롬프트 수정
+6. **📊 콘텐츠 관리 대시보드** - 필터링, 검색, 상태 관리
+7. **🎯 교육과정 기반 생성** - 학년/과목/영역별 맞춤형 콘텐츠
+8. **🆕 지문 유형/길이 다양화** - 9가지 유형, 5단계 길이 옵션
 
-### 🔄 주요 컴포넌트
-- **PassageForm**: 지문 생성 폼 (계층적 선택 및 지문 유형 선택)
-- **PassageReview**: 지문 검토 및 실시간 편집
-- **VocabularyQuestions**: 어휘 문제 생성 및 편집
-- **ComprehensiveQuestions**: 종합 문제 생성 및 세트 관리
-- **FinalSave**: 최종 저장 및 백업
-- **AuthGuard**: 인증 보호 컴포넌트
-- **Header**: 사용자 정보 및 네비게이션
+### 🛠️ 주요 컴포넌트 및 페이지
+- **🏠 MainPage**: 7단계 워크플로우 메인 페이지
+- **📝 PassageForm**: 교육과정 기반 계층적 선택 폼
+- **✏️ PassageReview**: 지문 실시간 편집 인터페이스
+- **📚 VocabularyQuestions**: 어휘 문제 생성/편집 시스템
+- **🧠 ComprehensiveQuestions**: 4유형 종합 문제 관리
+- **💾 FinalSave**: Supabase 트랜잭션 저장
+- **📋 ManagePage**: 콘텐츠 관리 대시보드
+- **🎛️ PromptsPage**: 프롬프트 관리 인터페이스
+- **🔒 AuthGuard**: 인증 보호 및 Header 컴포넌트
 
-### 🔧 다음 개선 사항
-1. **사용자 관리 고도화**: 역할별 권한 관리
-2. **성능 최적화**: 대용량 데이터 처리 개선
-3. **분석 및 통계**: 사용자 활동 분석 기능
-4. **API 최적화**: 캐싱 및 속도 개선
-5. **테스트 코드**: 단위 테스트 및 통합 테스트
-6. **고급 검색**: 전문 검색 및 AI 기반 추천 시스템
+### 🌐 API 엔드포인트 현황 (18개)
+```
+📝 콘텐츠 생성: /api/generate-{passage|vocabulary|comprehensive}
+💾 데이터 관리: /api/{save-final|get-curriculum-data|update-status|delete-set}-supabase
+🎛️ 시스템 관리: /api/{prompts|curriculum-admin}/*
+🔐 인증: /api/auth/{login|logout|session}
+🛠️ 유틸리티: /api/{setup-supabase-schema|migrate-*|test-*}
+```
+
+### 📈 기술적 성취
+- **타입 안전성**: 100% TypeScript 적용
+- **성능 최적화**: 구조화된 데이터 활용으로 JSON 파싱 최소화
+- **확장성**: 관계형 DB 설계로 수평/수직 확장 준비
+- **보안**: XSS 방지, 안전한 환경변수 관리
+- **배포 준비**: Vercel 프로덕션 배포 완료
+
+### 🔮 향후 개선 계획 (우선순위순)
+1. **🖼️ 이미지/시각자료 지원** - AI 이미지 생성 통합
+2. **👥 사용자 역할 관리** - 관리자/교사/학생별 권한
+3. **📊 데이터 분석 대시보드** - 사용량 통계 및 인사이트
+4. **🚀 성능 최적화** - 캐싱, 페이지네이션, 지연 로딩
+5. **🧪 테스트 시스템** - 단위/통합 테스트 구축
+6. **🔍 고급 검색** - 전문 검색 및 AI 추천 시스템
+7. **📱 모바일 앱** - React Native 또는 PWA 전환
 
 ## 중요한 가이드라인
 

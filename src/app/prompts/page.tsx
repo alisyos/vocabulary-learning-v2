@@ -34,7 +34,8 @@ export default function PromptsPage() {
       
       if (data.success && data.data.length > 0) {
         setPromptGroups(data.data);
-        setIsInitialized(true);
+        // 실제 DB에서 가져온 데이터일 때만 초기화된 것으로 간주
+        setIsInitialized(data.isFromDatabase === true);
       } else {
         setIsInitialized(false);
       }

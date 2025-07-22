@@ -115,8 +115,8 @@ export interface EditablePassage {
   footnote: string[];
 }
 
-// 어휘 문제 (각 용어당 1개씩)
-export interface VocabularyQuestion {
+// 어휘 문제 (각 용어당 1개씩) - 워크플로우용
+export interface VocabularyQuestionWorkflow {
   id: string;
   term: string;        // 용어
   question: string;    // 질문
@@ -153,8 +153,8 @@ export interface WorkflowData {
   // 각 단계별 데이터
   generatedPassage: Passage | null;           // 1. 생성된 지문
   editablePassage: EditablePassage | null;    // 2. 편집 가능한 지문
-  vocabularyQuestions: VocabularyQuestion[];  // 3,4. 어휘 문제들
-  comprehensiveQuestions: ComprehensiveQuestion[]; // 5,6. 종합 문제들
+  vocabularyQuestions: VocabularyQuestionWorkflow[];  // 3,4. 어휘 문제들
+  comprehensiveQuestions: ComprehensiveQuestionWorkflow[]; // 5,6. 종합 문제들
   
   // 상태 관리
   currentStep: WorkflowStep;
@@ -329,7 +329,7 @@ export interface ContentSetDetailsV2 {
   passage: Passage | null;
   vocabularyTerms: VocabularyTerm[];
   vocabularyQuestions: VocabularyQuestion[];
-  comprehensiveQuestions: ComprehensiveQuestion[];
+  comprehensiveQuestions: ComprehensiveQuestionDB[];
 }
 
 // API 응답을 위한 타입들
@@ -435,8 +435,27 @@ export type PromptSubCategory =
   | 'comprehensiveType' // 종합 문제 유형별
   | 'outputFormat';     // 출력 형식별
 
-// 프롬프트 데이터 (system_prompts 테이블) - Supabase 적용
+// 프롬프트 데이터 (system_prompts_v2 테이블) - 새로운 구조
 export interface SystemPrompt {
+  id?: string; // UUID
+  promptId: string; // unique identifier
+  category: PromptCategory; // 'passage' | 'vocabulary' | 'comprehensive'
+  subCategory: PromptSubCategory; // 서브 카테고리
+  name: string; // 프롬프트 이름
+  key: string; // 키 (실제 사용할 때의 키)
+  promptText: string; // 프롬프트 내용
+  description?: string; // 설명
+  isActive: boolean;
+  isDefault: boolean;
+  version: number;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+// 레거시 프롬프트 데이터 (기존 system_prompts 테이블)
+export interface SystemPromptLegacy {
   id?: string; // UUID
   prompt_type: string; // 'passage_generation' | 'vocabulary_generation' | 'comprehensive_generation'
   prompt_content: string;
@@ -485,6 +504,7 @@ export interface PromptsResponse {
   data: PromptGroup[];
   version: string;
   message?: string;
+  isFromDatabase?: boolean; // 실제 DB에서 가져온 데이터인지 여부
 }
 
 // 프롬프트 업데이트 요청

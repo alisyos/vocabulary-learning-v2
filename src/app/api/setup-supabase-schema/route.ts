@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 // 스키마 생성 SQL - 파일에서 읽어오는 대신 직접 정의
@@ -194,8 +194,11 @@ WHERE NOT EXISTS (SELECT 1 FROM system_prompts WHERE prompt_type = 'comprehensiv
 
 export async function POST() {
   try {
-    console.log('Setting up Supabase schema...');
-    
+    console.log('🚀 Starting Supabase schema setup...');
+
+    console.log('⚠️ 프롬프트 테이블 생성은 수동으로 진행해주세요.');
+    console.log('📋 SUPABASE_PROMPTS_SCHEMA.sql 파일을 Supabase Dashboard > SQL Editor에서 실행하세요.');
+
     const results = [];
     
     // 1. 기본 테이블 존재 여부 확인

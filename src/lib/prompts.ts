@@ -708,6 +708,7 @@ ${comprehensiveOutputFormats[questionType as keyof typeof comprehensiveOutputFor
 
 export function getDefaultPrompts() {
   const defaultPrompts = [];
+  let promptCounter = 1; // 고유 ID 생성용 카운터
 
   // 0. 전체 지문생성 시스템 프롬프트
   const fullPassagePrompt = `###지시사항
@@ -775,7 +776,7 @@ export function getDefaultPrompts() {
 ※ 위의 {변수명} 부분은 실제 사용 시 동적으로 치환됩니다.`;
 
   defaultPrompts.push({
-    promptId: 'passage_system_full',
+    promptId: `prompt_${promptCounter++}`,
     category: 'passage' as const,
     subCategory: 'system' as const,
     name: '전체 지문생성 시스템 프롬프트',
@@ -838,7 +839,7 @@ export function getDefaultPrompts() {
 ※ 위의 {변수명} 부분은 실제 사용 시 동적으로 치환됩니다.`;
 
   defaultPrompts.push({
-    promptId: 'vocabulary_system_full',
+    promptId: `prompt_${promptCounter++}`,
     category: 'vocabulary' as const,
     subCategory: 'system' as const,
     name: '전체 어휘 문제 생성 시스템 프롬프트',
@@ -875,7 +876,7 @@ export function getDefaultPrompts() {
 ※ 위의 {변수명} 부분은 실제 사용 시 동적으로 치환됩니다.`;
 
   defaultPrompts.push({
-    promptId: 'comprehensive_system_full',
+    promptId: `prompt_${promptCounter++}`,
     category: 'comprehensive' as const,
     subCategory: 'system' as const,
     name: '전체 종합 문제 생성 시스템 프롬프트',
@@ -887,7 +888,7 @@ export function getDefaultPrompts() {
   // 1. 구분별 프롬프트 (Division)
   Object.entries(divisionPrompts).forEach(([key, value]) => {
     defaultPrompts.push({
-      promptId: `division_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      promptId: `prompt_${promptCounter++}`,
       category: 'passage' as const,
       subCategory: 'division' as const,
       name: key,
@@ -900,7 +901,7 @@ export function getDefaultPrompts() {
   // 2. 영역별 프롬프트 (Area)
   Object.entries(areaPrompts).forEach(([key, value]) => {
     defaultPrompts.push({
-      promptId: `area_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      promptId: `prompt_${promptCounter++}`,
       category: 'passage' as const,
       subCategory: 'area' as const,
       name: key,
@@ -913,7 +914,7 @@ export function getDefaultPrompts() {
   // 3. 출력 형식별 프롬프트 (Length/Output Format)
   Object.entries(outputFormats).forEach(([key, value]) => {
     defaultPrompts.push({
-      promptId: `length_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      promptId: `prompt_${promptCounter++}`,
       category: 'passage' as const,
       subCategory: 'length' as const,
       name: key,
@@ -926,7 +927,7 @@ export function getDefaultPrompts() {
   // 4. 지문 유형별 프롬프트 (Text Type)
   Object.entries(textTypePrompts).forEach(([key, value]) => {
     defaultPrompts.push({
-      promptId: `textType_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      promptId: `prompt_${promptCounter++}`,
       category: 'passage' as const,
       subCategory: 'textType' as const,
       name: key,
@@ -939,7 +940,7 @@ export function getDefaultPrompts() {
   // 5. 문제 생성 - 학년별 프롬프트 (Question Grade)
   Object.entries(questionGradePrompts).forEach(([key, value]) => {
     defaultPrompts.push({
-      promptId: `questionGrade_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      promptId: `prompt_${promptCounter++}`,
       category: 'vocabulary' as const,
       subCategory: 'questionGrade' as const,
       name: key,
@@ -952,7 +953,7 @@ export function getDefaultPrompts() {
   // 6. 문제 유형별 프롬프트 (Question Type)
   Object.entries(questionTypePrompts).forEach(([key, value]) => {
     defaultPrompts.push({
-      promptId: `questionType_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      promptId: `prompt_${promptCounter++}`,
       category: 'vocabulary' as const,
       subCategory: 'questionType' as const,
       name: key,
@@ -965,7 +966,7 @@ export function getDefaultPrompts() {
   // 7. 문제 출력 형식별 프롬프트 (Question Output Format)
   Object.entries(questionOutputFormats).forEach(([key, value]) => {
     defaultPrompts.push({
-      promptId: `questionOutput_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      promptId: `prompt_${promptCounter++}`,
       category: 'vocabulary' as const,
       subCategory: 'outputFormat' as const,
       name: key,
@@ -978,7 +979,7 @@ export function getDefaultPrompts() {
   // 8. 종합 문제 유형별 프롬프트 (Comprehensive Question Type)
   Object.entries(comprehensiveQuestionPrompts).forEach(([key, value]) => {
     defaultPrompts.push({
-      promptId: `comprehensive_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      promptId: `prompt_${promptCounter++}`,
       category: 'comprehensive' as const,
       subCategory: 'comprehensiveType' as const,
       name: key,
@@ -991,7 +992,7 @@ export function getDefaultPrompts() {
   // 9. 종합 문제 출력 형식별 프롬프트 (Comprehensive Output Format)
   Object.entries(comprehensiveOutputFormats).forEach(([key, value]) => {
     defaultPrompts.push({
-      promptId: `comprehensiveOutput_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      promptId: `prompt_${promptCounter++}`,
       category: 'comprehensive' as const,
       subCategory: 'outputFormat' as const,
       name: key,
@@ -1009,7 +1010,7 @@ export function getDefaultPrompts() {
 - 지문의 맥락과 연결하여 문제를 구성하되, 용어 자체의 이해에 초점을 맞춥니다.`;
 
   defaultPrompts.push({
-    promptId: 'vocabulary_base',
+    promptId: `prompt_${promptCounter++}`,
     category: 'vocabulary' as const,
     subCategory: 'vocabularyBase' as const,
     name: '어휘 문제 기본 프롬프트',
@@ -1028,11 +1029,11 @@ export function getDefaultPrompts() {
 // Supabase에서 프롬프트를 조회하여 기존 방식으로 사용할 수 있도록 하는 함수
 export async function getPromptFromDB(category: string, subCategory: string, key: string): Promise<string> {
   try {
-    const { getPromptByKey } = await import('./supabase');
-    const prompt = await getPromptByKey(category, subCategory, key);
+    const { db } = await import('./supabase');
+    const prompt = await db.getPromptByKey(category, subCategory, key);
     
-    if (prompt && prompt.prompt_text) {
-      return prompt.prompt_text;
+    if (prompt && prompt.promptText) {
+      return prompt.promptText;
     }
     
     // Supabase에서 찾지 못하면 기본값 사용
