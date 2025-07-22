@@ -239,21 +239,43 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
 
   // 저장 함수
   const handleSave = async () => {
-    if (!data) return;
+    if (!data || !setId) return;
     
     setSaving(true);
     try {
-      // TODO: 저장 API 구현
-      console.log('Saving changes...', {
+      console.log('수정사항 저장 시작...', {
+        contentSetId: setId,
         editablePassage,
         editableVocabulary,
         editableVocabQuestions,
         editableComprehensive
       });
+
+      const response = await fetch('/api/update-content-set', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contentSetId: setId,
+          editablePassage,
+          editableVocabulary,
+          editableVocabQuestions,
+          editableComprehensive
+        }),
+      });
+
+      const result = await response.json();
       
-      alert('변경사항이 저장되었습니다.');
+      if (result.success) {
+        alert('수정사항이 성공적으로 저장되었습니다.');
+        // 데이터 새로고침
+        await fetchSetDetails(setId);
+      } else {
+        alert(`저장 실패: ${result.message || '알 수 없는 오류가 발생했습니다.'}`);
+      }
     } catch (error) {
-      console.error('Save error:', error);
+      console.error('저장 중 오류:', error);
       alert('저장 중 오류가 발생했습니다.');
     } finally {
       setSaving(false);

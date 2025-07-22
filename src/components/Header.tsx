@@ -3,11 +3,14 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useState, useRef, useEffect } from 'react';
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const [isSystemDropdownOpen, setIsSystemDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   
   const navigation = [
     {
@@ -21,12 +24,21 @@ export default function Header() {
       href: '/manage',
       icon: '📚',
       description: '저장된 콘텐츠 관리'
-    },
+    }
+  ];
+
+  const systemMenuItems = [
     {
       name: '프롬프트 관리',
       href: '/prompts',
-      icon: '⚙️',
+      icon: '📝',
       description: 'AI 생성 프롬프트 확인 및 수정'
+    },
+    {
+      name: '필드데이터 관리',
+      href: '/curriculum-admin',
+      icon: '🗂️',
+      description: '교육과정 데이터 관리'
     }
   ];
   
@@ -36,6 +48,24 @@ export default function Header() {
     }
     return pathname.startsWith(href);
   };
+
+  const isSystemMenuActive = () => {
+    return pathname.startsWith('/prompts') || pathname.startsWith('/curriculum-admin');
+  };
+
+  // 외부 클릭 감지
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsSystemDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
@@ -81,6 +111,51 @@ export default function Header() {
                 </div>
               </Link>
             ))}
+            
+            {/* 시스템 설정 드롭다운 */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setIsSystemDropdownOpen(!isSystemDropdownOpen)}
+                className={`
+                  group relative flex items-center px-3 py-2 text-sm font-medium transition-all duration-200 border-b-2
+                  ${isSystemMenuActive()
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-900 border-transparent hover:border-gray-300'
+                  }
+                `}
+                title="시스템 설정 메뉴"
+              >
+                <span className="mr-2">⚙️</span>
+                <span>시스템 설정</span>
+                <span className={`ml-1 transition-transform duration-200 ${isSystemDropdownOpen ? 'rotate-180' : ''}`}>
+                  ▼
+                </span>
+              </button>
+              
+              {/* 드롭다운 메뉴 */}
+              {isSystemDropdownOpen && (
+                <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                  {systemMenuItems.map((item) => (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => setIsSystemDropdownOpen(false)}
+                      className={`
+                        flex items-center px-4 py-2 text-sm transition-colors border-l-4
+                        ${isActive(item.href)
+                          ? 'text-blue-600 bg-blue-50 border-blue-600'
+                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50 border-transparent'
+                        }
+                      `}
+                      title={item.description}
+                    >
+                      <span className="mr-3">{item.icon}</span>
+                      <span className="font-medium">{item.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </nav>
           
           {/* 사용자 정보 및 액션 */}
@@ -152,7 +227,17 @@ export default function Header() {
               {pathname.startsWith('/prompts') && (
                 <>
                   <span className="mx-2">/</span>
+                  <Link href="/prompts" className="hover:text-gray-900">시스템 설정</Link>
+                  <span className="mx-2">/</span>
                   <span className="text-gray-400">프롬프트 관리</span>
+                </>
+              )}
+              {pathname.startsWith('/curriculum-admin') && (
+                <>
+                  <span className="mx-2">/</span>
+                  <Link href="/curriculum-admin" className="hover:text-gray-900">시스템 설정</Link>
+                  <span className="mx-2">/</span>
+                  <span className="text-gray-400">필드데이터 관리</span>
                 </>
               )}
             </div>
