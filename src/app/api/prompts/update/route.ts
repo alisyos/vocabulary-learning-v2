@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateSystemPrompt } from '@/lib/google-sheets';
+import { updateSystemPrompt } from '@/lib/supabase';
 import { PromptUpdateRequest, PromptUpdateResponse } from '@/types';
 
 export async function POST(request: NextRequest) {

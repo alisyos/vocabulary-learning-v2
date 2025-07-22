@@ -1025,21 +1025,21 @@ export function getDefaultPrompts() {
 // DB에서 프롬프트를 조회하는 새로운 함수들
 // ============================================================================
 
-// DB에서 프롬프트를 조회하여 기존 방식으로 사용할 수 있도록 하는 함수
+// Supabase에서 프롬프트를 조회하여 기존 방식으로 사용할 수 있도록 하는 함수
 export async function getPromptFromDB(category: string, subCategory: string, key: string): Promise<string> {
   try {
-    const { getPromptByKey } = await import('./google-sheets');
+    const { getPromptByKey } = await import('./supabase');
     const prompt = await getPromptByKey(category, subCategory, key);
     
-    if (prompt && prompt.promptText) {
-      return prompt.promptText;
+    if (prompt && prompt.prompt_text) {
+      return prompt.prompt_text;
     }
     
-    // DB에서 찾지 못하면 기본값 사용
-    console.warn(`프롬프트를 DB에서 찾지 못함: ${category}/${subCategory}/${key}, 기본값 사용`);
+    // Supabase에서 찾지 못하면 기본값 사용
+    console.warn(`프롬프트를 Supabase에서 찾지 못함: ${category}/${subCategory}/${key}, 기본값 사용`);
     return getDefaultPromptByKey(category, subCategory, key);
   } catch (error) {
-    console.error('DB 프롬프트 조회 실패, 기본값 사용:', error);
+    console.error('Supabase 프롬프트 조회 실패, 기본값 사용:', error);
     return getDefaultPromptByKey(category, subCategory, key);
   }
 }

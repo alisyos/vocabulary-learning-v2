@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSystemPrompts } from '@/lib/google-sheets';
+import { db } from '@/lib/supabase';
 import { SystemPrompt, PromptGroup, PromptsResponse, PromptCategory, PromptSubCategory } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
-    let prompts = await getSystemPrompts();
+    let prompts = await db.getSystemPrompts();
     
-    // 시트가 비어있거나 초기화되지 않은 경우, 기본 프롬프트를 사용
+    // 데이터베이스가 비어있거나 초기화되지 않은 경우, 기본 프롬프트를 사용
     if (prompts.length === 0) {
-      console.log('시트가 비어있음. 기본 프롬프트를 사용합니다.');
+      console.log('데이터베이스가 비어있음. 기본 프롬프트를 사용합니다.');
       const { getDefaultPrompts } = await import('@/lib/prompts');
       const defaultPrompts = getDefaultPrompts();
       

@@ -4,24 +4,41 @@ import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 
 interface SetDetails {
-  setId: string;
-  division: string;
+  id: string; // UUID
+  title: string; // passageTitle -> title
+  user_id?: string; // 생성자 ID
+  division?: string; // 구분
+  grade: string; // 실제 학년
   subject: string;
-  grade: string;
   area: string;
-  mainTopic: string;     // v2 구조: mainTopic
-  subTopic: string;      // v2 구조: subTopic
-  keywords: string;      // v2 구조: keywords (복수형)
-  passageTitle: string;
-  passageLength: string; // 지문 길이 정보 추가
-  textType?: string;     // 지문 유형 정보 추가 (선택사항)
-  status: string;
-  createdAt: string;
+  main_topic?: string; // 대주제
+  sub_topic?: string; // 소주제
+  keywords?: string; // 키워드
+  total_passages: number;
+  total_vocabulary_terms: number;
+  total_vocabulary_questions: number;
+  total_comprehensive_questions: number;
+  status?: '검수 전' | '검수완료'; // 상태값
+  created_at?: string;
+  updated_at?: string;
   
-  // 하위 호환성을 위한 별칭들
+  // 레거시 호환성을 위한 별칭들
+  setId?: string;
+  passageTitle?: string;
+  userId?: string;
+  mainTopic?: string;
+  subTopic?: string;
   maintopic?: string;
   subtopic?: string;
   keyword?: string;
+  passageLength?: string;
+  textType?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  vocabularyQuestionCount?: number;
+  comprehensiveQuestionCount?: number;
+  paragraphCount?: number;
+  vocabularyWordsCount?: number;
 }
 
 interface VocabularyQuestion {
@@ -101,30 +118,95 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     setError(null);
     
     try {
-      const response = await fetch(`/api/get-set-details?setId=${id}`);
+      const response = await fetch(`/api/get-curriculum-data-supabase?setId=${id}`);
       const result: ApiResponse = await response.json();
+      
+      console.log('상세보기 API 응답:', result); // 디버깅용 로그
       
       if (result.success && result.data) {
         setData(result);
         
         // 편집 가능한 상태로 초기화
-        if (result.data.passage) {
+        if (result.data?.passage) {
           setEditablePassage({
-            title: result.data.passage.title,
-            paragraphs: [...result.data.passage.paragraphs]
+            title: result.data.passage.title || '',
+            paragraphs: [...(result.data.passage.paragraphs || [])]
           });
         }
         
-        // v2에서는 어휘 용어가 별도 테이블로 분리됨
-        const vocabularyTermsFormatted = result.data.vocabularyTerms.map(term => 
-          term.exampleSentence 
-            ? `${term.term}: ${term.definition} (예시: ${term.exampleSentence})`
-            : `${term.term}: ${term.definition}`
-        );
+        // Supabase에서는 어휘 용어가 별도 테이블로 분리됨
+        console.log('어휘 용어 원본 데이터:', result.data?.vocabularyTerms);
+        console.log('어휘 문제 원본 데이터:', result.data?.vocabularyQuestions);
+        console.log('종합 문제 원본 데이터:', result.data?.comprehensiveQuestions);
+        
+        const vocabularyTermsFormatted = (result.data?.vocabularyTerms || []).map((term: any, index) => {
+          console.log(`어휘 용어 ${index + 1} 원본:`, term);
+          
+          if (term && typeof term === 'object' && term.term && term.definition) {
+            // 예시 문장이 있으면 포함, 없으면 정의만
+            let formattedTerm;
+            if (term.example_sentence && term.example_sentence.trim() !== '') {
+              formattedTerm = `${term.term}: ${term.definition} (예시: ${term.example_sentence})`;
+            } else {
+              formattedTerm = `${term.term}: ${term.definition}`;
+            }
+            console.log(`어휘 용어 ${index + 1} 변환 결과:`, formattedTerm);
+            return formattedTerm;
+          }
+          // 이미 문자열 형태인 경우 (fallback)
+          const fallback = typeof term === 'string' ? term : `용어: 정의`;
+          console.log(`어휘 용어 ${index + 1} fallback:`, fallback);
+          return fallback;
+        });
         setEditableVocabulary(vocabularyTermsFormatted);
         
-        setEditableVocabQuestions([...result.data.vocabularyQuestions]);
-        setEditableComprehensive([...result.data.comprehensiveQuestions]);
+        // 어휘 문제 데이터 안전하게 처리
+        const safeVocabQuestions = (result.data?.vocabularyQuestions || [])
+          .filter(q => q && q.id)
+          .map((q: any) => ({
+            ...q,
+            term: q.term || '', // term이 없을 경우 빈 문자열로 설정
+            options: q.options || []
+          }));
+        setEditableVocabQuestions([...safeVocabQuestions]);
+        
+        // 종합 문제 데이터 안전하게 처리
+        const allQuestions = result.data?.comprehensiveQuestions || [];
+        console.log('원본 종합문제 데이터:', allQuestions);
+        
+        // original_question_id를 기준으로 세트별 그룹화하여 정렬
+        const questionsBySet: { [setId: string]: any[] } = {};
+        
+        allQuestions.forEach((q: any) => {
+          const setId = q.originalQuestionId || q.questionId || 'unknown';
+          if (!questionsBySet[setId]) {
+            questionsBySet[setId] = [];
+          }
+          questionsBySet[setId].push(q);
+        });
+        
+        console.log('세트별 그룹화된 문제:', questionsBySet);
+        
+        // 각 세트 내에서 기본문제 먼저, 보완문제 나중에 정렬
+        const sortedQuestions: any[] = [];
+        Object.keys(questionsBySet).sort().forEach(setId => {
+          const setQuestions = questionsBySet[setId].sort((a, b) => {
+            // 기본문제 먼저, 보완문제 나중에
+            if (!a.isSupplementary && b.isSupplementary) return -1;
+            if (a.isSupplementary && !b.isSupplementary) return 1;
+            // 같은 타입이면 question_number로 정렬
+            return (a.question_number || 0) - (b.question_number || 0);
+          });
+          sortedQuestions.push(...setQuestions);
+        });
+        
+        const safeComprehensiveQuestions = sortedQuestions
+          .filter(q => q && q.id);
+          
+        console.log('최종 정렬된 종합문제:', safeComprehensiveQuestions);
+        console.log('기본문제:', safeComprehensiveQuestions.filter(q => !q.isSupplementary).length, '개');
+        console.log('보완문제:', safeComprehensiveQuestions.filter(q => q.isSupplementary).length, '개');
+        setEditableComprehensive([...safeComprehensiveQuestions]);
       } else {
         setError(result.error || 'Unknown error');
       }
@@ -176,6 +258,334 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     } finally {
       setSaving(false);
     }
+  };
+
+  // HTML 다운로드 함수
+  const handleHtmlDownload = () => {
+    if (!data) return;
+
+    const { contentSet } = data.data;
+    
+    // 종합문제를 세트별로 그룹화 (문제 유형별 그룹화)
+    const questionSets: { [key: string]: typeof editableComprehensive } = {};
+    
+    // 문제 유형별로 그룹화 (같은 유형의 기본문제 + 보완문제들을 1세트로)
+    const typeGroups: { [key: string]: typeof editableComprehensive } = {};
+    
+    editableComprehensive.forEach(question => {
+      const questionType = question.questionType || question.type || '기타';
+      if (!typeGroups[questionType]) {
+        typeGroups[questionType] = [];
+      }
+      typeGroups[questionType].push(question);
+    });
+    
+    // 각 유형별 그룹을 기본문제 우선으로 정렬하고 세트 생성
+    let setIndex = 0;
+    Object.entries(typeGroups).forEach(([type, questions]) => {
+      // 기본문제와 보완문제 분리
+      const mainQuestions = questions.filter(q => !q.isSupplementary);
+      const supplementaryQuestions = questions.filter(q => q.isSupplementary);
+      
+      // 기본문제별로 세트 생성 (일반적으로 1개의 기본문제당 1세트)
+      mainQuestions.forEach((mainQuestion, mainIndex) => {
+        setIndex++;
+        const setKey = `set_${setIndex}_${type}`;
+        questionSets[setKey] = [mainQuestion];
+        
+        // 해당 기본문제에 연결된 보완문제들 추가
+        // 같은 유형의 보완문제들을 순서대로 배분
+        const relatedSupplementaryQuestions = supplementaryQuestions.slice(
+          mainIndex * 2, // 기본문제 당 2개씩 보완문제 할당
+          (mainIndex + 1) * 2
+        );
+        
+        questionSets[setKey].push(...relatedSupplementaryQuestions);
+      });
+    });
+
+    // 기본 문제 세트 수 계산 (기본 문제만)
+    const mainQuestions = editableComprehensive.filter(q => !q.isSupplementary);
+    const totalMainSets = mainQuestions.length;
+    
+    // 종합문제 유형별 분포 계산 (실제 문제 유형 기준)
+    const comprehensiveTypeStats = editableComprehensive.reduce((acc, question) => {
+      // questionType이 있으면 사용, 없으면 type 사용 (호환성)
+      const type = question.questionType || question.type || '기타';
+      if (!acc[type]) {
+        acc[type] = { main: 0, supplementary: 0 };
+      }
+      if (question.isSupplementary) {
+        acc[type].supplementary++;
+      } else {
+        acc[type].main++;
+      }
+      return acc;
+    }, {} as Record<string, { main: number; supplementary: number }>);
+
+    // HTML 템플릿 생성
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${editablePassage.title}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 850px; margin: 0 auto; padding: 25px; line-height: 1.6; color: #374151; }
+        .header { border-bottom: 3px solid #e5e7eb; padding-bottom: 25px; margin-bottom: 35px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 30px; border-radius: 12px; margin: -25px -25px 35px -25px; }
+        .title { font-size: 28px; font-weight: bold; color: #1e40af; margin-bottom: 15px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .content-id { text-align: center; font-size: 18px; color: #6b7280; margin-bottom: 30px; font-weight: 600; background-color: #fff; padding: 8px 16px; border-radius: 20px; display: inline-block; border: 2px solid #e5e7eb; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .info-section { background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s ease; }
+        .info-section:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .info-title { font-size: 16px; font-weight: bold; color: #1e40af; margin-bottom: 15px; display: flex; align-items: center; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
+        .info-title::before { content: "●"; margin-right: 10px; font-size: 12px; }
+        .info-item { margin-bottom: 10px; display: flex; align-items: flex-start; }
+        .info-label { font-weight: 600; color: #4b5563; min-width: 85px; font-size: 14px; }
+        .info-value { color: #1f2937; flex: 1; font-size: 14px; line-height: 1.5; }
+        .type-stats { margin-top: 12px; background-color: #f1f5f9; padding: 12px; border-radius: 8px; border-left: 4px solid #3b82f6; }
+        .type-stat-item { margin-bottom: 6px; font-size: 13px; color: #6b7280; display: flex; align-items: center; }
+        .type-stat-item::before { content: "▶"; margin-right: 8px; color: #3b82f6; font-size: 10px; }
+        .section { margin-bottom: 40px; }
+        .section-title { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
+        .passage-content { background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .paragraph { margin-bottom: 15px; text-align: justify; }
+        .vocabulary-list { list-style: none; padding: 0; }
+        .vocabulary-item { background-color: #f8fafc; padding: 12px; margin-bottom: 8px; border-radius: 6px; border-left: 4px solid #3b82f6; }
+        .vocab-term { font-weight: bold; color: #1e40af; }
+        .vocab-definition { margin-left: 10px; }
+        .vocab-example { font-style: italic; color: #6b7280; margin-top: 4px; }
+        .question-set { background-color: #fff; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 25px; }
+        .set-header { background-color: #f1f5f9; padding: 15px; margin: -25px -25px 20px -25px; border-radius: 10px 10px 0 0; border-bottom: 1px solid #e2e8f0; }
+        .set-title { font-size: 16px; font-weight: bold; color: #1e40af; margin: 0; }
+        .question { background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 15px; }
+        .question.main-question { border-left: 4px solid #3b82f6; background-color: #eff6ff; }
+        .question.supplementary-question { border-left: 4px solid #f59e0b; background-color: #fffbeb; }
+        .question-header { margin-bottom: 15px; }
+        .question-number { font-weight: bold; color: #1e40af; }
+        .question-type-badge { background-color: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px; }
+        .question-nature-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px; }
+        .main-badge { background-color: #dbeafe; color: #1e40af; }
+        .supplementary-badge { background-color: #fef3c7; color: #92400e; }
+        .question-text { margin: 10px 0; font-weight: 500; }
+        .options { margin: 15px 0; }
+        .option { margin: 5px 0; padding: 8px; background-color: #f3f4f6; border-radius: 4px; }
+        .correct-answer { background-color: #d1fae5; color: #059669; font-weight: bold; }
+        .explanation { background-color: #fef3c7; padding: 12px; border-radius: 6px; margin-top: 10px; }
+        .explanation-label { font-weight: bold; color: #92400e; }
+        .vocab-question { background-color: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+         @media print { 
+             body { max-width: none; margin: 0; padding: 15px; } 
+             .info-grid { grid-template-columns: 1fr 1fr; gap: 10px; } 
+             .header { background: #f8fafc; }
+             .info-section { box-shadow: none; border: 1px solid #e2e8f0; }
+             .info-section:hover { transform: none; }
+         }
+    </style>
+</head>
+  <body>
+      <div class="header">
+          <h1 class="title">어휘 학습 콘텐츠</h1>
+          <div style="text-align: center; margin-bottom: 30px;">
+             <div class="content-id">콘텐츠 세트 ID: ${contentSet.setId || contentSet.id || 'N/A'}</div>
+         </div>
+        
+        <div class="info-grid">
+             <div class="info-section">
+                 <div class="info-title">기본 정보</div>
+                 <div class="info-item">
+                     <span class="info-label">과목:</span>
+                     <span class="info-value">${contentSet.subject} / ${contentSet.grade} / ${contentSet.area}</span>
+                 </div>
+                 <div class="info-item">
+                     <span class="info-label">주제:</span>
+                     <span class="info-value">${contentSet.mainTopic || contentSet.maintopic} > ${contentSet.subTopic || contentSet.subtopic}</span>
+                 </div>
+                 <div class="info-item">
+                     <span class="info-label">핵심 개념어:</span>
+                     <span class="info-value">${contentSet.keywords || contentSet.keyword}</span>
+                 </div>
+             </div>
+             
+             <div class="info-section">
+                 <div class="info-title">생성 정보</div>
+                 <div class="info-item">
+                     <span class="info-label">교육과정:</span>
+                     <span class="info-value">${contentSet.division}</span>
+                 </div>
+                 <div class="info-item">
+                     <span class="info-label">지문길이:</span>
+                     <span class="info-value">${contentSet.passageLength || '정보 없음'}</span>
+                 </div>
+                 <div class="info-item">
+                     <span class="info-label">유형:</span>
+                     <span class="info-value">${contentSet.textType || '선택안함'}</span>
+                 </div>
+             </div>
+            
+            <div class="info-section">
+                <div class="info-title">지문 정보</div>
+                <div class="info-item">
+                    <span class="info-label">단락 수:</span>
+                    <span class="info-value">${editablePassage.paragraphs.length}개</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">어휘 수:</span>
+                    <span class="info-value">${editableVocabulary.length}개</span>
+                </div>
+            </div>
+            
+            <div class="info-section">
+                <div class="info-title">어휘 문제</div>
+                <div class="info-item">
+                    <span class="info-label">총 문제 수:</span>
+                    <span class="info-value">${editableVocabQuestions.length}개</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">문제형태:</span>
+                    <span class="info-value">객관식 (5지선다)</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-section" style="grid-column: 1 / -1;">
+             <div class="info-title">종합 문제</div>
+             <div class="info-item">
+                 <span class="info-label">총 문제 수:</span>
+                 <span class="info-value">${editableComprehensive.length}개 (${totalMainSets}세트)</span>
+             </div>
+             <div class="info-item" style="flex-direction: column; align-items: flex-start;">
+                 <span class="info-label">유형별 분포:</span>
+                 <div class="type-stats">
+                     ${Object.entries(comprehensiveTypeStats).map(([type, stats]) => 
+                       `<div class="type-stat-item">${type}: 기본 문제 ${stats.main}개, 보완 문제 ${stats.supplementary}개</div>`
+                     ).join('')}
+                 </div>
+             </div>
+         </div>
+    </div>
+
+         <div class="section">
+         <h2 class="section-title">📖 지문 (${editablePassage.paragraphs.length}단락)</h2>
+         <div class="passage-content">
+             <h3 style="margin-bottom: 20px; color: #1e40af; font-weight: bold; font-size: 20px; text-align: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px;">${editablePassage.title}</h3>
+             ${editablePassage.paragraphs.map(paragraph => `<div class="paragraph">${paragraph}</div>`).join('')}
+         </div>
+     </div>
+
+    <div class="section">
+        <h2 class="section-title">📚 어휘 (${editableVocabulary.length}개)</h2>
+        <ul class="vocabulary-list">
+            ${editableVocabulary.map((vocab, index) => {
+              const match = vocab.match(/^([^:]+):\s*(.+?)\s*\(예시:\s*(.+?)\)\s*$/);
+              if (match) {
+                return `
+                  <li class="vocabulary-item">
+                    <span class="vocab-term">[어휘 ${index + 1}] - ${match[1].trim()}</span>
+                    <div class="vocab-definition">${match[2].trim()}</div>
+                    <div class="vocab-example">예시: ${match[3].trim()}</div>
+                  </li>
+                `;
+              }
+              const simpleMatch = vocab.match(/^([^:]+):\s*(.+)$/);
+              if (simpleMatch) {
+                return `
+                  <li class="vocabulary-item">
+                    <span class="vocab-term">[어휘 ${index + 1}] - ${simpleMatch[1].trim()}</span>
+                    <div class="vocab-definition">${simpleMatch[2].trim()}</div>
+                  </li>
+                `;
+              }
+              return `<li class="vocabulary-item"><span class="vocab-term">[어휘 ${index + 1}] - ${vocab}</span></li>`;
+            }).join('')}
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2 class="section-title">❓ 어휘 문제 (${editableVocabQuestions.length}개)</h2>
+        ${editableVocabQuestions.map((question, index) => `
+          <div class="vocab-question">
+            <div class="question-header">
+                <span class="question-number">[어휘 문제 ${index + 1}]</span> - <strong>${question.term}</strong>
+            </div>
+            <div class="question-text">${question.question}</div>
+            <div class="options">
+                ${question.options.map((option, optIndex) => `
+                  <div class="option ${option === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}">
+                    ${optIndex + 1}. ${option} ${option === (question.correctAnswer || question.answer) ? '✓' : ''}
+                  </div>
+                `).join('')}
+            </div>
+            <div class="explanation">
+                <span class="explanation-label">해설:</span> ${question.explanation}
+            </div>
+          </div>
+        `).join('')}
+    </div>
+
+    <div class="section">
+        <h2 class="section-title">📝 종합 문제 (${editableComprehensive.length}개, ${totalMainSets}세트)</h2>
+        ${Object.entries(questionSets).map(([setKey, questions]) => {
+          const mainQuestion = questions.find(q => !q.isSupplementary);
+          const supplementaryQuestions = questions.filter(q => q.isSupplementary);
+          
+          // setKey에서 세트 번호와 유형 추출 (예: set_1_단답형 -> 세트 1, 단답형)
+          const setMatch = setKey.match(/^set_(\d+)_(.+)$/);
+          const setNumber = setMatch ? setMatch[1] : '?';
+          const setType = setMatch ? setMatch[2] : (mainQuestion?.questionType || mainQuestion?.type || '문제유형');
+          
+          return `
+          <div class="question-set">
+            <div class="set-header">
+                <h3 class="set-title">[종합 문제 - 세트 ${setNumber}] - ${setType}</h3>
+            </div>
+            ${questions.map((question, questionIndex) => `
+              <div class="question ${question.isSupplementary ? 'supplementary-question' : 'main-question'}">
+                <div class="question-header">
+                    <span class="question-number">${question.isSupplementary ? '보완 문제' : '기본 문제'}</span>
+                    <span class="question-type-badge">${question.questionType || question.type}</span>
+                    <span class="question-nature-badge ${question.isSupplementary ? 'supplementary-badge' : 'main-badge'}">
+                      ${question.isSupplementary ? '보완문제' : '기본문제'}
+                    </span>
+                </div>
+                <div class="question-text">${question.question}</div>
+                ${question.options && question.options.length > 0 ? `
+                  <div class="options">
+                      ${question.options.map((option, optIndex) => `
+                        <div class="option ${option === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}">
+                          ${optIndex + 1}. ${option} ${option === (question.correctAnswer || question.answer) ? '✓' : ''}
+                        </div>
+                      `).join('')}
+                  </div>
+                ` : `
+                  <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px;">
+                    <strong>정답:</strong> ${question.correctAnswer || question.answer}
+                  </div>
+                `}
+                <div class="explanation">
+                    <span class="explanation-label">해설:</span> ${question.explanation}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        }).join('')}
+    </div>
+
+</body>
+</html>`;
+
+    // HTML 파일 다운로드
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${String(contentSet.setId || contentSet.id || 'content')}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // 지문 편집 함수들
@@ -256,7 +666,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     const baseId = `comp_${Date.now()}`;
 
     
-    // 기본 문제 생성
+    // 기본 문제 생성 (original_question_id를 자신의 questionId로 설정)
     const mainQuestion: ComprehensiveQuestion = {
       id: '',
       questionId: baseId,
@@ -266,10 +676,11 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       correctAnswer: '정답을 입력하세요.',
       explanation: '해설을 입력하세요.',
       isSupplementary: false,
+      originalQuestionId: baseId, // 기본문제도 original_question_id 설정
       questionSetNumber: 1
     };
     
-    // 보완 문제 2개 생성
+    // 보완 문제 2개 생성 (같은 original_question_id 사용)
     const supplementary1: ComprehensiveQuestion = {
       id: '',
       questionId: `${baseId}_supp1`,
@@ -279,7 +690,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       correctAnswer: '정답을 입력하세요.',
       explanation: '해설을 입력하세요.',
       isSupplementary: true,
-      originalQuestionId: baseId,
+      originalQuestionId: baseId, // 기본문제와 같은 original_question_id
       questionSetNumber: 1
     };
     
@@ -292,7 +703,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       correctAnswer: '정답을 입력하세요.',
       explanation: '해설을 입력하세요.',
       isSupplementary: true,
-      originalQuestionId: baseId,
+      originalQuestionId: baseId, // 기본문제와 같은 original_question_id
       questionSetNumber: 1
     };
     
@@ -339,7 +750,33 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     );
   }
 
-  const { contentSet: setDetails } = data.data;
+  const setDetails = data?.data?.contentSet;
+  
+  // 데이터가 없으면 오류 처리
+  if (!setDetails) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow p-8 text-center max-w-md">
+          <div className="text-red-600 mb-4">⚠️ 데이터를 찾을 수 없습니다</div>
+          <p className="text-gray-600 mb-4">콘텐츠 세트 정보를 불러올 수 없습니다.</p>
+          <div className="flex space-x-4 justify-center">
+            <button
+              onClick={() => fetchSetDetails(setId)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            >
+              다시 시도
+            </button>
+            <button
+              onClick={() => window.close()}
+              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+            >
+              창 닫기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -358,16 +795,23 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                 <span>창 닫기</span>
               </button>
               <div className="h-4 w-px bg-gray-300"></div>
-              <h1 className="text-xl font-bold text-gray-900">{data.data.contentSet.passageTitle}</h1>
+              <h1 className="text-xl font-bold text-gray-900">{data?.data?.contentSet?.passageTitle || '제목 없음'}</h1>
             </div>
             <div className="flex items-center space-x-3">
+              <button
+                onClick={handleHtmlDownload}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <span>📄</span>
+                <span>HTML 다운로드</span>
+              </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
                 className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
               >
                 <span>💾</span>
-                <span>{saving ? '저장 중...' : '저장'}</span>
+                <span>{saving ? '저장 중...' : '수정사항 저장'}</span>
               </button>
             </div>
           </div>
@@ -398,8 +842,8 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
             </div>
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">생성 정보</h3>
-              <p className="text-sm text-gray-900">{formatDate(setDetails.createdAt)}</p>
-              <p className="text-xs text-gray-500 mt-1">ID: {setDetails.setId}</p>
+              <p className="text-sm text-gray-900">{setDetails.createdAt ? formatDate(setDetails.createdAt) : '정보 없음'}</p>
+              <p className="text-xs text-gray-500 mt-1">ID: {setDetails.setId || setDetails.id || 'N/A'}</p>
             </div>
           </div>
         </div>
@@ -516,34 +960,81 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                 
                 <div className="space-y-4">
                   {editableVocabulary.map((vocab, index) => {
-                    // 더 정확한 파싱 로직
+                    // 개선된 파싱 로직
                     const parseVocabulary = (vocabString: string) => {
-                      // 패턴: "용어: 설명 (예시: 예시문장)"
-                      const match = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시:\s*(.+?)\)\s*$/);
-                      if (match) {
-                        return {
-                          term: match[1].trim(),
-                          description: match[2].trim(),
-                          example: match[3].trim()
+                      console.log(`어휘 ${index + 1} 파싱 시도:`, vocabString);
+                      
+                      // 패턴 1: "용어: 설명 (예시: 예시문장)"
+                      const fullMatch = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시:\s*(.+?)\)\s*$/);
+                      if (fullMatch) {
+                        const result = {
+                          term: fullMatch[1].trim(),
+                          description: fullMatch[2].trim(),
+                          example: fullMatch[3].trim()
                         };
+                        console.log('전체 패턴 매치:', result);
+                        return result;
                       }
                       
-                      // 예시가 없는 경우: "용어: 설명"
-                      const simpleMatch = vocabString.match(/^([^:]+):\s*(.+)$/);
-                      if (simpleMatch) {
-                        return {
-                          term: simpleMatch[1].trim(),
-                          description: simpleMatch[2].trim(),
+                      // 패턴 2: "용어: 설명 (예시:" (닫는 괄호가 없는 경우 - 기존 잘못 저장된 데이터 처리)
+                      const incompleteMatch = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시:\s*(.*)$/);
+                      if (incompleteMatch) {
+                        // (예시: 부분을 제거하고 설명만 사용
+                        const cleanDescription = incompleteMatch[2].trim();
+                        const result = {
+                          term: incompleteMatch[1].trim(),
+                          description: cleanDescription,
+                          example: incompleteMatch[3].trim() || '' // 예시 부분이 있다면 사용
+                        };
+                        console.log('불완전 패턴 매치 (정리됨):', result);
+                        return result;
+                      }
+                      
+                      // 패턴 3: "용어: 설명 (예시" (예시 부분이 잘린 경우 - 기존 잘못 저장된 데이터)
+                      const truncatedMatch = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시\s*$/);
+                      if (truncatedMatch) {
+                        const result = {
+                          term: truncatedMatch[1].trim(),
+                          description: truncatedMatch[2].trim(),
                           example: ''
                         };
+                        console.log('잘린 예시 패턴 매치:', result);
+                        return result;
+                      }
+                      
+                      // 패턴 4: "용어: 설명"
+                      const simpleMatch = vocabString.match(/^([^:]+):\s*(.+)$/);
+                      if (simpleMatch) {
+                        // 설명 부분에서 (예시: 부분을 분리 시도
+                        const desc = simpleMatch[2].trim();
+                        const exampleMatch = desc.match(/^(.+?)\s*\(예시:\s*(.*)$/);
+                        if (exampleMatch) {
+                          const result = {
+                            term: simpleMatch[1].trim(),
+                            description: exampleMatch[1].trim(),
+                            example: exampleMatch[2].trim()
+                          };
+                          console.log('설명에서 예시 분리:', result);
+                          return result;
+                        } else {
+                          const result = {
+                            term: simpleMatch[1].trim(),
+                            description: desc,
+                            example: ''
+                          };
+                          console.log('단순 패턴 매치:', result);
+                          return result;
+                        }
                       }
                       
                       // 파싱 실패 시 기본값
-                      return {
-                        term: vocabString.trim(),
+                      const result = {
+                        term: vocabString.trim() || '용어',
                         description: '',
                         example: ''
                       };
+                      console.log('파싱 실패, 기본값 사용:', result);
+                      return result;
                     };
                     
                     const { term, description, example } = parseVocabulary(vocab);
@@ -647,9 +1138,9 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                               onChange={(e) => handleVocabQuestionChange(index, 'correctAnswer', e.target.value)}
                               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             >
-                              {question.options.map((option, optIndex) => (
-                                <option key={optIndex} value={option}>{optIndex + 1}. {option}</option>
-                              ))}
+                                                          {question.options.map((option, optIndex) => (
+                              <option key={`${question.questionId}-opt-${optIndex}`} value={option}>{optIndex + 1}. {option}</option>
+                            ))}
                             </select>
                           </div>
                         </div>
@@ -668,7 +1159,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                           <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
                           <div className="space-y-2">
                             {question.options.map((option, optIndex) => (
-                              <div key={optIndex} className="flex items-center space-x-2">
+                              <div key={`${question.questionId}-option-${optIndex}`} className="flex items-center space-x-2">
                                 <span className="text-sm font-medium w-6">{optIndex + 1}.</span>
                                 <input
                                   type="text"
@@ -716,18 +1207,23 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                 
                 <div className="space-y-8">
                   {(() => {
-                    // 문제를 세트별로 그룹화
+                    // 문제를 세트별로 그룹화 (기본문제 1개 + 보완문제 2개 = 1세트)
                     const questionSets: { [key: string]: ComprehensiveQuestion[] } = {};
+                    
                     editableComprehensive.forEach(question => {
-                      const setKey = question.isSupplementary && question.originalQuestionId 
-                        ? question.originalQuestionId 
-                        : question.questionId;
+                      // original_question_id를 기준으로 세트 그룹화
+                      let setKey = question.originalQuestionId || question.questionId || 'unknown';
+                      
+                      // 보완문제의 경우 original_question_id가 세트 키가 됨
+                      // 기본문제의 경우 자신의 original_question_id가 세트 키가 됨
                       
                       if (!questionSets[setKey]) {
                         questionSets[setKey] = [];
                       }
                       questionSets[setKey].push(question);
                     });
+                    
+                    console.log('종합문제 세트 그룹화 결과:', questionSets);
 
                     // 각 세트를 기본문제 순서로 정렬
                     Object.keys(questionSets).forEach(setKey => {
@@ -741,9 +1237,15 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                     return Object.entries(questionSets).map(([setKey, questions], setIndex) => (
                       <div key={setKey} className="border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
                         <div className="flex justify-between items-center mb-6">
-                          <h4 className="text-lg font-semibold text-gray-900">
-                            문제 세트 {setIndex + 1} ({questions[0].questionType || questions[0].type})
-                          </h4>
+                          <div>
+                            <h4 className="text-lg font-semibold text-gray-900">
+                              문제 세트 {setIndex + 1} ({questions[0].questionType || questions[0].type})
+                            </h4>
+                            <p className="text-sm text-gray-600 mt-1">
+                              기본문제 {questions.filter(q => !q.isSupplementary).length}개, 
+                              보완문제 {questions.filter(q => q.isSupplementary).length}개
+                            </p>
+                          </div>
                           <button
                             onClick={() => {
                               // 세트 전체 삭제
@@ -761,15 +1263,21 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                         <div className="space-y-6">
                           {questions.map((question, questionIndex) => {
                             const globalIndex = editableComprehensive.findIndex(q => q.questionId === question.questionId);
-                            const questionNumber = questionIndex + 1;
                             const isMainQuestion = !question.isSupplementary;
+                            
+                            // 보완문제 번호 계산 (기본문제 제외하고 카운트)
+                            let supplementaryNumber = 0;
+                            if (!isMainQuestion) {
+                              const supplementaryQuestions = questions.filter(q => q.isSupplementary);
+                              supplementaryNumber = supplementaryQuestions.findIndex(q => q.questionId === question.questionId) + 1;
+                            }
                             
                             return (
                               <div key={question.questionId} className={`border rounded-lg p-4 ${isMainQuestion ? 'bg-white border-blue-200' : 'bg-blue-50 border-blue-100'}`}>
                                 <div className="flex justify-between items-center mb-4">
                                   <div>
                                     <h5 className="text-md font-medium text-gray-900">
-                                      {isMainQuestion ? '기본 문제' : `보완 문제 ${questionNumber - 1}`}
+                                      {isMainQuestion ? '기본 문제' : `보완 문제 ${supplementaryNumber}`}
                                     </h5>
                                     <div className="flex items-center space-x-2 mt-1">
                                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
@@ -811,7 +1319,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                                         <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
                                         <div className="space-y-2">
                                           {question.options.map((option, optIndex) => (
-                                            <div key={optIndex} className="flex items-center space-x-2">
+                                            <div key={`${question.questionId}-comp-option-${optIndex}`} className="flex items-center space-x-2">
                                               <span className="text-sm font-medium w-6">{optIndex + 1}.</span>
                                               <input
                                                 type="text"

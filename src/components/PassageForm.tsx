@@ -52,35 +52,53 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
     '동화', '시', '대본', '소설'
   ];
 
-  // Google Sheets에서 필드 데이터 가져오기
+  // Supabase에서 필드 데이터 가져오기
   useEffect(() => {
     const fetchFieldData = async () => {
       setLoadingFieldData(true);
       setFieldDataError(null);
       
       try {
-        console.log('Fetching field data...');
-        const response = await fetch('/api/get-field-data');
-        console.log('Field data response status:', response.status);
+        console.log('Fetching curriculum structure from Supabase...');
+        const response = await fetch('/api/get-curriculum-structure');
+        console.log('Curriculum structure response status:', response.status);
+        
+        const dataSource = response.headers.get('X-Data-Source');
+        const migrationRequired = response.headers.get('X-Migration-Required');
         
         if (response.ok) {
           const data = await response.json();
-          console.log('Field data received:', data.length, 'items');
+          console.log('Curriculum structure received:', data.length, 'items');
+          console.log('Data source:', dataSource);
           console.log('Sample data:', data.slice(0, 3));
           
+          if (migrationRequired === 'true') {
+            setFieldDataError('Supabase 데이터베이스가 비어있습니다. 마이그레이션을 실행해주세요.');
+          }
+          
           if (data.length === 0) {
-            setFieldDataError('필드 데이터가 비어있습니다. Google Sheets의 field 시트를 확인해주세요.');
+            setFieldDataError('교육과정 데이터가 비어있습니다. 데이터베이스를 확인해주세요.');
             // fallback 데이터 사용
             setAvailableOptions(prev => ({ ...prev, subjects: ['사회', '과학'] }));
           } else {
-            setFieldData(data);
+            // CurriculumData를 FieldData 형태로 변환
+            const mappedData = data.map((item: any) => ({
+              subject: item.subject,
+              grade: item.grade,
+              area: item.area,
+              maintopic: item.main_topic,
+              subtopic: item.sub_topic,
+              keyword: item.keywords
+            }));
+            
+            setFieldData(mappedData);
             
             // 고유한 과목 목록 생성
-            const uniqueSubjects = [...new Set(data.map((item: FieldData) => item.subject))].filter(Boolean) as string[];
+            const uniqueSubjects = [...new Set(mappedData.map((item: FieldData) => item.subject))].filter(Boolean) as string[];
             console.log('Available subjects:', uniqueSubjects);
             
             if (uniqueSubjects.length === 0) {
-              setFieldDataError('과목 데이터를 찾을 수 없습니다. field 시트의 subject 컬럼을 확인해주세요.');
+              setFieldDataError('과목 데이터를 찾을 수 없습니다. 데이터베이스의 subject 컬럼을 확인해주세요.');
               setAvailableOptions(prev => ({ ...prev, subjects: ['사회', '과학'] }));
             } else {
               setAvailableOptions(prev => ({ ...prev, subjects: uniqueSubjects }));
@@ -88,13 +106,13 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
           }
         } else {
           const errorText = await response.text();
-          console.error('Failed to fetch field data:', response.status, response.statusText, errorText);
-          setFieldDataError(`API 호출 실패: ${response.status} - Google Sheets 연결을 확인해주세요.`);
+          console.error('Failed to fetch curriculum data:', response.status, response.statusText, errorText);
+          setFieldDataError(`API 호출 실패: ${response.status} - Supabase 연결을 확인해주세요.`);
           // fallback으로 기본 과목 설정
           setAvailableOptions(prev => ({ ...prev, subjects: ['사회', '과학'] }));
         }
       } catch (error) {
-        console.error('Error fetching field data:', error);
+        console.error('Error fetching curriculum data:', error);
         setFieldDataError(`연결 오류: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
         // fallback으로 기본 과목 설정
         setAvailableOptions(prev => ({ ...prev, subjects: ['사회', '과학'] }));
@@ -106,37 +124,48 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
     fetchFieldData();
   }, []);
 
-  // Google Sheets 연결 테스트 및 데이터 재로드
+  // Supabase 연결 테스트 및 데이터 재로드
   const handleTestConnection = async () => {
     setTestingConnection(true);
     setFieldDataError(null);
     
     try {
-      // 먼저 연결 테스트
-      const testResponse = await fetch('/api/test-sheets');
-      const testResult = await testResponse.json();
+      // 먼저 마이그레이션 상태 확인
+      const migrationResponse = await fetch('/api/migrate-curriculum-to-supabase');
+      const migrationResult = await migrationResponse.json();
       
-      if (testResult.success) {
-        console.log('Connection test successful');
+      if (migrationResult.success || migrationResult.supabase_count > 0) {
+        console.log('Supabase connection successful');
         
-        // 연결이 성공하면 필드 데이터 다시 가져오기
-        const response = await fetch('/api/get-field-data');
+                      // 연결이 성공하면 교육과정 데이터 다시 가져오기
+        const response = await fetch('/api/get-curriculum-structure');
         if (response.ok) {
           const data = await response.json();
-          setFieldData(data);
           
-                   const uniqueSubjects = [...new Set(data.map((item: FieldData) => item.subject))].filter(Boolean) as string[];
-           setAvailableOptions(prev => ({ ...prev, subjects: uniqueSubjects }));
-           setFieldDataError(null);
+          // CurriculumData를 FieldData 형태로 변환
+          const mappedData = data.map((item: any) => ({
+            subject: item.subject,
+            grade: item.grade,
+            area: item.area,
+            maintopic: item.main_topic,
+            subtopic: item.sub_topic,
+            keyword: item.keywords
+          }));
+          
+          setFieldData(mappedData);
+          
+          const uniqueSubjects = [...new Set(mappedData.map((item: FieldData) => item.subject))].filter(Boolean) as string[];
+          setAvailableOptions(prev => ({ ...prev, subjects: uniqueSubjects }));
+          setFieldDataError(null);
         } else {
-          setFieldDataError('필드 데이터를 가져올 수 없습니다.');
+          setFieldDataError('교육과정 데이터를 가져올 수 없습니다.');
         }
       } else {
-        setFieldDataError(`연결 테스트 실패: ${testResult.error}`);
+        setFieldDataError(`Supabase 연결 테스트 실패: ${migrationResult.error || '알 수 없는 오류'}`);
       }
     } catch (error) {
-      console.error('Connection test error:', error);
-      setFieldDataError(`연결 테스트 오류: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+      console.error('Supabase connection test error:', error);
+      setFieldDataError(`Supabase 연결 테스트 오류: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setTestingConnection(false);
     }
@@ -301,7 +330,7 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
     <div className="bg-white rounded-lg shadow-md p-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-800">학습 지문 생성</h2>
-        <div className="flex items-center space-x-2" title={fieldDataError || "Google Sheets 연결 상태"}>
+        <div className="flex items-center space-x-2" title={fieldDataError || "Supabase 연결 상태"}>
           {connectionStatus.icon}
           <span className={`text-xs font-medium ${connectionStatus.color}`}>
             {connectionStatus.text}
@@ -311,8 +340,8 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
               type="button"
               onClick={handleTestConnection}
               disabled={testingConnection}
-              className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-1 rounded transition-colors disabled:opacity-50"
-              title="연결 재시도"
+              className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded transition-colors disabled:opacity-50"
+              title="Supabase 연결 재시도"
             >
               재시도
             </button>

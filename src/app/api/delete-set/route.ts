@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGoogleSheetsClient } from '@/lib/google-sheets';
+import { db } from '../../../lib/supabase';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -13,120 +13,51 @@ export async function DELETE(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`콘텐츠 세트 삭제 시작: ${setId}`);
+    console.log(`Supabase에서 콘텐츠 세트 삭제 시작: ${setId}`);
     
-    const sheets = await getGoogleSheetsClient();
-    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    // 1. 먼저 콘텐츠 세트가 존재하는지 확인
+    const contentSet = await db.getContentSetById(setId);
     
-    if (!spreadsheetId) {
+    if (!contentSet) {
       return NextResponse.json({
         success: false,
-        error: 'Google Sheets 설정이 올바르지 않습니다.'
-      }, { status: 500 });
+        error: '삭제하려는 콘텐츠 세트를 찾을 수 없습니다.'
+      }, { status: 404 });
     }
 
-    const deletedFromSheets: string[] = [];
-    const errors: string[] = [];
+    // 2. 상태 확인 (검수완료 상태는 삭제 불가)
+    if (contentSet.status === '검수완료') {
+      return NextResponse.json({
+        success: false,
+        error: '검수완료 상태의 콘텐츠는 삭제할 수 없습니다. 먼저 상태를 "검수 전"으로 변경해주세요.'
+      }, { status: 403 });
+    }
 
-    // v1 구조에서 삭제 (final_sets)
+    // 3. Supabase에서 삭제 (CASCADE 설정으로 관련 데이터 자동 삭제됨)
     try {
-      const finalSetsData = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'final_sets!A:B'
+      await db.deleteContentSet(setId);
+      
+      console.log(`✅ Supabase에서 콘텐츠 세트 ${setId} 삭제 완료`);
+
+      return NextResponse.json({
+        success: true,
+        setId,
+        message: '콘텐츠 세트가 성공적으로 삭제되었습니다.',
+        deletedFrom: ['supabase'],
+        details: {
+          deletedContentSet: contentSet.title,
+          deletedAt: new Date().toISOString()
+        }
       });
 
-      const rows = finalSetsData.data.values || [];
-      const targetRowIndex = rows.findIndex((row, index) => 
-        index > 0 && row[1] === setId // setId는 B열 (인덱스 1)
-      );
-
-      if (targetRowIndex > 0) {
-        await sheets.spreadsheets.batchUpdate({
-          spreadsheetId,
-          requestBody: {
-            requests: [{
-              deleteDimension: {
-                range: {
-                  sheetId: 0, // final_sets 시트 ID (보통 첫 번째 시트는 0)
-                  dimension: 'ROWS',
-                  startIndex: targetRowIndex,
-                  endIndex: targetRowIndex + 1
-                }
-              }
-            }]
-          }
-        });
-        deletedFromSheets.push('final_sets');
-      }
-    } catch (error) {
-      console.error('final_sets 삭제 중 오류:', error);
-      errors.push(`final_sets: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } catch (deleteError) {
+      console.error('Supabase 삭제 중 오류:', deleteError);
+      return NextResponse.json({
+        success: false,
+        error: 'Supabase에서 콘텐츠 삭제 중 오류가 발생했습니다.',
+        details: deleteError instanceof Error ? deleteError.message : '알 수 없는 오류'
+      }, { status: 500 });
     }
-
-    // v2 구조에서 삭제 (content_sets_v2, passages_v2, vocabulary_terms_v2, etc.)
-    const v2Sheets = [
-      'content_sets_v2',
-      'passages_v2', 
-      'vocabulary_terms_v2',
-      'vocabulary_questions_v2',
-      'comprehensive_questions_v2',
-      'ai_generation_logs_v2'
-    ];
-
-    for (const sheetName of v2Sheets) {
-      try {
-        const sheetData = await sheets.spreadsheets.values.get({
-          spreadsheetId,
-          range: `${sheetName}!A:B`
-        });
-
-        const rows = sheetData.data.values || [];
-        const rowsToDelete: number[] = [];
-
-        // content_sets_v2는 set_id(B열), 나머지는 content_set_id(B열)에서 찾기
-        rows.forEach((row, index) => {
-          if (index > 0 && row[1] === setId) {
-            rowsToDelete.push(index);
-          }
-        });
-
-        // 역순으로 삭제 (인덱스 변경 방지)
-        for (const rowIndex of rowsToDelete.reverse()) {
-          await sheets.spreadsheets.batchUpdate({
-            spreadsheetId,
-            requestBody: {
-              requests: [{
-                deleteDimension: {
-                  range: {
-                    sheetId: await getSheetId(sheets, spreadsheetId, sheetName),
-                    dimension: 'ROWS',
-                    startIndex: rowIndex,
-                    endIndex: rowIndex + 1
-                  }
-                }
-              }]
-            }
-          });
-        }
-
-        if (rowsToDelete.length > 0) {
-          deletedFromSheets.push(`${sheetName} (${rowsToDelete.length}개 행)`);
-        }
-      } catch (error) {
-        console.error(`${sheetName} 삭제 중 오류:`, error);
-        errors.push(`${sheetName}: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-      }
-    }
-
-    console.log(`콘텐츠 세트 ${setId} 삭제 완료`);
-
-    return NextResponse.json({
-      success: true,
-      setId,
-      message: '콘텐츠 세트가 성공적으로 삭제되었습니다.',
-      deletedFrom: deletedFromSheets,
-      errors: errors.length > 0 ? errors : undefined
-    });
 
   } catch (error) {
     console.error('콘텐츠 세트 삭제 중 오류:', error);
@@ -135,17 +66,5 @@ export async function DELETE(request: NextRequest) {
       error: '콘텐츠 세트 삭제 중 오류가 발생했습니다.',
       details: error instanceof Error ? error.message : '알 수 없는 오류'
     }, { status: 500 });
-  }
-}
-
-// 시트 ID를 가져오는 헬퍼 함수
-async function getSheetId(sheets: Awaited<ReturnType<typeof getGoogleSheetsClient>>, spreadsheetId: string, sheetName: string): Promise<number> {
-  try {
-    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
-    const sheet = spreadsheet.data.sheets?.find((s) => s.properties?.title === sheetName);
-    return sheet?.properties?.sheetId || 0;
-  } catch (error) {
-    console.error(`시트 ID 조회 실패 (${sheetName}):`, error);
-    return 0; // 기본값
   }
 } 

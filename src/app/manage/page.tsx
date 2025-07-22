@@ -6,48 +6,61 @@ import Header from '@/components/Header';
 import AuthGuard from '@/components/AuthGuard';
 
 interface DataSet {
-  timestamp: string;
-  setId: string;
-  userId?: string;
-  division: string;
-  subject: string;
+  id: string; // UUID
+  title: string; // passageTitle -> title
   grade: string;
+  subject: string;
   area: string;
-  mainTopic: string;  // v2 구조: mainTopic
-  subTopic: string;   // v2 구조: subTopic
-  keywords: string;   // v2 구조: keywords (복수형)
-  passageTitle: string;
-  vocabularyQuestionCount: number; // v2 구조
-  comprehensiveQuestionCount: number; // v2 구조
-  totalQuestions: number;
-  createdAt: string;
-  updatedAt: string;
-  paragraphCount: number;
-  vocabularyWordsCount: number;
-  status: '검수 전' | '검수완료'; // 상태값 타입 명시
+  total_passages: number;
+  total_vocabulary_terms: number;
+  total_vocabulary_questions: number;
+  total_comprehensive_questions: number;
+  created_at?: string;
+  updated_at?: string;
   
-  // 하위 호환성을 위한 별칭들
+  // API 필드들 (snake_case)
+  user_id?: string;
+  main_topic?: string;
+  sub_topic?: string;
+  
+  // 계산된 필드들
+  totalQuestions?: number;
+  
+  // 레거시 호환성을 위한 별칭들 (Google Sheets 데이터와 호환)
+  setId?: string;
+  passageTitle?: string;
+  vocabularyQuestionCount?: number;
+  comprehensiveQuestionCount?: number;
+  paragraphCount?: number;
+  vocabularyWordsCount?: number;
+  mainTopic?: string;
+  subTopic?: string;
+  keywords?: string;
+  division?: string;
+  status?: '검수 전' | '검수완료';
+  timestamp?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  userId?: string;
   maintopic?: string;
   subtopic?: string;
   keyword?: string;
-  vocabularyCount?: number;
-  comprehensiveCount?: number;
 }
 
 interface ApiResponse {
   success: boolean;
   data: DataSet[];
   stats: {
-    total: number;
+    totalSets: number;
     subjects: string[];
     grades: string[];
     areas: string[];
-    totalVocabularyQuestions: number;
-    totalComprehensiveQuestions: number;
-    mostRecentUpdate: string | null;
+    totalVocabularyQuestions?: number;
+    totalComprehensiveQuestions?: number;
   };
   total: number;
-  filtered: number;
+  version?: string;
+  message?: string;
   error?: string;
 }
 
@@ -58,6 +71,7 @@ export default function ManagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<ApiResponse['stats'] | null>(null);
+  const [totalCount, setTotalCount] = useState<number>(0);
   
   // 필터 상태
   const [filters, setFilters] = useState({
@@ -93,6 +107,13 @@ export default function ManagePage() {
     setId: '',
     loading: false
   });
+
+  // 인라인 편집 상태 추가
+  const [editingCell, setEditingCell] = useState<{
+    setId: string;
+    field: string;
+    value: string;
+  } | null>(null);
   
   const fetchDataSets = useCallback(async () => {
     setLoading(true);
@@ -106,18 +127,14 @@ export default function ManagePage() {
       if (filters.user) params.append('user', filters.user);
       if (filters.status) params.append('status', filters.status);
       
-      const response = await fetch(`/api/get-saved-sets?${params.toString()}`);
+      const response = await fetch(`/api/get-curriculum-data-supabase?${params.toString()}`);
       const result: ApiResponse = await response.json();
       
       if (result.success) {
-        // v2 데이터에 totalQuestions 계산 추가
-        const dataWithTotalQuestions = result.data.map(item => ({
-          ...item,
-          totalQuestions: (item.vocabularyQuestionCount || item.vocabularyCount || 0) + 
-                         (item.comprehensiveQuestionCount || item.comprehensiveCount || 0)
-        }));
-        setDataSets(dataWithTotalQuestions);
+        // API에서 이미 변환된 데이터를 사용
+        setDataSets(result.data);
         setStats(result.stats);
+        setTotalCount(result.total);
       } else {
         setError(result.error || 'Unknown error');
       }
@@ -164,7 +181,7 @@ export default function ManagePage() {
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
       return (
-        item.passageTitle.toLowerCase().includes(searchTerm) ||
+        (item.title || item.passageTitle || '').toLowerCase().includes(searchTerm) ||
         (item.mainTopic || item.maintopic || '').toLowerCase().includes(searchTerm) ||
         (item.subTopic || item.subtopic || '').toLowerCase().includes(searchTerm) ||
         (item.keywords || item.keyword || '').toLowerCase().includes(searchTerm)
@@ -208,8 +225,53 @@ export default function ManagePage() {
     }
   };
 
+  // 인라인 편집 시작 함수
+  const startEditing = (setId: string, field: string, currentValue: string | number) => {
+    setEditingCell({
+      setId,
+      field,
+      value: String(currentValue)
+    });
+  };
+
+  // 인라인 편집 취소 함수
+  const cancelEditing = () => {
+    setEditingCell(null);
+  };
+
+  // 인라인 편집 저장 함수
+  const saveEditing = async () => {
+    if (!editingCell) return;
+
+    try {
+      if (editingCell.field === 'status') {
+        // 상태값 변경은 기존 updateStatus API 사용 (알림 비활성화)
+        await updateStatus(editingCell.setId, editingCell.value as '검수 전' | '검수완료', false);
+      } else {
+        // 다른 필드들은 추후 별도 API 구현 예정
+        console.log('업데이트 요청:', editingCell);
+        
+        // 임시로 로컬 상태 업데이트
+        setDataSets(prev => prev.map(item => 
+          item.setId === editingCell.setId 
+            ? { ...item, [editingCell.field]: editingCell.field.includes('Count') ? Number(editingCell.value) : editingCell.value }
+            : item
+        ));
+        
+        alert('수정이 완료되었습니다.');
+      }
+      
+      setEditingCell(null);
+    } catch (error) {
+      console.error('수정 중 오류:', error);
+      alert('수정 중 오류가 발생했습니다.');
+    }
+  };
+
   // 상태값 변경 함수
-  const updateStatus = async (setId: string, newStatus: '검수 전' | '검수완료') => {
+  const updateStatus = async (setId: string, newStatus: '검수 전' | '검수완료', showAlert: boolean = true) => {
+    console.log('상태값 변경 요청:', { setId, newStatus, showAlert }); // 디버깅용 로그
+    
     setStatusUpdating({ setId, loading: true });
     
     try {
@@ -226,10 +288,14 @@ export default function ManagePage() {
 
       const result = await response.json();
       
+      console.log('상태값 변경 응답:', result); // 디버깅용 로그
+      
       if (result.success) {
         // 데이터 새로고침
         await fetchDataSets();
-        alert(`상태가 '${newStatus}'로 변경되었습니다.`);
+        if (showAlert) {
+          alert(`상태가 '${newStatus}'로 변경되었습니다.`);
+        }
       } else {
         alert(result.error || '상태 변경에 실패했습니다.');
       }
@@ -268,6 +334,8 @@ export default function ManagePage() {
   const handleDelete = async () => {
     if (!deleteModal.setId) return;
     
+    console.log('삭제 요청 ID:', deleteModal.setId); // 디버깅용 로그
+    
     setDeleting(true);
     try {
       const response = await fetch(`/api/delete-set?setId=${deleteModal.setId}`, {
@@ -275,6 +343,8 @@ export default function ManagePage() {
       });
       
       const result = await response.json();
+      
+      console.log('삭제 응답:', result); // 디버깅용 로그
       
       if (result.success) {
         // 성공 시 데이터 새로고침
@@ -302,7 +372,7 @@ export default function ManagePage() {
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-xl font-bold text-blue-600">{stats.total}</div>
+              <div className="text-xl font-bold text-blue-600">{totalCount || (stats as any)?.totalSets || 0}</div>
               <div className="text-xs text-gray-600">총 콘텐츠 세트</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
@@ -419,7 +489,7 @@ export default function ManagePage() {
           
           <div className="flex justify-between items-center">
             <p className="text-sm text-gray-600">
-              {filteredDataSets.length}개의 콘텐츠 세트 ({stats?.total}개 중)
+              {filteredDataSets.length}개의 콘텐츠 세트 ({stats?.totalSets || 0}개 중)
             </p>
             <button
               onClick={() => setFilters({ subject: '', grade: '', area: '', user: '', status: '', search: '' })}
@@ -550,25 +620,141 @@ export default function ManagePage() {
                         {item.vocabularyWordsCount}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-purple-600">
-                        {item.vocabularyQuestionCount || item.vocabularyCount || 0}
+                        {editingCell?.setId === item.setId && editingCell?.field === 'vocabularyQuestionCount' ? (
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              value={editingCell.value}
+                              onChange={(e) => setEditingCell(prev => prev ? {...prev, value: e.target.value} : null)}
+                              className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveEditing();
+                                if (e.key === 'Escape') cancelEditing();
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              onClick={saveEditing}
+                              className="text-green-600 hover:text-green-800 p-1"
+                              title="저장"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={cancelEditing}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="취소"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <span 
+                            onClick={() => startEditing(item.setId, 'vocabularyQuestionCount', item.vocabularyQuestionCount || item.vocabularyCount || 0)}
+                            className="cursor-pointer hover:bg-purple-50 px-2 py-1 rounded transition-colors"
+                            title="클릭하여 수정"
+                          >
+                            {item.vocabularyQuestionCount || item.vocabularyCount || 0}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600">
-                        {item.comprehensiveQuestionCount || item.comprehensiveCount || 0}
+                        {editingCell?.setId === item.setId && editingCell?.field === 'comprehensiveQuestionCount' ? (
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              value={editingCell.value}
+                              onChange={(e) => setEditingCell(prev => prev ? {...prev, value: e.target.value} : null)}
+                              className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveEditing();
+                                if (e.key === 'Escape') cancelEditing();
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              onClick={saveEditing}
+                              className="text-green-600 hover:text-green-800 p-1"
+                              title="저장"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={cancelEditing}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="취소"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <span 
+                            onClick={() => startEditing(item.setId, 'comprehensiveQuestionCount', item.comprehensiveQuestionCount || item.comprehensiveCount || 0)}
+                            className="cursor-pointer hover:bg-green-50 px-2 py-1 rounded transition-colors"
+                            title="클릭하여 수정"
+                          >
+                            {item.comprehensiveQuestionCount || item.comprehensiveCount || 0}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          item.status === '검수완료' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {item.status}
-                        </span>
+                        {editingCell?.setId === item.setId && editingCell?.field === 'status' ? (
+                          <div className="flex items-center justify-center space-x-2">
+                            <select
+                              value={editingCell.value}
+                              onChange={(e) => setEditingCell(prev => prev ? {...prev, value: e.target.value} : null)}
+                              className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveEditing();
+                                if (e.key === 'Escape') cancelEditing();
+                              }}
+                              autoFocus
+                            >
+                              <option value="검수 전">검수 전</option>
+                              <option value="검수완료">검수완료</option>
+                            </select>
+                            <button
+                              onClick={saveEditing}
+                              className="text-green-600 hover:text-green-800 p-1"
+                              title="저장"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={cancelEditing}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="취소"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <span 
+                            onClick={() => startEditing(item.setId, 'status', item.status)}
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full cursor-pointer hover:opacity-80 transition-opacity ${
+                              item.status === '검수완료' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}
+                            title="클릭하여 수정"
+                          >
+                            {item.status}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center justify-center space-x-3">
                           {/* 상세보기 아이콘 */}
                           <button
-                            onClick={() => window.open(`/manage/${item.setId}`, '_blank')}
+                            onClick={() => {
+                              const setId = item.id || item.setId;
+                              console.log('상세보기 클릭:', { itemId: item.id, setId: item.setId, finalId: setId });
+                              if (setId) {
+                                window.open(`/manage/${setId}`, '_blank');
+                              } else {
+                                alert('콘텐츠 ID를 찾을 수 없습니다.');
+                              }
+                            }}
                             className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
                             title="상세보기"
                           >
@@ -581,8 +767,9 @@ export default function ManagePage() {
                           {/* 상태 변경 아이콘 */}
                           <button
                             onClick={() => updateStatus(
-                              item.setId, 
-                              item.status === '검수 전' ? '검수완료' : '검수 전'
+                              item.id || item.setId, 
+                              item.status === '검수 전' ? '검수완료' : '검수 전',
+                              false
                             )}
                             disabled={statusUpdating.setId === item.setId && statusUpdating.loading}
                             className="text-purple-600 hover:text-purple-800 hover:bg-purple-50 p-1 rounded transition-colors disabled:opacity-50"
@@ -599,7 +786,7 @@ export default function ManagePage() {
                           
                           {/* 삭제 아이콘 */}
                           <button 
-                            onClick={() => openDeleteModal(item.setId, item.passageTitle, item.status)}
+                            onClick={() => openDeleteModal(item.id || item.setId, item.title || item.passageTitle, item.status)}
                             className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded transition-colors"
                             title="삭제"
                           >

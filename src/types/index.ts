@@ -4,7 +4,7 @@ export type DivisionType =
   | '초등학교 고학년(5-6학년)' 
   | '중학생(1-3학년)';
 
-// 학년 타입 (새로 추가, Google Sheets와 연동)
+// 학년 타입 정의
 export type GradeType = string;
 
 // 과목 타입
@@ -31,7 +31,7 @@ export type TextType =
 // 문제 형태 타입
 export type QuestionType = '객관식' | '주관식';
 
-// 필드 데이터 타입 (Google Sheets field 시트)
+// 필드 데이터 타입 정의
 export interface FieldData {
   subject: string;
   grade: string;
@@ -54,8 +54,8 @@ export interface PassageInput {
   textType?: TextType;      // 유형 (선택사항)
 }
 
-// 지문 출력 스키마
-export interface Passage {
+// 지문 출력 스키마 (AI 생성용)
+export interface PassageOutput {
   passages: {
     title: string;
     paragraphs: string[];
@@ -133,8 +133,8 @@ export type ComprehensiveQuestionType =
   | '핵심 내용 요약'            // 객관식 핵심 내용 요약
   | '핵심어/핵심문장 찾기';      // 객관식 핵심어/핵심문장 찾기
 
-// 종합 문제 개별 문제
-export interface ComprehensiveQuestion {
+// 종합 문제 개별 문제 (워크플로우용)
+export interface ComprehensiveQuestionWorkflow {
   id: string;
   type: Exclude<ComprehensiveQuestionType, 'Random'>;
   question: string;
@@ -205,93 +205,111 @@ export interface Account {
 // 콘텐츠 상태 타입
 export type ContentStatus = '검수 전' | '검수완료';
 
-// 콘텐츠 세트 (content_sets_v2 테이블)
+// 콘텐츠 세트 (content_sets 테이블) - Supabase 적용
 export interface ContentSet {
-  id?: number;
-  setId: string;
-  userId?: string;
-  division: DivisionType;
+  id?: string; // UUID
+  user_id?: string; // 생성자 ID
+  division: string; // 구분 (초등학교 중학년, 고학년, 중학생)
+  grade: string; // 실제 학년
   subject: SubjectType;
-  grade: string;
   area: string;
-  mainTopic: string;
-  subTopic: string;
-  keywords: string;
-  passageTitle: string;
-  passageLength: PassageLengthType; // 지문 길이 정보 추가
-  textType?: TextType; // 지문 유형 정보 추가 (선택사항)
-  paragraphCount: number;
-  vocabularyWordsCount: number;
-  vocabularyQuestionCount: number;
-  comprehensiveQuestionCount: number;
-  status: ContentStatus; // 검수 상태
-  createdAt: string;
-  updatedAt: string;
+  main_topic?: string; // 대주제
+  sub_topic?: string; // 소주제
+  keywords?: string; // 키워드
+  title: string; // passageTitle -> title로 단순화
+  total_passages: number;
+  total_vocabulary_terms: number;
+  total_vocabulary_questions: number;
+  total_comprehensive_questions: number;
+  status?: '검수 전' | '검수완료'; // 상태값
+  passage_length?: string | null; // 지문 길이 (선택사항)
+  text_type?: string | null; // 지문 유형 (선택사항)
+  created_at?: string;
+  updated_at?: string;
 }
 
-// 지문 (passages_v2 테이블)
-export interface PassageData {
-  id?: number;
-  contentSetId: string;
+// 지문 (passages 테이블) - Supabase 적용
+export interface Passage {
+  id?: string; // UUID
+  content_set_id: string; // UUID
+  passage_number: number;
   title: string;
-  paragraphs: string[];
-  createdAt: string;
-  updatedAt: string;
+  paragraph_1?: string;
+  paragraph_2?: string;
+  paragraph_3?: string;
+  paragraph_4?: string;
+  paragraph_5?: string;
+  paragraph_6?: string;
+  paragraph_7?: string;
+  paragraph_8?: string;
+  paragraph_9?: string;
+  paragraph_10?: string;
+  created_at?: string;
 }
 
-// 어휘 용어 (vocabulary_terms_v2 테이블)
+// 어휘 용어 (vocabulary_terms 테이블) - Supabase 적용
 export interface VocabularyTerm {
-  id?: number;
-  contentSetId: string;
+  id?: string; // UUID
+  content_set_id: string; // UUID
   term: string;
   definition: string;
-  exampleSentence?: string;
-  orderIndex: number;
-  createdAt: string;
+  example_sentence?: string | null; // 예시 문장
+  created_at?: string;
 }
 
-// 어휘 문제 (vocabulary_questions_v2 테이블)
-export interface VocabularyQuestionData {
-  id?: number;
-  contentSetId: string;
-  vocabularyTermId?: string;
-  questionId: string;
-  term: string;
-  question: string;
-  options: [string, string, string, string, string]; // 정확히 5개
-  correctAnswer: string;
+// 어휘 문제 (vocabulary_questions 테이블) - Supabase 적용
+export interface VocabularyQuestion {
+  id?: string; // UUID
+  content_set_id: string; // UUID
+  question_number: number;
+  question_type: '객관식' | '주관식';
+  difficulty: '일반' | '보완';
+  term?: string; // 어휘 용어
+  question_text: string;
+  option_1?: string;
+  option_2?: string;
+  option_3?: string;
+  option_4?: string;
+  option_5?: string;
+  correct_answer: string;
   explanation: string;
-  createdAt: string;
+  created_at?: string;
 }
 
-// 종합 문제 (comprehensive_questions_v2 테이블)
-export interface ComprehensiveQuestionData {
-  id?: number;
-  contentSetId: string;
-  questionId: string;
-  questionType: Exclude<ComprehensiveQuestionType, 'Random'>;
-  question: string;
-  questionFormat: 'multiple_choice' | 'short_answer';
-  options?: [string, string, string, string, string]; // 객관식인 경우만
-  correctAnswer: string;
+// 종합 문제 (comprehensive_questions 테이블) - Supabase 적용
+export interface ComprehensiveQuestionDB {
+  id?: string; // UUID
+  content_set_id: string; // UUID
+  question_number: number;
+  question_type: '단답형' | '문단별 순서 맞추기' | '핵심 내용 요약' | '핵심어/핵심문장 찾기';
+  question_format: '객관식' | '주관식';
+  difficulty: '일반' | '보완';
+  question_text: string;
+  option_1?: string;
+  option_2?: string;
+  option_3?: string;
+  option_4?: string;
+  option_5?: string;
+  correct_answer: string;
   explanation: string;
-  isSupplementary: boolean;
-  originalQuestionId?: string;
-  questionSetNumber: number;
-  createdAt: string;
+  is_supplementary: boolean;
+  original_question_id?: string;
+  question_set_number: number;
+  created_at?: string;
 }
 
-// AI 생성 로그 (ai_generation_logs_v2 테이블)
+// AI 생성 로그 (ai_generation_logs 테이블) - Supabase 적용
 export interface AIGenerationLog {
-  id?: number;
-  contentSetId: string;
-  generationType: 'passage' | 'vocabulary' | 'comprehensive';
-  promptUsed: string;
-  aiResponse: Record<string, unknown>; // JSON 형태
-  generationTimeMs?: number;
-  tokensUsed?: number;
-  costUsd?: number;
-  createdAt: string;
+  id?: string; // UUID
+  content_set_id?: string; // UUID, nullable
+  generation_type: 'passage' | 'vocabulary' | 'comprehensive';
+  prompt_used: string;
+  ai_response?: string; // JSON string
+  tokens_used?: number;
+  generation_time_ms?: number;
+  status: 'success' | 'error' | 'partial';
+  error_message?: string;
+  created_at?: string;
 }
 
 // 사용 통계 (usage_statistics 테이블)
@@ -308,10 +326,10 @@ export interface UsageStatisticsV2 {
 // 정규화된 구조의 전체 콘텐츠 상세 정보
 export interface ContentSetDetailsV2 {
   contentSet: ContentSet;
-  passage: PassageData | null;
+  passage: Passage | null;
   vocabularyTerms: VocabularyTerm[];
-  vocabularyQuestions: VocabularyQuestionData[];
-  comprehensiveQuestions: ComprehensiveQuestionData[];
+  vocabularyQuestions: VocabularyQuestion[];
+  comprehensiveQuestions: ComprehensiveQuestion[];
 }
 
 // API 응답을 위한 타입들
@@ -347,7 +365,7 @@ export interface ContentSetDetailsResponseV2 {
 export interface MigrationResponseV2 {
   success: boolean;
   message: string;
-  newSheets: string[];
+  savedTables: string[];
   description?: string;
   nextSteps?: string[];
   error?: string;
@@ -365,7 +383,20 @@ export interface UserV2 {
   updatedAt: string;
 }
 
-// 교육과정 데이터 (curriculum_data 테이블)
+// 교육과정 데이터 (curriculum_data 테이블) - Supabase 적용
+export interface CurriculumData {
+  id?: string; // UUID
+  subject: SubjectType;
+  grade: string;
+  area: string;
+  main_topic: string;
+  sub_topic: string;
+  keywords: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
+// 교육과정 데이터 (curriculum_data 테이블) - 레거시 (V2)
 export interface CurriculumDataV2 {
   id?: number;
   subject: SubjectType;
@@ -404,23 +435,15 @@ export type PromptSubCategory =
   | 'comprehensiveType' // 종합 문제 유형별
   | 'outputFormat';     // 출력 형식별
 
-// 프롬프트 데이터 (system_prompts 테이블)
+// 프롬프트 데이터 (system_prompts 테이블) - Supabase 적용
 export interface SystemPrompt {
-  id?: number;
-  promptId: string;           // 고유 식별자 (예: 'division_elementary_mid')
-  category: PromptCategory;   // 주 카테고리
-  subCategory: PromptSubCategory; // 하위 카테고리
-  name: string;               // 프롬프트 이름 (예: '초등학교 중학년(3-4학년)')
-  key: string;                // 키 값 (예: '초등학교 중학년(3-4학년)')
-  promptText: string;         // 실제 프롬프트 내용
-  description?: string;       // 프롬프트 설명
-  isActive: boolean;          // 활성화 여부
-  isDefault: boolean;         // 기본값 여부
-  version: number;            // 버전 (수정 이력 관리)
-  createdAt: string;
-  updatedAt: string;
-  createdBy?: string;         // 생성자 (향후 사용자 시스템 연동)
-  updatedBy?: string;         // 수정자 (향후 사용자 시스템 연동)
+  id?: string; // UUID
+  prompt_type: string; // 'passage_generation' | 'vocabulary_generation' | 'comprehensive_generation'
+  prompt_content: string;
+  version: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // 프롬프트 수정 이력 (prompt_history 테이블) - 향후 확장용

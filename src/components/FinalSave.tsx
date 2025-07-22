@@ -19,15 +19,21 @@ interface FinalSaveProps {
 
 interface SaveResult {
   success: boolean;
-  setId?: string;
   message?: string;
-  savedData?: {
-    timestamp: string;
-    setId: string;
-    passageTitle: string;
-    vocabularyCount: number;
-    comprehensiveCount: number;
-    typeDistribution: Record<string, number>;
+  data?: {
+    contentSetId: string;
+    contentSet: {
+      id: string;
+      title: string;
+      grade: string;
+      subject: string;
+      area: string;
+      total_passages: number;
+      total_vocabulary_terms: number;
+      total_vocabulary_questions: number;
+      total_comprehensive_questions: number;
+      created_at?: string;
+    };
   };
   error?: string;
   localBackup?: {
@@ -48,34 +54,30 @@ export default function FinalSave({
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
-  const [testingConnection, setTestingConnection] = useState(false);
-  // v2만 지원하므로 saveVersion 상태 제거
+  const [testingSupabase, setTestingSupabase] = useState(false);
+  const [supabaseTest, setSupabaseTest] = useState<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    details?: string;
+    manualSetupRequired?: boolean;
+    manualInstructions?: string[];
+  } | null>(null);
+  const [settingUpSchema, setSettingUpSchema] = useState(false);
+  const [schemaSetup, setSchemaSetup] = useState<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    manualSetupRequired?: boolean;
+    manualInstructions?: string[];
+    details?: any;
+  } | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<{
     success: boolean;
     message?: string;
     error?: string;
-    details?: string;
-    createdSheets?: string[];
-    existingSheets?: string[];
-    updatedSheets?: string[]; // 스키마 업데이트된 시트들 추가
-    spreadsheetUrl?: string;
-  } | null>(null);
-  const [connectionTest, setConnectionTest] = useState<{
-    success: boolean;
-    message?: string;
-    error?: string;
-    details?: string;
-    missingSheets?: string[];
-    recommendations?: string | string[];
-  } | null>(null);
-  const [creatingSheets, setCreatingSheets] = useState(false);
-  const [sheetCreation, setSheetCreation] = useState<{
-    success: boolean;
-    message?: string;
-    error?: string;
-    details?: string;
-    created?: string[];
+    data?: any;
   } | null>(null);
 
   // 데이터 요약 계산 (안전한 처리)
@@ -93,12 +95,45 @@ export default function FinalSave({
     } : null
   };
 
-  // v2 구조 시트 생성 실행
-  const handleMigration = async () => {
-    setMigrating(true);
+  // Supabase 연결 테스트
+  const handleTestSupabase = async () => {
+    setTestingSupabase(true);
     
     try {
-      const response = await fetch('/api/create-v2-sheets-backup', {
+      const response = await fetch('/api/test-supabase-connection', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      setSupabaseTest(result);
+      
+      if (result.success) {
+        console.log('Supabase connection test successful:', result);
+      } else {
+        console.error('Supabase connection test failed:', result.error);
+      }
+      
+    } catch (error) {
+      console.error('Error during Supabase connection test:', error);
+      setSupabaseTest({
+        success: false,
+        error: 'Supabase 연결 테스트 중 네트워크 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : '알 수 없는 오류'
+      });
+    } finally {
+      setTestingSupabase(false);
+    }
+  };
+
+  // Supabase 스키마 설정
+  const handleSetupSchema = async () => {
+    setSettingUpSchema(true);
+    
+    try {
+      const response = await fetch('/api/setup-supabase-schema', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -106,93 +141,77 @@ export default function FinalSave({
       });
 
       const result = await response.json();
-      setMigrationResult(result);
+      setSchemaSetup(result);
       
       if (result.success) {
-        console.log('v2 sheets creation successful:', result);
+        console.log('Supabase schema setup successful:', result);
+        // 스키마 설정 후 연결 테스트 재실행
+        setTimeout(() => {
+          handleTestSupabase();
+        }, 1000);
       } else {
-        console.error('v2 sheets creation failed:', result.error);
+        console.error('Supabase schema setup failed:', result.error);
       }
       
     } catch (error) {
-      console.error('Error during v2 sheets creation:', error);
+      console.error('Error during Supabase schema setup:', error);
+      setSchemaSetup({
+        success: false,
+        error: 'Supabase 스키마 설정 중 네트워크 오류가 발생했습니다.',
+        manualSetupRequired: true,
+        manualInstructions: [
+          '1. Supabase 대시보드에서 SQL Editor로 이동하세요.',
+          '2. 프로젝트 루트의 supabase-schema.sql 파일 내용을 복사하세요.',
+          '3. SQL Editor에서 실행하여 테이블을 생성하세요.'
+        ]
+      });
+    } finally {
+      setSettingUpSchema(false);
+    }
+  };
+
+  // Google Sheets에서 Supabase로 마이그레이션
+  const handleMigrateFromSheets = async () => {
+    setMigrating(true);
+    
+    try {
+      const response = await fetch('/api/migrate-to-supabase', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'migrate-all' })
+      });
+
+      const result = await response.json();
+      setMigrationResult(result);
+      
+      if (result.success) {
+        console.log('Migration successful:', result);
+      } else {
+        console.error('Migration failed:', result.error);
+      }
+      
+    } catch (error) {
+      console.error('Error during migration:', error);
       setMigrationResult({
         success: false,
-        error: 'v2 시트 생성 중 네트워크 오류가 발생했습니다.',
-        details: error instanceof Error ? error.message : '알 수 없는 오류'
+        error: '마이그레이션 중 네트워크 오류가 발생했습니다.'
       });
     } finally {
       setMigrating(false);
     }
   };
 
-  // Google Sheets 연결 테스트
-  const handleTestConnection = async () => {
-    setTestingConnection(true);
-    
-    try {
-      const response = await fetch('/api/test-sheets');
-      const result = await response.json();
-      setConnectionTest(result);
-      
-      if (result.success) {
-        console.log('Connection test successful:', result);
-      } else {
-        console.error('Connection test failed:', result);
-      }
-      
-    } catch (error) {
-      console.error('Error during connection test:', error);
-      setConnectionTest({
-        success: false,
-        error: '연결 테스트 중 네트워크 오류가 발생했습니다.',
-        details: error instanceof Error ? error.message : '알 수 없는 오류'
-      });
-    } finally {
-      setTestingConnection(false);
-    }
-  };
 
-  // Google Sheets 시트 생성
-  const handleCreateSheets = async () => {
-    setCreatingSheets(true);
-    
-    try {
-      const response = await fetch('/api/create-sheets', {
-        method: 'POST',
-      });
-      const result = await response.json();
-      setSheetCreation(result);
-      
-      if (result.success) {
-        console.log('Sheets creation successful:', result);
-        // 시트 생성 후 연결 테스트 다시 실행
-        setTimeout(() => {
-          handleTestConnection();
-        }, 1000);
-      } else {
-        console.error('Sheets creation failed:', result);
-      }
-      
-    } catch (error) {
-      console.error('Error during sheets creation:', error);
-      setSheetCreation({
-        success: false,
-        error: '시트 생성 중 네트워크 오류가 발생했습니다.',
-        details: error instanceof Error ? error.message : '알 수 없는 오류'
-      });
-    } finally {
-      setCreatingSheets(false);
-    }
-  };
 
   // 최종 저장 실행
   const handleFinalSave = async () => {
     setSaving(true);
     
     try {
-      // v2 구조를 기본으로 사용
-      const endpoint = '/api/save-final';
+      // Supabase를 기본으로 사용
+      const endpoint = '/api/save-final-supabase';
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -212,7 +231,7 @@ export default function FinalSave({
       setSaveResult(result);
 
       if (result.success) {
-        console.log('Final save successful:', result.setId);
+        console.log('Final save successful:', result.data?.contentSetId);
       } else {
         console.error('Final save failed:', result.error);
       }
@@ -278,7 +297,7 @@ export default function FinalSave({
               <p className="text-gray-600 mb-2">{saveResult.message}</p>
               <div className="mb-4">
                 <span className="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                  ✨ v2 정규화된 구조로 저장됨
+                  ✨ Supabase PostgreSQL에 저장됨
                 </span>
               </div>
               
@@ -360,7 +379,7 @@ export default function FinalSave({
           <h2 className="text-xl font-bold text-gray-800">7단계: 최종 저장</h2>
           <button
             onClick={handleFinalSave}
-            disabled={saving || (connectionTest !== null && !connectionTest.success)}
+            disabled={saving}
             className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
           >
             {saving ? '저장 중...' : '저장하기'}
@@ -439,18 +458,18 @@ export default function FinalSave({
         </div>
       </div>
 
-      {/* 연결 테스트 결과 */}
-      {connectionTest && (
+      {/* Supabase 연결 테스트 결과 */}
+      {supabaseTest && (
         <div className={`mb-6 p-4 rounded-lg border ${
-          connectionTest.success 
+          supabaseTest.success 
             ? 'bg-green-50 border-green-200' 
             : 'bg-red-50 border-red-200'
         }`}>
           <div className="flex items-start gap-3">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-              connectionTest.success ? 'bg-green-100' : 'bg-red-100'
+              supabaseTest.success ? 'bg-green-100' : 'bg-red-100'
             }`}>
-              {connectionTest.success ? (
+              {supabaseTest.success ? (
                 <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -462,59 +481,92 @@ export default function FinalSave({
             </div>
             <div className="flex-1">
               <h4 className={`font-medium ${
-                connectionTest.success ? 'text-green-800' : 'text-red-800'
+                supabaseTest.success ? 'text-green-800' : 'text-red-800'
               }`}>
-                {connectionTest.success ? '연결 성공' : '연결 실패'}
+                {supabaseTest.success ? 'Supabase 연결 성공' : 'Supabase 연결 실패'}
               </h4>
               <p className={`text-sm mt-1 ${
-                connectionTest.success ? 'text-green-700' : 'text-red-700'
+                supabaseTest.success ? 'text-green-700' : 'text-red-700'
               }`}>
-                {connectionTest.message || connectionTest.error}
+                {supabaseTest.message || supabaseTest.error}
               </p>
               
-              {connectionTest.success && connectionTest.missingSheets && connectionTest.missingSheets.length > 0 && (
-                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
-                  <p className="text-yellow-800 font-medium">주의사항:</p>
-                  <p className="text-yellow-700">{connectionTest.recommendations}</p>
-                  <button
-                    onClick={handleCreateSheets}
-                    disabled={creatingSheets}
-                    className="mt-2 bg-yellow-600 text-white px-3 py-1 rounded text-xs hover:bg-yellow-700 disabled:opacity-50"
-                  >
-                    {creatingSheets ? '시트 생성 중...' : '필요한 시트 자동 생성'}
-                  </button>
-                </div>
-              )}
-              
-              {sheetCreation && (
-                <div className={`mt-2 p-2 rounded text-sm ${
-                  sheetCreation.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-                }`}>
-                  <p className={`font-medium ${sheetCreation.success ? 'text-green-800' : 'text-red-800'}`}>
-                    {sheetCreation.success ? '시트 생성 완료' : '시트 생성 실패'}
-                  </p>
-                  <p className={`text-xs ${sheetCreation.success ? 'text-green-700' : 'text-red-700'}`}>
-                    {sheetCreation.message || sheetCreation.error}
-                  </p>
-                  {sheetCreation.success && sheetCreation.created && sheetCreation.created.length > 0 && (
-                    <p className="text-xs text-green-600 mt-1">
-                      생성된 시트: {sheetCreation.created.join(', ')}
-                    </p>
+              {!supabaseTest.success && (
+                <div className="mt-2">
+                  <p className="text-red-700 font-medium text-sm">해결 방법:</p>
+                  {supabaseTest.manualInstructions ? (
+                    <ul className="list-disc list-inside text-xs text-red-600 mt-1">
+                      {supabaseTest.manualInstructions.map((instruction, index) => (
+                        <li key={index}>{instruction}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <ul className="list-disc list-inside text-xs text-red-600 mt-1">
+                      <li>Supabase 환경 변수가 올바르게 설정되었는지 확인하세요</li>
+                      <li>Supabase 프로젝트가 활성화되었는지 확인하세요</li>
+                      <li>데이터베이스 스키마가 올바르게 설정되었는지 확인하세요</li>
+                    </ul>
+                  )}
+                  
+                  {supabaseTest.manualSetupRequired && (
+                    <div className="mt-3 space-x-2">
+                      <button
+                        onClick={handleSetupSchema}
+                        disabled={settingUpSchema}
+                        className="bg-orange-600 text-white px-3 py-1 rounded text-xs hover:bg-orange-700 disabled:opacity-50"
+                      >
+                        {settingUpSchema ? '스키마 설정 중...' : '자동 스키마 설정'}
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supabase 스키마 설정 결과 */}
+      {schemaSetup && (
+        <div className={`mb-6 p-4 rounded-lg border ${
+          schemaSetup.success 
+            ? 'bg-green-50 border-green-200' 
+            : 'bg-orange-50 border-orange-200'
+        }`}>
+          <div className="flex items-start gap-3">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+              schemaSetup.success ? 'bg-green-100' : 'bg-orange-100'
+            }`}>
+              {schemaSetup.success ? (
+                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              )}
+            </div>
+            <div className="flex-1">
+              <h4 className={`font-medium ${
+                schemaSetup.success ? 'text-green-800' : 'text-orange-800'
+              }`}>
+                {schemaSetup.success ? 'Supabase 스키마 설정 성공' : 'Supabase 스키마 설정 안내'}
+              </h4>
+              <p className={`text-sm mt-1 ${
+                schemaSetup.success ? 'text-green-700' : 'text-orange-700'
+              }`}>
+                {schemaSetup.message || schemaSetup.error}
+              </p>
               
-              {!connectionTest.success && connectionTest.recommendations && (
+              {schemaSetup.manualSetupRequired && schemaSetup.manualInstructions && (
                 <div className="mt-2">
-                  <p className="text-red-700 font-medium text-sm">해결 방법:</p>
-                  <ul className="list-disc list-inside text-xs text-red-600 mt-1">
-                    {Array.isArray(connectionTest.recommendations) 
-                      ? connectionTest.recommendations.map((rec: string, index: number) => (
-                          <li key={index}>{rec}</li>
-                        ))
-                      : <li>{connectionTest.recommendations}</li>
-                    }
-                  </ul>
+                  <p className="text-orange-700 font-medium text-sm">수동 설정 방법:</p>
+                  <ol className="list-decimal list-inside text-xs text-orange-600 mt-1">
+                    {schemaSetup.manualInstructions.map((instruction, index) => (
+                      <li key={index}>{instruction}</li>
+                    ))}
+                  </ol>
                 </div>
               )}
             </div>
@@ -547,7 +599,7 @@ export default function FinalSave({
               <h4 className={`font-medium ${
                 migrationResult.success ? 'text-green-800' : 'text-red-800'
               }`}>
-                {migrationResult.success ? 'v2 시트 생성 성공' : 'v2 시트 생성 실패'}
+                {migrationResult.success ? 'Google Sheets → Supabase 마이그레이션 성공' : '마이그레이션 실패'}
               </h4>
               <p className={`text-sm mt-1 ${
                 migrationResult.success ? 'text-green-700' : 'text-red-700'
@@ -555,53 +607,9 @@ export default function FinalSave({
                 {migrationResult.message || migrationResult.error}
               </p>
               
-              {migrationResult.success && (
-                <div className="mt-2 space-y-2">
-                  {migrationResult.createdSheets && migrationResult.createdSheets.length > 0 && (
-                    <div className="p-2 bg-green-100 border border-green-200 rounded text-sm">
-                      <p className="text-green-800 font-medium">새로 생성된 시트:</p>
-                      <ul className="list-disc list-inside text-green-700 mt-1">
-                        {migrationResult.createdSheets.map((sheet: string, index: number) => (
-                          <li key={index}>{sheet}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {migrationResult.updatedSheets && migrationResult.updatedSheets.length > 0 && (
-                    <div className="p-2 bg-orange-100 border border-orange-200 rounded text-sm">
-                      <p className="text-orange-800 font-medium">스키마 업데이트된 시트:</p>
-                      <ul className="list-disc list-inside text-orange-700 mt-1">
-                        {migrationResult.updatedSheets.map((sheet: string, index: number) => (
-                          <li key={index}>{sheet}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {migrationResult.existingSheets && migrationResult.existingSheets.length > 0 && (
-                    <div className="p-2 bg-blue-100 border border-blue-200 rounded text-sm">
-                      <p className="text-blue-800 font-medium">최신 상태 시트:</p>
-                      <ul className="list-disc list-inside text-blue-700 mt-1">
-                        {migrationResult.existingSheets.map((sheet: string, index: number) => (
-                          <li key={index}>{sheet}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {migrationResult.spreadsheetUrl && (
-                    <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm">
-                      <a 
-                        href={migrationResult.spreadsheetUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline"
-                      >
-                        📊 Google Sheets에서 확인하기
-                      </a>
-                    </div>
-                  )}
+              {migrationResult.success && migrationResult.data && (
+                <div className="mt-2 text-xs text-green-600">
+                  <p>성공: {migrationResult.data.success?.length || 0}개, 실패: {migrationResult.data.failed?.length || 0}개</p>
                 </div>
               )}
             </div>
@@ -609,30 +617,28 @@ export default function FinalSave({
         </div>
       )}
 
-
-
       {/* 저장 및 다운로드 버튼 */}
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
         <button
-          onClick={handleMigration}
-          disabled={migrating}
-          className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+          onClick={handleTestSupabase}
+          disabled={testingSupabase}
+          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
         >
-          {migrating ? 'Data 시트 동기화 중...' : 'Data 시트 동기화'}
+          {testingSupabase ? 'Supabase 연결 테스트 중...' : 'Supabase 연결 테스트'}
         </button>
         
         <button
-          onClick={handleTestConnection}
-          disabled={testingConnection}
-          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+          onClick={handleSetupSchema}
+          disabled={settingUpSchema}
+          className="bg-orange-600 text-white px-6 py-2 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
         >
-          {testingConnection ? '연결 테스트 중...' : '연결 테스트'}
+          {settingUpSchema ? '스키마 설정 중...' : 'DB 스키마 설정'}
         </button>
         
         <button
           onClick={handleFinalSave}
-          disabled={saving || (connectionTest !== null && !connectionTest.success)}
-          className="bg-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-lg"
+          disabled={saving}
+          className="bg-green-600 text-white px-8 py-3 rounded-md hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-lg"
         >
           {saving ? '저장 중...' : '저장하기'}
         </button>
@@ -646,13 +652,14 @@ export default function FinalSave({
       </div>
 
       <div className="mt-4 text-center text-sm text-gray-600">
-        <p>💡 저장 전에 연결 테스트를 실행하고 로컬 다운로드로 백업본을 만들어두는 것을 권장합니다.</p>
+        <p>💡 저장 전에 Supabase 연결 테스트를 실행하고 로컬 다운로드로 백업본을 만들어두는 것을 권장합니다.</p>
         <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700">
-          <p className="font-medium">✨ 정규화된 구조 사용 가이드</p>
+          <p className="font-medium">✨ Supabase 데이터베이스 저장 가이드</p>
           <p className="text-xs mt-1">
-            1. 첫 사용 시: &apos;Data 시트 동기화&apos; 버튼으로 새로운 6개 시트 생성<br/>
-            2. 연결 테스트로 Google Sheets 상태 확인<br/>
-            3. &apos;저장하기&apos; 클릭
+            1. &apos;Supabase 연결 테스트&apos;로 데이터베이스 연결 상태 확인<br/>
+            2. 연결 실패 시: &apos;DB 스키마 설정&apos;으로 데이터베이스 테이블 생성<br/>
+            3. &apos;저장하기&apos; 버튼으로 콘텐츠를 데이터베이스에 저장<br/>
+            4. &apos;로컬파일 다운로드&apos;로 백업 파일 생성 (권장)
           </p>
         </div>
       </div>
