@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     // 안전한 문단 수 계산
     let actualParagraphCount = 0;
     if (editablePassage?.paragraphs && Array.isArray(editablePassage.paragraphs)) {
-      actualParagraphCount = editablePassage.paragraphs.filter((p: any) => {
+      actualParagraphCount = editablePassage.paragraphs.filter((p: string) => {
         return p && typeof p === 'string' && p.trim() !== '';
       }).length;
     }
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
 
     // Transform vocabulary questions
     const transformedVocabularyQuestions: Omit<VocabularyQuestion, 'id' | 'content_set_id' | 'created_at'>[] = 
-      vocabularyQuestions?.map((q: any, index: number) => {
+      vocabularyQuestions?.map((q: { term?: string; question: string; options: string[]; correctAnswer: string; answer: string; explanation: string }, index: number) => {
         console.log(`어휘문제 ${index + 1} 원본:`, q);
         const result = {
           question_number: index + 1,
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
     const typeToSetIdMap: { [questionType: string]: string } = {};
     
     // 먼저 모든 기본문제를 찾아서 세트 ID 생성
-    comprehensiveQuestions?.forEach((q: any, index: number) => {
+    comprehensiveQuestions?.forEach((q: { type?: string; questionType?: string; isSupplementary?: boolean; id?: string }, index: number) => {
       const questionType = q.type || q.questionType || '단답형';
       const isSupplementary = q.isSupplementary || false;
       
@@ -196,8 +196,19 @@ export async function POST(request: NextRequest) {
     
     console.log('📊 문제 유형별 세트 ID 맵핑:', typeToSetIdMap);
     
-    const transformedComprehensiveQuestions: any[] = 
-      comprehensiveQuestions?.map((q: any, index: number) => {
+    const transformedComprehensiveQuestions: Omit<ComprehensiveQuestionDB, 'id' | 'content_set_id' | 'created_at'>[] = 
+      comprehensiveQuestions?.map((q: { 
+        type?: string; 
+        questionType?: string; 
+        isSupplementary?: boolean; 
+        id?: string; 
+        question: string; 
+        options?: string[]; 
+        correctAnswer: string; 
+        answer: string; 
+        explanation: string;
+        questionSetNumber?: number;
+      }, index: number) => {
         const questionType = q.type || q.questionType || '단답형';
         const isSupplementary = q.isSupplementary || false;
         

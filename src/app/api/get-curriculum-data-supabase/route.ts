@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/supabase';
+import { VocabularyTerm, VocabularyQuestion, ComprehensiveQuestionDB } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -65,13 +66,13 @@ export async function GET(request: NextRequest) {
                 setDetails.passages[0].paragraph_10
               ].filter(p => p && p.trim() !== '')
             } : null,
-            vocabularyTerms: (setDetails.vocabulary_terms || []).map((term: any) => ({
+            vocabularyTerms: (setDetails.vocabulary_terms || []).map((term: VocabularyTerm) => ({
               id: term.id,
               term: term.term,
               definition: term.definition,
               example_sentence: term.example_sentence
             })),
-            vocabularyQuestions: (setDetails.vocabulary_questions || []).map((q: any) => {
+            vocabularyQuestions: (setDetails.vocabulary_questions || []).map((q: VocabularyQuestion) => {
               console.log('어휘문제 DB 데이터:', q);
               const result = {
                 id: q.id,
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
               console.log('어휘문제 변환 결과:', result);
               return result;
             }),
-            comprehensiveQuestions: (setDetails.comprehensive_questions || []).map((q: any) => {
+            comprehensiveQuestions: (setDetails.comprehensive_questions || []).map((q: ComprehensiveQuestionDB) => {
               // original_question_id를 기준으로 questionId 생성
               let questionId;
               if (q.is_supplementary) {

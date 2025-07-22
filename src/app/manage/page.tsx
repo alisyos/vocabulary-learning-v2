@@ -372,7 +372,7 @@ export default function ManagePage() {
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-xl font-bold text-blue-600">{totalCount || (stats as any)?.totalSets || 0}</div>
+              <div className="text-xl font-bold text-blue-600">{totalCount || stats?.totalSets || 0}</div>
               <div className="text-xs text-gray-600">총 콘텐츠 세트</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">

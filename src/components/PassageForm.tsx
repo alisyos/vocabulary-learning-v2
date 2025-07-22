@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PassageInput, DivisionType, SubjectType, AreaType, PassageLengthType, TextType, FieldData } from '@/types';
+import { PassageInput, DivisionType, SubjectType, AreaType, PassageLengthType, TextType, FieldData, CurriculumData } from '@/types';
 
 interface PassageFormProps {
   onSubmit: (input: PassageInput) => void;
@@ -82,7 +82,7 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
             setAvailableOptions(prev => ({ ...prev, subjects: ['사회', '과학'] }));
           } else {
             // CurriculumData를 FieldData 형태로 변환
-            const mappedData = data.map((item: any) => ({
+            const mappedData = data.map((item: CurriculumData) => ({
               subject: item.subject,
               grade: item.grade,
               area: item.area,
@@ -143,7 +143,7 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
           const data = await response.json();
           
           // CurriculumData를 FieldData 형태로 변환
-          const mappedData = data.map((item: any) => ({
+          const mappedData = data.map((item: CurriculumData) => ({
             subject: item.subject,
             grade: item.grade,
             area: item.area,
