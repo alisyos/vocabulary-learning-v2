@@ -6,6 +6,7 @@ import { VocabularyQuestion, EditablePassage } from '@/types';
 interface VocabularyQuestionsProps {
   editablePassage: EditablePassage;
   division: string;
+  keywords?: string; // 1단계에서 입력한 핵심 개념어
   vocabularyQuestions: VocabularyQuestion[];
   onUpdate: (questions: VocabularyQuestion[]) => void;
   onNext: () => void;
@@ -16,6 +17,7 @@ interface VocabularyQuestionsProps {
 export default function VocabularyQuestions({
   editablePassage,
   division,
+  keywords,
   vocabularyQuestions,
   onUpdate,
   onNext,
@@ -25,10 +27,49 @@ export default function VocabularyQuestions({
   const [localQuestions, setLocalQuestions] = useState<VocabularyQuestion[]>(vocabularyQuestions);
   const [generatingVocab, setGeneratingVocab] = useState(false);
   
-  // 선택된 용어들 관리
-  const [selectedTerms, setSelectedTerms] = useState<string[]>(
-    editablePassage.footnote.map((_, index) => index.toString())
-  );
+  // 핵심 개념어와 매칭되는 용어들 찾기
+  const getMatchedTerms = () => {
+    console.log('=== 핵심 개념어 매칭 디버깅 ===');
+    console.log('keywords:', keywords);
+    console.log('editablePassage.footnote:', editablePassage.footnote);
+    
+    if (!keywords || keywords.trim() === '') {
+      console.log('keywords가 없어서 빈 배열 반환');
+      return [];
+    }
+    
+    // keywords를 쉼표 또는 슬래시로 분리하고 정규화
+    const keywordList = keywords.split(/[,/]/).map(k => k.trim().toLowerCase()).filter(k => k.length > 0);
+    console.log('keywordList:', keywordList);
+    
+    if (keywordList.length === 0) {
+      console.log('유효한 키워드가 없어서 빈 배열 반환');
+      return [];
+    }
+    
+    const matchedIndices = editablePassage.footnote
+      .map((footnote, index) => {
+        const termName = footnote.split(':')[0]?.trim().toLowerCase() || footnote.toLowerCase();
+        console.log(`용어 ${index}: "${footnote}" -> termName: "${termName}"`);
+        
+        // 키워드 중 하나와 완전 일치하면 선택
+        const isMatched = keywordList.some(keyword => {
+          const exactMatch = termName === keyword;
+          console.log(`  키워드 "${keyword}" 매칭: termName === keyword = ${exactMatch}`);
+          return exactMatch;
+        });
+        
+        console.log(`  최종 매칭 결과: ${isMatched}`);
+        return isMatched ? index.toString() : null;
+      })
+      .filter(Boolean) as string[];
+    
+    console.log('매칭된 인덱스들:', matchedIndices);
+    return matchedIndices;
+  };
+
+  // 선택된 용어들 관리 (핵심 개념어 매칭된 것들만 디폴트 선택)
+  const [selectedTerms, setSelectedTerms] = useState<string[]>(getMatchedTerms());
 
   // 용어 선택/해제
   const handleTermToggle = (termIndex: string) => {

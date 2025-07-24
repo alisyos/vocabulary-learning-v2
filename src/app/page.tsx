@@ -19,9 +19,22 @@ import {
   WorkflowStep
 } from '@/types';
 
+// 기본 입력값 상수
+const DEFAULT_INPUT: PassageInput = {
+  division: '초등학교 중학년(3-4학년)',
+  length: '4-5문장으로 구성한 5-6개 단락',
+  subject: '사회',
+  grade: '',
+  area: '',
+  maintopic: '',
+  subtopic: '',
+  keyword: '',
+  textType: undefined,
+};
+
 export default function Home() {
   const [workflowData, setWorkflowData] = useState<WorkflowData>({
-    input: {} as PassageInput,
+    input: { ...DEFAULT_INPUT },
     generatedPassage: null,
     editablePassage: null,
     vocabularyQuestions: [],
@@ -140,7 +153,7 @@ export default function Home() {
   // 새로운 세트 시작 (모든 데이터 초기화)
   const handleStartNewSet = () => {
     setWorkflowData({
-      input: {} as PassageInput,
+      input: { ...DEFAULT_INPUT },
       generatedPassage: null,
       editablePassage: null,
       vocabularyQuestions: [],
@@ -202,7 +215,8 @@ export default function Home() {
             <div className="lg:col-span-1">
               <PassageForm 
                 onSubmit={handlePassageGeneration} 
-                loading={loading} 
+                loading={loading}
+                initialData={input}
               />
             </div>
 
@@ -226,7 +240,8 @@ export default function Home() {
             <div className="lg:col-span-1">
               <PassageForm 
                 onSubmit={handlePassageGeneration} 
-                loading={loading} 
+                loading={loading}
+                initialData={input}
               />
             </div>
 
@@ -248,15 +263,25 @@ export default function Home() {
         return (
           <div className="max-w-4xl mx-auto">
             {editablePassage && (
-              <VocabularyQuestions
-                editablePassage={editablePassage}
-                division={input.division || ''}
-                vocabularyQuestions={vocabularyQuestions}
-                onUpdate={handleVocabularyGenerated}
-                onNext={() => {}} // 생성 단계에서는 사용 안함
-                loading={loading}
-                currentStep="generation"
-              />
+              <>
+                {(() => {
+                  console.log('3단계 - input.keywords:', input.keywords);
+                  console.log('3단계 - 전체 input:', input);
+                  console.log('3단계 - input 객체의 모든 키:', Object.keys(input));
+                  console.log('3단계 - input 객체 전체 구조:', JSON.stringify(input, null, 2));
+                  return null;
+                })()}
+                <VocabularyQuestions
+                  editablePassage={editablePassage}
+                  division={input.division || ''}
+                  keywords={input.keyword}
+                  vocabularyQuestions={vocabularyQuestions}
+                  onUpdate={handleVocabularyGenerated}
+                  onNext={() => {}} // 생성 단계에서는 사용 안함
+                  loading={loading}
+                  currentStep="generation"
+                />
+              </>
             )}
           </div>
         );
@@ -268,6 +293,7 @@ export default function Home() {
               <VocabularyQuestions
                 editablePassage={editablePassage}
                 division={input.division || ''}
+                keywords={input.keyword}
                 vocabularyQuestions={vocabularyQuestions}
                 onUpdate={handleVocabularyUpdate}
                 onNext={handleMoveToComprehensiveGeneration}

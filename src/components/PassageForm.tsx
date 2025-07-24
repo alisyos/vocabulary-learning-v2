@@ -1,24 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PassageInput, DivisionType, SubjectType, AreaType, PassageLengthType, TextType, FieldData, CurriculumData } from '@/types';
 
 interface PassageFormProps {
   onSubmit: (input: PassageInput) => void;
   loading: boolean;
+  initialData?: PassageInput;
 }
 
-export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
-  const [formData, setFormData] = useState<PassageInput>({
-    division: '초등학교 중학년(3-4학년)',
-    length: '4-5문장으로 구성한 5-6개 단락',
-    subject: '사회',
-    grade: '',
-    area: '',
-    maintopic: '',
-    subtopic: '',
-    keyword: '',
-    textType: undefined,
+export default function PassageForm({ onSubmit, loading, initialData }: PassageFormProps) {
+  const [formData, setFormData] = useState<PassageInput>(() => {
+    const defaultData = {
+      division: '초등학교 중학년(3-4학년)' as DivisionType,
+      length: '4-5문장으로 구성한 5-6개 단락' as PassageLengthType,
+      subject: '사회' as SubjectType,
+      grade: '',
+      area: '',
+      maintopic: '',
+      subtopic: '',
+      keyword: '',
+      textType: undefined,
+    };
+    
+    if (initialData && initialData.division) {
+      return { ...defaultData, ...initialData };
+    }
+    return defaultData;
   });
 
   const [fieldData, setFieldData] = useState<FieldData[]>([]);
@@ -51,6 +59,25 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
     '설명문', '논설문', '탐구문', '뉴스 기사', '인터뷰', 
     '동화', '시', '대본', '소설'
   ];
+
+  // 초기 데이터가 변경될 때 폼 데이터 업데이트
+  useEffect(() => {
+    if (initialData && initialData.division) {
+      const defaultData = {
+        division: '초등학교 중학년(3-4학년)' as DivisionType,
+        length: '4-5문장으로 구성한 5-6개 단락' as PassageLengthType,
+        subject: '사회' as SubjectType,
+        grade: '',
+        area: '',
+        maintopic: '',
+        subtopic: '',
+        keyword: '',
+        textType: undefined,
+      };
+      
+      setFormData({ ...defaultData, ...initialData });
+    }
+  }, [initialData]);
 
   // Supabase에서 필드 데이터 가져오기
   useEffect(() => {
@@ -189,7 +216,7 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
     }
   }, [formData.subject, fieldData]);
 
-  // 학년 변경 시 영역 옵션 업데이트
+  // 학년 변경 시 영역 옵션 업데이트 (초기화 로직 제거)
   useEffect(() => {
     if (formData.subject && formData.grade && fieldData.length > 0) {
       const filteredByGrade = fieldData.filter(item => 
@@ -197,13 +224,10 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
       );
       const uniqueAreas = [...new Set(filteredByGrade.map(item => item.area))].filter(Boolean) as string[];
       setAvailableOptions(prev => ({ ...prev, areas: uniqueAreas }));
-      
-      // 하위 필드 초기화
-      setFormData(prev => ({ ...prev, area: '', maintopic: '', subtopic: '', keyword: '' }));
     }
   }, [formData.subject, formData.grade, fieldData]);
 
-  // 영역 변경 시 대주제 옵션 업데이트
+  // 영역 변경 시 대주제 옵션 업데이트 (초기화 로직 제거)
   useEffect(() => {
     if (formData.subject && formData.grade && formData.area && fieldData.length > 0) {
       const filteredByArea = fieldData.filter(item => 
@@ -213,13 +237,10 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
       );
       const uniqueMaintopics = [...new Set(filteredByArea.map(item => item.maintopic))].filter(Boolean) as string[];
       setAvailableOptions(prev => ({ ...prev, maintopics: uniqueMaintopics }));
-      
-      // 하위 필드 초기화
-      setFormData(prev => ({ ...prev, maintopic: '', subtopic: '', keyword: '' }));
     }
   }, [formData.subject, formData.grade, formData.area, fieldData]);
 
-  // 대주제 변경 시 소주제 옵션 업데이트
+  // 대주제 변경 시 소주제 옵션 업데이트 (초기화 로직 제거)
   useEffect(() => {
     if (formData.subject && formData.grade && formData.area && formData.maintopic && fieldData.length > 0) {
       const filteredByMaintopic = fieldData.filter(item => 
@@ -230,9 +251,6 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
       );
       const uniqueSubtopics = [...new Set(filteredByMaintopic.map(item => item.subtopic))].filter(Boolean) as string[];
       setAvailableOptions(prev => ({ ...prev, subtopics: uniqueSubtopics }));
-      
-      // 하위 필드 초기화
-      setFormData(prev => ({ ...prev, subtopic: '', keyword: '' }));
     }
   }, [formData.subject, formData.grade, formData.area, formData.maintopic, fieldData]);
 
@@ -378,7 +396,7 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             required
           >
-            {lengthOptions[formData.division].map((option) => (
+            {formData.division && lengthOptions[formData.division]?.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>
@@ -419,7 +437,9 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
           </label>
           <select
             value={formData.grade}
-            onChange={(e) => setFormData({ ...formData, grade: e.target.value, area: '', maintopic: '', subtopic: '', keyword: '' })}
+            onChange={(e) => {
+              setFormData({ ...formData, grade: e.target.value, area: '', maintopic: '', subtopic: '', keyword: '' });
+            }}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             required
             disabled={availableOptions.grades.length === 0}
@@ -440,7 +460,9 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
           </label>
           <select
             value={formData.area}
-            onChange={(e) => setFormData({ ...formData, area: e.target.value as AreaType, maintopic: '', subtopic: '', keyword: '' })}
+            onChange={(e) => {
+              setFormData({ ...formData, area: e.target.value as AreaType, maintopic: '', subtopic: '', keyword: '' });
+            }}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             required
             disabled={availableOptions.areas.length === 0}
@@ -461,7 +483,9 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
           </label>
           <select
             value={formData.maintopic}
-            onChange={(e) => setFormData({ ...formData, maintopic: e.target.value, subtopic: '', keyword: '' })}
+            onChange={(e) => {
+              setFormData({ ...formData, maintopic: e.target.value, subtopic: '', keyword: '' });
+            }}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             required
             disabled={availableOptions.maintopics.length === 0}
@@ -482,7 +506,9 @@ export default function PassageForm({ onSubmit, loading }: PassageFormProps) {
           </label>
           <select
             value={formData.subtopic}
-            onChange={(e) => setFormData({ ...formData, subtopic: e.target.value, keyword: '' })}
+            onChange={(e) => {
+              setFormData({ ...formData, subtopic: e.target.value, keyword: '' });
+            }}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             required
             disabled={availableOptions.subtopics.length === 0}
