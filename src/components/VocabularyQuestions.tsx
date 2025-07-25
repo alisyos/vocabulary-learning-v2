@@ -313,7 +313,7 @@ export default function VocabularyQuestions({
             disabled={loading || localQuestions.length === 0}
             className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
           >
-            {loading ? '처리 중...' : '5단계: 종합 문제 생성하기'}
+            {loading ? '처리 중...' : '5단계: 문단 문제 생성하기'}
           </button>
         </div>
         <span className="text-sm text-purple-600 bg-purple-50 px-3 py-1 rounded-full">

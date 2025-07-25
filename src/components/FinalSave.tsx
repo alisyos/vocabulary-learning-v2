@@ -398,7 +398,7 @@ export default function FinalSave({
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-4">
-          <h2 className="text-xl font-bold text-gray-800">7단계: 최종 저장</h2>
+          <h2 className="text-xl font-bold text-gray-800">9단계: 최종 저장</h2>
           <button
             onClick={handleFinalSave}
             disabled={saving}

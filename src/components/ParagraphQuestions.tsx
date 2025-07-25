@@ -238,9 +238,9 @@ export default function ParagraphQuestions({
               <div className="mt-3 text-sm text-gray-600">
                 <p><strong>선택된 유형:</strong> {selectedQuestionType}</p>
                 {selectedQuestionType === 'Random' ? (
-                  <p>• 5가지 유형을 1개씩 총 5개 문제가 생성됩니다.</p>
+                  <p>• 선택된 문단 별로 5가지 유형을 1개씩 5개 문제가 생성됩니다.</p>
                 ) : (
-                  <p>• {selectedQuestionType} 유형으로 5개 문제가 생성됩니다.</p>
+                  <p>• 선택된 문단 별로 {selectedQuestionType} 유형의 5개 문제가 생성됩니다.</p>
                 )}
               </div>
             </div>

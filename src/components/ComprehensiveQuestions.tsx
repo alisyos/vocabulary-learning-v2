@@ -147,7 +147,7 @@ export default function ComprehensiveQuestions({
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center space-x-4">
-              <h2 className="text-xl font-bold text-gray-800">5단계: 종합 문제 생성</h2>
+              <h2 className="text-xl font-bold text-gray-800">7단계: 종합 문제 생성</h2>
               <button
                 onClick={handleGenerateComprehensive}
                 disabled={generatingComp}
@@ -296,13 +296,13 @@ export default function ComprehensiveQuestions({
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-4">
-          <h2 className="text-xl font-bold text-gray-800">6단계: 종합 문제 검토 및 수정</h2>
+          <h2 className="text-xl font-bold text-gray-800">8단계: 종합 문제 검토 및 수정</h2>
           <button
             onClick={onNext}
             disabled={loading || localQuestions.length === 0}
             className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
           >
-            {loading ? '처리 중...' : '7단계: 최종 저장하기'}
+            {loading ? '처리 중...' : '9단계: 최종 저장하기'}
           </button>
         </div>
         <span className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
