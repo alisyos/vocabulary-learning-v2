@@ -17,6 +17,7 @@ interface SetDetails {
   total_passages: number;
   total_vocabulary_terms: number;
   total_vocabulary_questions: number;
+  total_paragraph_questions: number;
   total_comprehensive_questions: number;
   status?: '검수 전' | '검수완료'; // 상태값
   created_at?: string;
@@ -72,6 +73,19 @@ interface ComprehensiveQuestion {
   answer?: string;
 }
 
+interface ParagraphQuestion {
+  id: string;
+  questionId: string;
+  questionNumber: number;
+  questionType: string;
+  paragraphNumber: number;
+  paragraphText: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+}
+
 interface VocabularyTerm {
   id: string;
   term: string;
@@ -92,6 +106,7 @@ interface ApiResponse {
     passage: PassageData | null;
     vocabularyTerms: VocabularyTerm[];
     vocabularyQuestions: VocabularyQuestion[];
+    paragraphQuestions: ParagraphQuestion[];
     comprehensiveQuestions: ComprehensiveQuestion[];
   };
   version: string;
@@ -103,7 +118,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'passage' | 'vocabulary' | 'vocab-questions' | 'comprehensive'>('passage');
+  const [activeTab, setActiveTab] = useState<'passage' | 'vocabulary' | 'vocab-questions' | 'paragraph-questions' | 'comprehensive'>('passage');
   const [setId, setSetId] = useState<string>('');
   const [saving, setSaving] = useState(false);
   
@@ -111,6 +126,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   const [editablePassage, setEditablePassage] = useState<{title: string; paragraphs: string[]}>({title: '', paragraphs: []});
   const [editableVocabulary, setEditableVocabulary] = useState<string[]>([]);
   const [editableVocabQuestions, setEditableVocabQuestions] = useState<VocabularyQuestion[]>([]);
+  const [editableParagraphQuestions, setEditableParagraphQuestions] = useState<ParagraphQuestion[]>([]);
   const [editableComprehensive, setEditableComprehensive] = useState<ComprehensiveQuestion[]>([]);
   
   const fetchSetDetails = useCallback(async (id: string) => {
@@ -169,6 +185,16 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
             options: q.options || []
           }));
         setEditableVocabQuestions([...safeVocabQuestions]);
+        
+        // 문단 문제 데이터 안전하게 처리
+        const safeParagraphQuestions = (result.data?.paragraphQuestions || [])
+          .filter(q => q && q.id)
+          .map((q: any) => ({
+            ...q,
+            options: q.options || []
+          }));
+        setEditableParagraphQuestions([...safeParagraphQuestions]);
+        console.log('문단 문제 데이터:', safeParagraphQuestions);
         
         // 종합 문제 데이터 안전하게 처리
         const allQuestions = result.data?.comprehensiveQuestions || [];
@@ -248,6 +274,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         editablePassage,
         editableVocabulary,
         editableVocabQuestions,
+        editableParagraphQuestions,
         editableComprehensive
       });
 
@@ -261,6 +288,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
           editablePassage,
           editableVocabulary,
           editableVocabQuestions,
+          editableParagraphQuestions,
           editableComprehensive
         }),
       });
@@ -358,7 +386,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         .header { border-bottom: 3px solid #e5e7eb; padding-bottom: 25px; margin-bottom: 35px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 30px; border-radius: 12px; margin: -25px -25px 35px -25px; }
         .title { font-size: 28px; font-weight: bold; color: #1e40af; margin-bottom: 15px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .content-id { text-align: center; font-size: 18px; color: #6b7280; margin-bottom: 30px; font-weight: 600; background-color: #fff; padding: 8px 16px; border-radius: 20px; display: inline-block; border: 2px solid #e5e7eb; }
-        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .info-section { background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s ease; }
         .info-section:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .info-title { font-size: 16px; font-weight: bold; color: #1e40af; margin-bottom: 15px; display: flex; align-items: center; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
@@ -399,7 +427,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         .vocab-question { background-color: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
          @media print { 
              body { max-width: none; margin: 0; padding: 15px; } 
-             .info-grid { grid-template-columns: 1fr 1fr; gap: 10px; } 
+             .info-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } 
              .header { background: #f8fafc; }
              .info-section { box-shadow: none; border: 1px solid #e2e8f0; }
              .info-section:hover { transform: none; }
@@ -469,6 +497,18 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                     <span class="info-value">객관식 (5지선다)</span>
                 </div>
             </div>
+            
+            <div class="info-section">
+                <div class="info-title">문단 문제</div>
+                <div class="info-item">
+                    <span class="info-label">총 문제 수:</span>
+                    <span class="info-value">${editableParagraphQuestions.length}개</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">문제형태:</span>
+                    <span class="info-value">객관식 (5가지 유형)</span>
+                </div>
+            </div>
         </div>
         
         <div class="info-section" style="grid-column: 1 / -1;">
@@ -536,6 +576,40 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                 ${question.options.map((option, optIndex) => `
                   <div class="option ${option === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}">
                     ${optIndex + 1}. ${option} ${option === (question.correctAnswer || question.answer) ? '✓' : ''}
+                  </div>
+                `).join('')}
+            </div>
+            <div class="explanation">
+                <span class="explanation-label">해설:</span> ${question.explanation}
+            </div>
+          </div>
+        `).join('')}
+    </div>
+
+    <div class="section">
+        <h2 class="section-title">📋 문단 문제 (${editableParagraphQuestions.length}개)</h2>
+        ${editableParagraphQuestions.length === 0 ? 
+          '<div style="text-align: center; padding: 40px; color: #6b7280; background-color: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">저장된 문단 문제가 없습니다.</div>' :
+          editableParagraphQuestions.map((question, index) => `
+          <div class="vocab-question">
+            <div class="question-header">
+                <span class="question-number">[문단 문제 ${index + 1}]</span>
+                <span class="question-type-badge">${question.questionType}</span>
+                <span style="margin-left: 10px; font-size: 12px; color: #6b7280;">관련 문단: ${question.paragraphNumber}번</span>
+            </div>
+            
+            ${question.paragraphText ? `
+              <div style="background-color: #f1f5f9; padding: 15px; border-radius: 6px; margin: 10px 0; border-left: 4px solid #3b82f6;">
+                <div style="font-weight: bold; color: #1e40af; margin-bottom: 8px;">관련 문단 내용:</div>
+                <div style="line-height: 1.6; color: #374151;">${question.paragraphText}</div>
+              </div>
+            ` : ''}
+            
+            <div class="question-text">${question.question}</div>
+            <div class="options">
+                ${question.options.map((option, optIndex) => `
+                  <div class="option ${(optIndex + 1).toString() === question.correctAnswer ? 'correct-answer' : ''}">
+                    ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === question.correctAnswer ? '✓' : ''}
                   </div>
                 `).join('')}
             </div>
@@ -675,6 +749,33 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
 
   const removeVocabQuestion = (index: number) => {
     setEditableVocabQuestions(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // 문단문제 편집 함수들
+  const handleParagraphQuestionChange = (index: number, field: keyof ParagraphQuestion, value: string | string[]) => {
+    setEditableParagraphQuestions(prev => prev.map((q, i) => 
+      i === index ? { ...q, [field]: value } : q
+    ));
+  };
+
+  const addParagraphQuestion = () => {
+    const newQuestion: ParagraphQuestion = {
+      id: '',
+      questionId: `paragraph_${Date.now()}`,
+      questionNumber: editableParagraphQuestions.length + 1,
+      questionType: '어절 순서 맞추기',
+      paragraphNumber: 1,
+      paragraphText: '문단 내용을 입력하세요.',
+      question: '새 문단 문제를 입력하세요.',
+      options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
+      correctAnswer: '1',
+      explanation: '해설을 입력하세요.'
+    };
+    setEditableParagraphQuestions(prev => [...prev, newQuestion]);
+  };
+
+  const removeParagraphQuestion = (index: number) => {
+    setEditableParagraphQuestions(prev => prev.filter((_, i) => i !== index));
   };
 
   // 종합문제 편집 함수들
@@ -903,6 +1004,16 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                 }`}
               >
                 어휘문제 ({editableVocabQuestions.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('paragraph-questions')}
+                className={`py-4 px-6 text-sm font-medium border-b-2 ${
+                  activeTab === 'paragraph-questions'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                문단문제 ({setDetails?.total_paragraph_questions || 0})
               </button>
               <button
                 onClick={() => setActiveTab('comprehensive')}
@@ -1211,6 +1322,146 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+            
+            {/* 문단문제 탭 */}
+            {activeTab === 'paragraph-questions' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium text-gray-900">문단 문제</h3>
+                  <button
+                    onClick={addParagraphQuestion}
+                    className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
+                  >
+                    + 문제 추가
+                  </button>
+                </div>
+                
+                {editableParagraphQuestions.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    저장된 문단 문제가 없습니다.
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {editableParagraphQuestions.map((question, index) => (
+                      <div key={question.questionId || question.id} className="border border-gray-200 rounded-lg p-6">
+                        <div className="flex justify-between items-center mb-4">
+                          <h4 className="text-lg font-medium text-gray-900">문제 {index + 1}</h4>
+                          <button
+                            onClick={() => removeParagraphQuestion(index)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          {/* 문제 기본 정보 */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">문제 유형</label>
+                              <select
+                                value={question.questionType}
+                                onChange={(e) => handleParagraphQuestionChange(index, 'questionType', e.target.value)}
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                <option value="어절 순서 맞추기">어절 순서 맞추기</option>
+                                <option value="빈칸 채우기">빈칸 채우기</option>
+                                <option value="유의어 고르기">유의어 고르기</option>
+                                <option value="반의어 고르기">반의어 고르기</option>
+                                <option value="문단 요약">문단 요약</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">관련 문단 번호</label>
+                              <input
+                                type="number"
+                                min="1"
+                                max="10"
+                                value={question.paragraphNumber}
+                                onChange={(e) => handleParagraphQuestionChange(index, 'paragraphNumber', parseInt(e.target.value) || 1)}
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
+                              <select
+                                value={question.correctAnswer}
+                                onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                {question.options.map((option, optIndex) => (
+                                  <option key={optIndex} value={(optIndex + 1).toString()}>
+                                    {optIndex + 1}번: {option.length > 20 ? option.substring(0, 20) + '...' : option}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          
+                          {/* 관련 문단 텍스트 */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">관련 문단 내용</label>
+                            <textarea
+                              value={question.paragraphText}
+                              onChange={(e) => handleParagraphQuestionChange(index, 'paragraphText', e.target.value)}
+                              rows={4}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          
+                          {/* 문제 텍스트 */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">문제</label>
+                            <textarea
+                              value={question.question}
+                              onChange={(e) => handleParagraphQuestionChange(index, 'question', e.target.value)}
+                              rows={3}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          
+                          {/* 선택지 */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
+                            <div className="space-y-2">
+                              {question.options.map((option, optionIndex) => (
+                                <div key={optionIndex} className="flex items-center space-x-2">
+                                  <span className="w-8 text-sm font-medium text-gray-600">{optionIndex + 1}.</span>
+                                  <input
+                                    type="text"
+                                    value={option}
+                                    onChange={(e) => {
+                                      const newOptions = [...question.options];
+                                      newOptions[optionIndex] = e.target.value;
+                                      handleParagraphQuestionChange(index, 'options', newOptions);
+                                    }}
+                                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                  {(optionIndex + 1).toString() === question.correctAnswer && (
+                                    <span className="text-green-600 font-medium text-sm">✓ 정답</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* 해설 */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">해설</label>
+                            <textarea
+                              value={question.explanation}
+                              onChange={(e) => handleParagraphQuestionChange(index, 'explanation', e.target.value)}
+                              rows={3}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             

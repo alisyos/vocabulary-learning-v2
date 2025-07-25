@@ -14,6 +14,7 @@ interface DataSet {
   total_passages: number;
   total_vocabulary_terms: number;
   total_vocabulary_questions: number;
+  total_paragraph_questions: number;
   total_comprehensive_questions: number;
   created_at?: string;
   updated_at?: string;
@@ -370,7 +371,7 @@ export default function ManagePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 통계 카드 */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4">
               <div className="text-xl font-bold text-blue-600">{totalCount || stats?.totalSets || 0}</div>
               <div className="text-xs text-gray-600">총 콘텐츠 세트</div>
@@ -386,12 +387,16 @@ export default function ManagePage() {
               <div className="text-xs text-gray-600">어휘 문제</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
+              <div className="text-xl font-bold text-yellow-600">{stats.totalParagraphQuestions || 0}</div>
+              <div className="text-xs text-gray-600">문단 문제</div>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
               <div className="text-xl font-bold text-green-600">{stats.totalComprehensiveQuestions}</div>
               <div className="text-xs text-gray-600">종합 문제</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
               <div className="text-xl font-bold text-orange-600">
-                {stats.totalVocabularyQuestions + stats.totalComprehensiveQuestions}
+                {stats.totalVocabularyQuestions + (stats.totalParagraphQuestions || 0) + stats.totalComprehensiveQuestions}
               </div>
               <div className="text-xs text-gray-600">총 문제 수</div>
             </div>
@@ -573,6 +578,9 @@ export default function ManagePage() {
                       어휘문제
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      문단문제
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       종합문제
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -657,6 +665,9 @@ export default function ManagePage() {
                             {item.vocabularyQuestionCount || item.vocabularyCount || 0}
                           </span>
                         )}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-yellow-600">
+                        {item.total_paragraph_questions || 0}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600">
                         {editingCell?.setId === item.setId && editingCell?.field === 'comprehensiveQuestionCount' ? (

@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
               total_passages: setDetails.total_passages,
               total_vocabulary_terms: setDetails.total_vocabulary_terms,
               total_vocabulary_questions: setDetails.total_vocabulary_questions,
+              total_paragraph_questions: setDetails.total_paragraph_questions,
               total_comprehensive_questions: setDetails.total_comprehensive_questions,
               status: setDetails.status,
               created_at: setDetails.created_at,
@@ -87,6 +88,18 @@ export async function GET(request: NextRequest) {
               console.log('어휘문제 변환 결과:', result);
               return result;
             }),
+            paragraphQuestions: (setDetails.paragraph_questions || []).map((q: any) => ({
+              id: q.id,
+              questionId: `paragraph-${q.id}`,
+              questionNumber: q.question_number,
+              questionType: q.question_type,
+              paragraphNumber: q.paragraph_number,
+              paragraphText: q.paragraph_text,
+              question: q.question_text,
+              options: [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(opt => opt && opt.trim() !== ''),
+              correctAnswer: q.correct_answer,
+              explanation: q.explanation
+            })),
             comprehensiveQuestions: (setDetails.comprehensive_questions || []).map((q: ComprehensiveQuestionDB) => {
               // original_question_id를 기준으로 questionId 생성
               let questionId;
@@ -152,6 +165,7 @@ export async function GET(request: NextRequest) {
       grades,
       areas,
       totalVocabularyQuestions: contentSets.reduce((sum, item) => sum + (item.total_vocabulary_questions || 0), 0),
+      totalParagraphQuestions: contentSets.reduce((sum, item) => sum + (item.total_paragraph_questions || 0), 0),
       totalComprehensiveQuestions: contentSets.reduce((sum, item) => sum + (item.total_comprehensive_questions || 0), 0)
     };
 
@@ -169,7 +183,7 @@ export async function GET(request: NextRequest) {
       setId: item.id,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
-      totalQuestions: item.total_vocabulary_questions + item.total_comprehensive_questions
+      totalQuestions: item.total_vocabulary_questions + (item.total_paragraph_questions || 0) + item.total_comprehensive_questions
     }));
 
     const response = {
@@ -178,6 +192,7 @@ export async function GET(request: NextRequest) {
       stats: {
         ...stats,
         totalVocabularyQuestions: contentSets.reduce((sum, item) => sum + (item.total_vocabulary_questions || 0), 0),
+        totalParagraphQuestions: contentSets.reduce((sum, item) => sum + (item.total_paragraph_questions || 0), 0),
         totalComprehensiveQuestions: contentSets.reduce((sum, item) => sum + (item.total_comprehensive_questions || 0), 0)
       },
       total: contentSets.length,

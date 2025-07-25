@@ -4,6 +4,7 @@ import type {
   Passage, 
   VocabularyTerm, 
   VocabularyQuestion, 
+  ParagraphQuestionDB,
   ComprehensiveQuestionDB, 
   AIGenerationLog, 
   SystemPrompt,
@@ -147,6 +148,7 @@ export const db = {
       total_passages,
       total_vocabulary_terms,
       total_vocabulary_questions,
+      total_paragraph_questions,
       total_comprehensive_questions,
       status,
       created_at,
@@ -172,6 +174,7 @@ export const db = {
         passages(*),
         vocabulary_terms(*),
         vocabulary_questions(*),
+        paragraph_questions(*),
         comprehensive_questions(*)
       `)
       .eq('id', id)
@@ -320,6 +323,49 @@ export const db = {
     if (error) throw error
   },
 
+  // Paragraph Questions
+  async createParagraphQuestions(questions: Omit<ParagraphQuestionDB, 'id' | 'created_at'>[]) {
+    const { data, error } = await supabase
+      .from('paragraph_questions')
+      .insert(questions)
+      .select()
+    
+    if (error) throw error
+    return data as ParagraphQuestionDB[]
+  },
+
+  async getParagraphQuestionsByContentSetId(contentSetId: string) {
+    const { data, error } = await supabase
+      .from('paragraph_questions')
+      .select('*')
+      .eq('content_set_id', contentSetId)
+      .order('question_number')
+    
+    if (error) throw error
+    return data as ParagraphQuestionDB[]
+  },
+
+  async updateParagraphQuestion(id: string, data: Partial<ParagraphQuestionDB>) {
+    const { data: result, error } = await supabase
+      .from('paragraph_questions')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return result as ParagraphQuestionDB
+  },
+
+  async deleteParagraphQuestion(id: string) {
+    const { error } = await supabase
+      .from('paragraph_questions')
+      .delete()
+      .eq('id', id)
+    
+    if (error) throw error
+  },
+
   // Comprehensive Questions
   async createComprehensiveQuestions(questions: Omit<ComprehensiveQuestionDB, 'id' | 'created_at'>[]) {
     const { data, error } = await supabase
@@ -357,6 +403,50 @@ export const db = {
   async deleteComprehensiveQuestion(id: string) {
     const { error } = await supabase
       .from('comprehensive_questions')
+      .delete()
+      .eq('id', id)
+    
+    if (error) throw error
+  },
+
+  // Paragraph Questions
+  async createParagraphQuestion(data: any) {
+    const { data: result, error } = await supabase
+      .from('paragraph_questions')
+      .insert(data)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return result
+  },
+
+  async getParagraphQuestionsByContentSetId(contentSetId: string) {
+    const { data, error } = await supabase
+      .from('paragraph_questions')
+      .select('*')
+      .eq('content_set_id', contentSetId)
+      .order('question_number', { ascending: true })
+    
+    if (error) throw error
+    return data || []
+  },
+
+  async updateParagraphQuestion(id: string, data: any) {
+    const { data: result, error } = await supabase
+      .from('paragraph_questions')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return result
+  },
+
+  async deleteParagraphQuestion(id: string) {
+    const { error } = await supabase
+      .from('paragraph_questions')
       .delete()
       .eq('id', id)
     
@@ -541,6 +631,7 @@ export const db = {
     passagesData: Omit<Passage, 'id' | 'content_set_id' | 'created_at'>[],
     vocabularyTerms: Omit<VocabularyTerm, 'id' | 'content_set_id' | 'created_at'>[],
     vocabularyQuestions: Omit<VocabularyQuestion, 'id' | 'content_set_id' | 'created_at'>[],
+    paragraphQuestions: Omit<ParagraphQuestionDB, 'id' | 'content_set_id' | 'created_at'>[],
     comprehensiveQuestions: Omit<ComprehensiveQuestionDB, 'id' | 'content_set_id' | 'created_at'>[]
   ) {
     console.log('🏗️ saveCompleteContentSet 시작');
@@ -566,6 +657,7 @@ export const db = {
       const passagesWithId = passagesData.map(p => ({ ...p, content_set_id: contentSetId }))
       const vocabularyTermsWithId = vocabularyTerms.map(v => ({ ...v, content_set_id: contentSetId }))
       const vocabularyQuestionsWithId = vocabularyQuestions.map(q => ({ ...q, content_set_id: contentSetId }))
+      const paragraphQuestionsWithId = paragraphQuestions.map(q => ({ ...q, content_set_id: contentSetId }))
       const comprehensiveQuestionsWithId = comprehensiveQuestions.map(q => ({ ...q, content_set_id: contentSetId }))
       
       console.log('🔗 관련 데이터에 content_set_id 추가 완료');
@@ -604,6 +696,37 @@ export const db = {
         }
         results.push('vocabulary_questions')
         console.log('✅ VocabularyQuestions 삽입 완료');
+      }
+      
+      if (paragraphQuestionsWithId.length > 0) {
+        console.log('📄 ParagraphQuestions 삽입 시작:', paragraphQuestionsWithId.length, '개');
+        console.log('📄 삽입할 데이터 샘플:', JSON.stringify(paragraphQuestionsWithId[0], null, 2));
+        
+        // 데이터 검증
+        const validatedData = paragraphQuestionsWithId.map((q, index) => {
+          // 필수 필드 검증
+          if (!q.content_set_id || !q.question_text || !q.paragraph_text) {
+            console.error(`❌ 문단문제 ${index + 1} 필수 필드 누락:`, q);
+            throw new Error(`문단문제 ${index + 1}: 필수 필드가 누락되었습니다`);
+          }
+          
+          // correct_answer 검증 (1-5 범위)
+          if (!['1', '2', '3', '4', '5'].includes(q.correct_answer)) {
+            console.warn(`⚠️ 문단문제 ${index + 1} 정답 값 수정: ${q.correct_answer} -> 1`);
+            q.correct_answer = '1';
+          }
+          
+          return q;
+        });
+        
+        const { error: paragraphError } = await supabase.from('paragraph_questions').insert(validatedData)
+        if (paragraphError) {
+          console.error('❌ ParagraphQuestions 삽입 오류:', paragraphError);
+          console.error('❌ 삽입 시도 데이터:', JSON.stringify(validatedData, null, 2));
+          throw paragraphError;
+        }
+        results.push('paragraph_questions')
+        console.log('✅ ParagraphQuestions 삽입 완료');
       }
       
       if (comprehensiveQuestionsWithId.length > 0) {

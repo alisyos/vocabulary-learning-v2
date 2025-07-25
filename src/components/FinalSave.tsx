@@ -5,7 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { 
   PassageInput, 
   EditablePassage, 
-  VocabularyQuestion, 
+  VocabularyQuestion,
+  ParagraphQuestionWorkflow,
   ComprehensiveQuestion 
 } from '@/types';
 
@@ -13,6 +14,7 @@ interface FinalSaveProps {
   input: PassageInput;
   editablePassage: EditablePassage;
   vocabularyQuestions: VocabularyQuestion[];
+  paragraphQuestions: ParagraphQuestionWorkflow[];
   comprehensiveQuestions: ComprehensiveQuestion[];
   onComplete: () => void;
 }
@@ -31,6 +33,7 @@ interface SaveResult {
       total_passages: number;
       total_vocabulary_terms: number;
       total_vocabulary_questions: number;
+      total_paragraph_questions: number;
       total_comprehensive_questions: number;
       created_at?: string;
     };
@@ -40,6 +43,7 @@ interface SaveResult {
     input: PassageInput;
     editablePassage: EditablePassage;
     vocabularyQuestions: VocabularyQuestion[];
+    paragraphQuestions: ParagraphQuestionWorkflow[];
     comprehensiveQuestions: ComprehensiveQuestion[];
   };
 }
@@ -48,6 +52,7 @@ export default function FinalSave({
   input,
   editablePassage,
   vocabularyQuestions,
+  paragraphQuestions,
   comprehensiveQuestions,
   onComplete
 }: FinalSaveProps) {
@@ -86,7 +91,15 @@ export default function FinalSave({
     paragraphCount: editablePassage?.paragraphs?.length || 0,
     footnoteCount: editablePassage?.footnote?.length || 0,
     vocabularyCount: vocabularyQuestions?.length || 0,
+    paragraphQuestionCount: paragraphQuestions?.length || 0,
     comprehensiveCount: comprehensiveQuestions?.length || 0,
+    paragraphTypeDistribution: paragraphQuestions && paragraphQuestions.length > 0 ? {
+      '어절 순서 맞추기': paragraphQuestions.filter(q => q.type === '어절 순서 맞추기').length,
+      '빈칸 채우기': paragraphQuestions.filter(q => q.type === '빈칸 채우기').length,
+      '유의어 고르기': paragraphQuestions.filter(q => q.type === '유의어 고르기').length,
+      '반의어 고르기': paragraphQuestions.filter(q => q.type === '반의어 고르기').length,
+      '문단 요약': paragraphQuestions.filter(q => q.type === '문단 요약').length
+    } : null,
     typeDistribution: comprehensiveQuestions && comprehensiveQuestions.length > 0 ? {
       '단답형': comprehensiveQuestions.filter(q => q.type === '단답형').length,
       '문단별 순서 맞추기': comprehensiveQuestions.filter(q => q.type === '문단별 순서 맞추기').length,
@@ -210,6 +223,11 @@ export default function FinalSave({
     setSaving(true);
     
     try {
+      // 저장 전 데이터 확인
+      console.log('🔍 저장할 데이터 확인:');
+      console.log('  - 문단 문제 수:', paragraphQuestions?.length || 0);
+      console.log('  - 문단 문제 데이터:', JSON.stringify(paragraphQuestions, null, 2));
+      
       // Supabase를 기본으로 사용
       const endpoint = '/api/save-final-supabase';
       
@@ -222,6 +240,7 @@ export default function FinalSave({
           input,
           editablePassage,
           vocabularyQuestions,
+          paragraphQuestions,
           comprehensiveQuestions,
           userId: user?.userId || ''
         }),
@@ -245,6 +264,7 @@ export default function FinalSave({
           input,
           editablePassage,
           vocabularyQuestions,
+          paragraphQuestions,
           comprehensiveQuestions
         }
       });
@@ -266,6 +286,7 @@ export default function FinalSave({
       input,
       editablePassage,
       vocabularyQuestions,
+      paragraphQuestions,
       comprehensiveQuestions,
       summary
     };
@@ -312,8 +333,9 @@ export default function FinalSave({
                     </div>
                     <div>
                       <p><strong>어휘 문제:</strong> {saveResult.savedData.vocabularyCount || 0}개</p>
+                      <p><strong>문단 문제:</strong> {saveResult.savedData.paragraphQuestionCount || 0}개</p>
                       <p><strong>종합 문제:</strong> {saveResult.savedData.comprehensiveCount || 0}개</p>
-                      <p><strong>총 문제 수:</strong> {(saveResult.savedData.vocabularyCount || 0) + (saveResult.savedData.comprehensiveCount || 0)}개</p>
+                      <p><strong>총 문제 수:</strong> {(saveResult.savedData.vocabularyCount || 0) + (saveResult.savedData.paragraphQuestionCount || 0) + (saveResult.savedData.comprehensiveCount || 0)}개</p>
                     </div>
                   </div>
                   
@@ -430,6 +452,25 @@ export default function FinalSave({
             </div>
           </div>
 
+          {/* 문단 문제 */}
+          <div className="bg-orange-50 p-4 rounded-lg">
+            <h4 className="font-medium text-gray-800 mb-3">문단 문제</h4>
+            <div className="space-y-2 text-sm">
+              <p><strong>총 문제 수:</strong> {summary.paragraphQuestionCount}개</p>
+              <p><strong>문제 형태:</strong> 객관식 (4-5지선다)</p>
+              {summary.paragraphTypeDistribution && (
+                <div>
+                  <p><strong>유형별 분포:</strong></p>
+                  <ul className="ml-4 space-y-1">
+                    {Object.entries(summary.paragraphTypeDistribution).map(([type, count]) => (
+                      <li key={type}>• {type}: {count as number}개</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* 종합 문제 */}
           <div className="bg-orange-50 p-4 rounded-lg">
             <h4 className="font-medium text-gray-800 mb-3">종합 문제</h4>
@@ -453,7 +494,7 @@ export default function FinalSave({
         <div className="text-center">
           <h3 className="text-lg font-semibold text-green-800 mb-2">전체 콘텐츠 요약</h3>
           <p className="text-green-700">
-            <strong>총 {summary.vocabularyCount + summary.comprehensiveCount}개 문제</strong>가 포함된 학습 콘텐츠 세트가 완성되었습니다.
+            <strong>총 {summary.vocabularyCount + summary.paragraphQuestionCount + summary.comprehensiveCount}개 문제</strong>가 포함된 학습 콘텐츠 세트가 완성되었습니다.
           </p>
         </div>
       </div>

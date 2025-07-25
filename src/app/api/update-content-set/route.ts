@@ -18,6 +18,7 @@ export async function PUT(request: NextRequest) {
       editablePassage,
       editableVocabulary,
       editableVocabQuestions,
+      editableParagraphQuestions,
       editableComprehensive
     } = data;
 
@@ -48,6 +49,7 @@ export async function PUT(request: NextRequest) {
       total_passages: actualParagraphCount,
       total_vocabulary_terms: editableVocabulary?.length || 0,
       total_vocabulary_questions: editableVocabQuestions?.length || 0,
+      total_paragraph_questions: editableParagraphQuestions?.length || 0,
       total_comprehensive_questions: editableComprehensive?.length || 0,
       updated_at: new Date().toISOString()
     };
@@ -145,6 +147,54 @@ export async function PUT(request: NextRequest) {
         }
       }
       console.log('🧠 ComprehensiveQuestions 업데이트 완료');
+    }
+
+    // 6. ParagraphQuestions 업데이트
+    if (editableParagraphQuestions && editableParagraphQuestions.length > 0) {
+      console.log('📄 ParagraphQuestions 업데이트 시작');
+      
+      // 기존 문단문제 데이터 조회
+      const existingParagraphQuestions = await db.getParagraphQuestionsByContentSetId?.(contentSetId) || [];
+      
+      for (let i = 0; i < editableParagraphQuestions.length; i++) {
+        const question = editableParagraphQuestions[i];
+        const updateData = {
+          question_number: question.questionNumber || (i + 1),
+          question_type: question.questionType,
+          paragraph_number: question.paragraphNumber,
+          paragraph_text: question.paragraphText,
+          question_text: question.question,
+          option_1: question.options?.[0] || '',
+          option_2: question.options?.[1] || '',
+          option_3: question.options?.[2] || '',
+          option_4: question.options?.[3] || '',
+          option_5: question.options?.[4] || '',
+          correct_answer: question.correctAnswer,
+          explanation: question.explanation
+        };
+        
+        if (existingParagraphQuestions[i]?.id) {
+          // 기존 문단문제 업데이트
+          await db.updateParagraphQuestion?.(existingParagraphQuestions[i].id!, updateData);
+        } else {
+          // 새 문단문제 생성
+          await db.createParagraphQuestion?.({
+            content_set_id: contentSetId,
+            ...updateData
+          });
+        }
+      }
+      
+      // 기존 문단문제가 더 많으면 삭제
+      if (existingParagraphQuestions.length > editableParagraphQuestions.length) {
+        for (let i = editableParagraphQuestions.length; i < existingParagraphQuestions.length; i++) {
+          if (existingParagraphQuestions[i]?.id) {
+            await db.deleteParagraphQuestion?.(existingParagraphQuestions[i].id!);
+          }
+        }
+      }
+      
+      console.log('📄 ParagraphQuestions 업데이트 완료');
     }
 
     console.log('✅ 모든 데이터 업데이트 완료');

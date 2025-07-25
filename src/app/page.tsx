@@ -7,6 +7,7 @@ import PassageForm from '@/components/PassageForm';
 import PassageDisplay from '@/components/PassageDisplay';
 import PassageReview from '@/components/PassageReview';
 import VocabularyQuestions from '@/components/VocabularyQuestions';
+import ParagraphQuestions from '@/components/ParagraphQuestions';
 import ComprehensiveQuestions from '@/components/ComprehensiveQuestions';
 import FinalSave from '@/components/FinalSave';
 import { 
@@ -14,6 +15,7 @@ import {
   Passage, 
   EditablePassage,
   VocabularyQuestion,
+  ParagraphQuestionWorkflow,
   ComprehensiveQuestion,
   WorkflowData,
   WorkflowStep
@@ -38,6 +40,7 @@ export default function Home() {
     generatedPassage: null,
     editablePassage: null,
     vocabularyQuestions: [],
+    paragraphQuestions: [],
     comprehensiveQuestions: [],
     currentStep: 'passage-generation',
     loading: false
@@ -117,7 +120,32 @@ export default function Home() {
     }));
   };
 
-  // 5단계로 이동: 종합 문제 생성
+  // 5단계로 이동: 문단 문제 생성
+  const handleMoveToParagraphGeneration = () => {
+    setWorkflowData(prev => ({
+      ...prev,
+      currentStep: 'paragraph-generation'
+    }));
+  };
+
+  // 5단계: 문단 문제 생성 완료 후 6단계로 이동
+  const handleParagraphGenerated = (questions: ParagraphQuestionWorkflow[]) => {
+    setWorkflowData(prev => ({
+      ...prev,
+      paragraphQuestions: questions,
+      currentStep: 'paragraph-review'
+    }));
+  };
+
+  // 6단계: 문단 문제 업데이트
+  const handleParagraphUpdate = (questions: ParagraphQuestionWorkflow[]) => {
+    setWorkflowData(prev => ({
+      ...prev,
+      paragraphQuestions: questions
+    }));
+  };
+
+  // 7단계로 이동: 종합 문제 생성
   const handleMoveToComprehensiveGeneration = () => {
     setWorkflowData(prev => ({
       ...prev,
@@ -125,7 +153,7 @@ export default function Home() {
     }));
   };
 
-  // 5단계: 종합 문제 생성 완료 후 6단계로 이동
+  // 7단계: 종합 문제 생성 완료 후 8단계로 이동
   const handleComprehensiveGenerated = (questions: ComprehensiveQuestion[]) => {
     setWorkflowData(prev => ({
       ...prev,
@@ -134,7 +162,7 @@ export default function Home() {
     }));
   };
 
-  // 6단계: 종합 문제 업데이트
+  // 8단계: 종합 문제 업데이트
   const handleComprehensiveUpdate = (questions: ComprehensiveQuestion[]) => {
     setWorkflowData(prev => ({
       ...prev,
@@ -142,7 +170,7 @@ export default function Home() {
     }));
   };
 
-  // 7단계로 이동: 최종 저장
+  // 9단계로 이동: 최종 저장
   const handleMoveToFinalSave = () => {
     setWorkflowData(prev => ({
       ...prev,
@@ -157,6 +185,7 @@ export default function Home() {
       generatedPassage: null,
       editablePassage: null,
       vocabularyQuestions: [],
+      paragraphQuestions: [],
       comprehensiveQuestions: [],
       currentStep: 'passage-generation',
       loading: false
@@ -178,7 +207,7 @@ export default function Home() {
 
   // 단계 접근 가능 여부 확인
   const isStepAccessible = (stepKey: string): boolean => {
-    const { generatedPassage, editablePassage, vocabularyQuestions, comprehensiveQuestions } = workflowData;
+    const { generatedPassage, editablePassage, vocabularyQuestions, paragraphQuestions, comprehensiveQuestions } = workflowData;
 
     switch (stepKey) {
       case 'passage-generation':
@@ -191,9 +220,13 @@ export default function Home() {
       case 'vocabulary-review':
         return !!editablePassage; // 지문이 수정되었을 때
       
+      case 'paragraph-generation':
+      case 'paragraph-review':
+        return vocabularyQuestions.length > 0; // 어휘 문제가 생성되었을 때
+      
       case 'comprehensive-generation':
       case 'comprehensive-review':
-        return vocabularyQuestions.length > 0; // 어휘 문제가 생성되었을 때
+        return paragraphQuestions.length > 0; // 문단 문제가 생성되었을 때
       
       case 'final-save':
         return comprehensiveQuestions.length > 0; // 종합 문제가 생성되었을 때
@@ -205,7 +238,7 @@ export default function Home() {
 
   // 워크플로우 단계별 렌더링
   const renderCurrentStep = () => {
-    const { currentStep, loading, editablePassage, generatedPassage, vocabularyQuestions, comprehensiveQuestions, input } = workflowData;
+    const { currentStep, loading, editablePassage, generatedPassage, vocabularyQuestions, paragraphQuestions, comprehensiveQuestions, input } = workflowData;
 
     switch (currentStep) {
       case 'passage-generation':
@@ -296,6 +329,40 @@ export default function Home() {
                 keywords={input.keyword}
                 vocabularyQuestions={vocabularyQuestions}
                 onUpdate={handleVocabularyUpdate}
+                onNext={handleMoveToParagraphGeneration}
+                loading={loading}
+                currentStep="review"
+              />
+            )}
+          </div>
+        );
+
+      case 'paragraph-generation':
+        return (
+          <div className="max-w-4xl mx-auto">
+            {editablePassage && (
+              <ParagraphQuestions
+                editablePassage={editablePassage}
+                division={input.division || ''}
+                paragraphQuestions={paragraphQuestions}
+                onUpdate={handleParagraphGenerated}
+                onNext={() => {}} // 생성 단계에서는 사용 안함
+                loading={loading}
+                currentStep="generation"
+              />
+            )}
+          </div>
+        );
+
+      case 'paragraph-review':
+        return (
+          <div className="max-w-4xl mx-auto">
+            {editablePassage && (
+              <ParagraphQuestions
+                editablePassage={editablePassage}
+                division={input.division || ''}
+                paragraphQuestions={paragraphQuestions}
+                onUpdate={handleParagraphUpdate}
                 onNext={handleMoveToComprehensiveGeneration}
                 loading={loading}
                 currentStep="review"
@@ -346,6 +413,7 @@ export default function Home() {
                 input={input}
                 editablePassage={editablePassage}
                 vocabularyQuestions={vocabularyQuestions}
+                paragraphQuestions={paragraphQuestions}
                 comprehensiveQuestions={comprehensiveQuestions}
                 onComplete={handleStartNewSet}
               />
@@ -365,6 +433,8 @@ export default function Home() {
       { key: 'passage-review', label: '지문 검토' },
       { key: 'vocabulary-generation', label: '어휘 문제 생성' },
       { key: 'vocabulary-review', label: '어휘 문제 검토' },
+      { key: 'paragraph-generation', label: '문단 문제 생성' },
+      { key: 'paragraph-review', label: '문단 문제 검토' },
       { key: 'comprehensive-generation', label: '종합 문제 생성' },
       { key: 'comprehensive-review', label: '종합 문제 검토' },
       { key: 'final-save', label: '저장' }
@@ -374,7 +444,7 @@ export default function Home() {
 
     return (
       <div className="mb-8">
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-9 gap-2">
           {steps.map((step, index) => {
             const isAccessible = isStepAccessible(step.key);
             const isCurrent = step.key === workflowData.currentStep;

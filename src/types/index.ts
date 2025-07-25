@@ -98,15 +98,17 @@ export type Question = MultipleChoiceQuestion | ShortAnswerQuestion;
 
 // === 새로운 워크플로우 타입들 ===
 
-// 워크플로우 단계
+// 워크플로우 단계 (9단계로 확장)
 export type WorkflowStep = 
   | 'passage-generation'     // 1. 지문 생성
   | 'passage-review'        // 2. 지문 검토&수정
   | 'vocabulary-generation' // 3. 어휘 문제 생성
   | 'vocabulary-review'     // 4. 어휘 문제 검토&수정
-  | 'comprehensive-generation' // 5. 종합 문제 생성
-  | 'comprehensive-review'  // 6. 종합 문제 검토&수정
-  | 'final-save';          // 7. 저장
+  | 'paragraph-generation'  // 5. 문단 문제 생성
+  | 'paragraph-review'      // 6. 문단 문제 검토&수정
+  | 'comprehensive-generation' // 7. 종합 문제 생성
+  | 'comprehensive-review'  // 8. 종합 문제 검토&수정
+  | 'final-save';          // 9. 저장
 
 // 편집 가능한 지문 (사용자가 수정 가능)
 export interface EditablePassage {
@@ -123,6 +125,27 @@ export interface VocabularyQuestionWorkflow {
   options: string[];   // 보기 1~5
   answer: string;      // 정답
   explanation: string; // 해설
+}
+
+// 문단 문제 유형
+export type ParagraphQuestionType = 
+  | 'Random'          // 랜덤 (5가지 유형 1개씩)
+  | '어절 순서 맞추기'   // 객관식 - 어절 순서 맞추기
+  | '빈칸 채우기'       // 객관식 - 빈칸 채우기
+  | '유의어 고르기'     // 객관식 - 유의어 고르기
+  | '반의어 고르기'     // 객관식 - 반의어 고르기
+  | '문단 요약';       // 객관식 - 문단 요약
+
+// 문단 문제 개별 문제 (워크플로우용)
+export interface ParagraphQuestionWorkflow {
+  id: string;
+  type: Exclude<ParagraphQuestionType, 'Random'>;
+  paragraphNumber: number;   // 문단 번호 (1~10)
+  paragraphText: string;     // 해당 문단 내용
+  question: string;          // 문제
+  options: string[];         // 객관식 보기 (4개 또는 5개)
+  answer: string;            // 정답
+  explanation: string;       // 해설
 }
 
 // 종합 문제 유형
@@ -154,7 +177,8 @@ export interface WorkflowData {
   generatedPassage: Passage | null;           // 1. 생성된 지문
   editablePassage: EditablePassage | null;    // 2. 편집 가능한 지문
   vocabularyQuestions: VocabularyQuestionWorkflow[];  // 3,4. 어휘 문제들
-  comprehensiveQuestions: ComprehensiveQuestionWorkflow[]; // 5,6. 종합 문제들
+  paragraphQuestions: ParagraphQuestionWorkflow[];    // 5,6. 문단 문제들
+  comprehensiveQuestions: ComprehensiveQuestionWorkflow[]; // 7,8. 종합 문제들
   
   // 상태 관리
   currentStep: WorkflowStep;
@@ -220,6 +244,7 @@ export interface ContentSet {
   total_passages: number;
   total_vocabulary_terms: number;
   total_vocabulary_questions: number;
+  total_paragraph_questions?: number;
   total_comprehensive_questions: number;
   status?: '검수 전' | '검수완료'; // 상태값
   passage_length?: string | null; // 지문 길이 (선택사항)
@@ -276,6 +301,25 @@ export interface VocabularyQuestion {
   created_at?: string;
 }
 
+// 문단 문제 (paragraph_questions 테이블) - Supabase 적용
+export interface ParagraphQuestionDB {
+  id?: string; // UUID
+  content_set_id: string; // UUID
+  question_number: number;
+  question_type: '어절 순서 맞추기' | '빈칸 채우기' | '유의어 고르기' | '반의어 고르기' | '문단 요약';
+  paragraph_number: number; // 문단 번호 (1~10)
+  paragraph_text: string;   // 해당 문단 내용
+  question_text: string;
+  option_1: string;
+  option_2: string;
+  option_3: string;
+  option_4: string;
+  option_5?: string;        // 5번째 선택지는 선택사항
+  correct_answer: string;   // '1', '2', '3', '4', '5'
+  explanation: string;
+  created_at?: string;
+}
+
 // 종합 문제 (comprehensive_questions 테이블) - Supabase 적용
 export interface ComprehensiveQuestionDB {
   id?: string; // UUID
@@ -302,7 +346,7 @@ export interface ComprehensiveQuestionDB {
 export interface AIGenerationLog {
   id?: string; // UUID
   content_set_id?: string; // UUID, nullable
-  generation_type: 'passage' | 'vocabulary' | 'comprehensive';
+  generation_type: 'passage' | 'vocabulary' | 'paragraph' | 'comprehensive';
   prompt_used: string;
   ai_response?: string; // JSON string
   tokens_used?: number;
@@ -329,6 +373,7 @@ export interface ContentSetDetailsV2 {
   passage: Passage | null;
   vocabularyTerms: VocabularyTerm[];
   vocabularyQuestions: VocabularyQuestion[];
+  paragraphQuestions: ParagraphQuestionDB[];  // 문단 문제 추가
   comprehensiveQuestions: ComprehensiveQuestionDB[];
 }
 
@@ -417,6 +462,7 @@ export interface CurriculumDataV2 {
 export type PromptCategory = 
   | 'passage'         // 지문 생성
   | 'vocabulary'      // 어휘 문제 생성
+  | 'paragraph'       // 문단 문제 생성
   | 'comprehensive';  // 종합 문제 생성
 
 // 프롬프트 서브 카테고리 (선택 옵션별)
@@ -429,6 +475,9 @@ export type PromptSubCategory =
   | 'textType'          // 유형별 (설명문, 논설문, 탐구문 등)
   // 어휘 문제 생성
   | 'vocabularyBase'    // 기본 어휘 문제 생성
+  // 문단 문제 생성
+  | 'paragraphBase'     // 기본 문단 문제 생성
+  | 'paragraphType'     // 문단 문제 유형별 (어절순서, 빈칸채우기, 유의어, 반의어, 요약)
   // 종합 문제 생성
   | 'questionGrade'     // 학년별 (문제 난이도)
   | 'questionType'      // 문제 유형별 (객관식, 주관식)

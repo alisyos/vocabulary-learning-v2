@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
       input,
       editablePassage,
       vocabularyQuestions,
+      paragraphQuestions,
       comprehensiveQuestions
     } = data;
 
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
       total_passages: actualParagraphCount, // 안전하게 계산된 문단 수
       total_vocabulary_terms: editablePassage.footnote?.length || 0,
       total_vocabulary_questions: vocabularyQuestions?.length || 0,
+      total_paragraph_questions: paragraphQuestions?.length || 0,
       total_comprehensive_questions: comprehensiveQuestions?.length || 0,
       status: '검수 전',
       // 지문 길이와 유형 정보 (스키마에 컬럼 추가 완료)
@@ -167,6 +169,57 @@ export async function POST(request: NextRequest) {
 
     console.log('❓ VocabularyQuestions 데이터 변환 완료:', transformedVocabularyQuestions.length, '개');
 
+    // Transform paragraph questions with safe handling
+    let transformedParagraphQuestions: Omit<ParagraphQuestionDB, 'id' | 'content_set_id' | 'created_at'>[] = [];
+    
+    if (paragraphQuestions && Array.isArray(paragraphQuestions)) {
+      console.log('📄 원본 문단문제 데이터:', JSON.stringify(paragraphQuestions, null, 2));
+      
+      transformedParagraphQuestions = paragraphQuestions.map((q: any, index: number) => {
+        console.log(`문단문제 ${index + 1} 변환 시작:`, q);
+        
+        // 데이터 검증 및 기본값 설정
+        const safeQ = {
+          type: q.type || q.question_type || '문단 요약',
+          paragraphNumber: q.paragraphNumber || q.paragraph_number || 1,
+          paragraphText: q.paragraphText || q.paragraph_text || '',
+          question: q.question || q.question_text || '',
+          options: Array.isArray(q.options) ? q.options : ['선택지 1', '선택지 2', '선택지 3', '선택지 4'],
+          answer: q.answer || q.correct_answer || '1',
+          explanation: q.explanation || ''
+        };
+        
+        // 문제 유형 검증
+        const validTypes = ['어절 순서 맞추기', '빈칸 채우기', '유의어 고르기', '반의어 고르기', '문단 요약'];
+        if (!validTypes.includes(safeQ.type)) {
+          console.warn(`⚠️ 유효하지 않은 문제 유형: ${safeQ.type}, 기본값으로 변경`);
+          safeQ.type = '문단 요약';
+        }
+        
+        const result = {
+          question_number: index + 1,
+          question_type: safeQ.type,
+          paragraph_number: Math.max(1, Math.min(10, safeQ.paragraphNumber)),
+          paragraph_text: String(safeQ.paragraphText).substring(0, 5000), // 길이 제한
+          question_text: String(safeQ.question),
+          option_1: String(safeQ.options[0] || '선택지 1'),
+          option_2: String(safeQ.options[1] || '선택지 2'),
+          option_3: String(safeQ.options[2] || '선택지 3'),
+          option_4: String(safeQ.options[3] || '선택지 4'),
+          option_5: safeQ.options[4] ? String(safeQ.options[4]) : null,
+          correct_answer: String(safeQ.answer).charAt(0), // 첫 번째 문자만
+          explanation: String(safeQ.explanation)
+        };
+        
+        console.log(`문단문제 ${index + 1} 변환 완료:`, result);
+        return result;
+      });
+    } else {
+      console.log('📄 문단문제 데이터가 없거나 배열이 아닙니다:', paragraphQuestions);
+    }
+
+    console.log('📄 ParagraphQuestions 데이터 변환 완료:', transformedParagraphQuestions.length, '개');
+
         // Transform comprehensive questions - 문제 유형별로 기본문제와 보완문제 매칭
     console.log('📋 종합문제 변환 시작:', comprehensiveQuestions?.length || 0, '개');
     console.log('📥 받은 종합문제 데이터:', JSON.stringify(comprehensiveQuestions, null, 2));
@@ -246,6 +299,7 @@ export async function POST(request: NextRequest) {
       passagesData,
       vocabularyTerms,
       transformedVocabularyQuestions,
+      transformedParagraphQuestions,
       transformedComprehensiveQuestions
     );
 
@@ -263,12 +317,19 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Supabase save error:', error);
     console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('❌ Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      cause: error instanceof Error ? error.cause : undefined
+    });
     
     return NextResponse.json({
       success: false,
       message: 'Failed to save to Supabase',
       error: error instanceof Error ? error.message : 'Unknown error',
-      details: error instanceof Error ? error.stack : undefined
+      details: error instanceof Error ? error.stack : undefined,
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      timestamp: new Date().toISOString()
     }, { status: 500 });
   }
 }
