@@ -10,7 +10,7 @@
 CREATE TABLE IF NOT EXISTS system_prompts_v2 (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   prompt_id VARCHAR(255) NOT NULL UNIQUE,
-  category VARCHAR(50) NOT NULL CHECK (category IN ('passage', 'vocabulary', 'comprehensive')),
+  category VARCHAR(50) NOT NULL CHECK (category IN ('passage', 'vocabulary', 'paragraph', 'comprehensive', 'subject', 'area', 'division')),
   sub_category VARCHAR(50) NOT NULL,
   name VARCHAR(255) NOT NULL,
   key VARCHAR(255) NOT NULL,

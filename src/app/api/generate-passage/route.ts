@@ -36,7 +36,14 @@ export async function POST(request: NextRequest) {
 
     console.log('GPT response:', result);
 
-    return NextResponse.json(result);
+    // 결과에 사용된 프롬프트도 함께 반환
+    return NextResponse.json({
+      ...result,
+      _metadata: {
+        usedPrompt: prompt,
+        generatedAt: new Date().toISOString()
+      }
+    });
   } catch (error) {
     console.error('Error generating passage:', error);
     return NextResponse.json(

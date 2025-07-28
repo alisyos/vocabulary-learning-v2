@@ -1485,7 +1485,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                     
                     editableComprehensive.forEach(question => {
                       // original_question_id를 기준으로 세트 그룹화
-                      let setKey = question.originalQuestionId || question.questionId || 'unknown';
+                      const setKey = question.originalQuestionId || question.questionId || 'unknown';
                       
                       // 보완문제의 경우 original_question_id가 세트 키가 됨
                       // 기본문제의 경우 자신의 original_question_id가 세트 키가 됨

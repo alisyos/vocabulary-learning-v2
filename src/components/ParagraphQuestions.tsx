@@ -2,15 +2,17 @@
 
 import { useState } from 'react';
 import { ParagraphQuestionWorkflow, EditablePassage, ParagraphQuestionType } from '@/types';
+import PromptModal from './PromptModal';
 
 interface ParagraphQuestionsProps {
   editablePassage: EditablePassage;
   division: string;
   paragraphQuestions: ParagraphQuestionWorkflow[];
-  onUpdate: (questions: ParagraphQuestionWorkflow[]) => void;
+  onUpdate: (questions: ParagraphQuestionWorkflow[], usedPrompt?: string) => void;
   onNext: () => void;
   loading?: boolean;
   currentStep: 'generation' | 'review';
+  lastUsedPrompt?: string; // GPT에 보낸 프롬프트
 }
 
 export default function ParagraphQuestions({
@@ -20,9 +22,11 @@ export default function ParagraphQuestions({
   onUpdate,
   onNext,
   loading = false,
-  currentStep
+  currentStep,
+  lastUsedPrompt = ''
 }: ParagraphQuestionsProps) {
   const [localQuestions, setLocalQuestions] = useState<ParagraphQuestionWorkflow[]>(paragraphQuestions);
+  const [showPromptModal, setShowPromptModal] = useState(false);
   const [generatingParagraph, setGeneratingParagraph] = useState(false);
   
   // 문단 선택 관리 (기본적으로 모든 문단 선택)
@@ -82,7 +86,7 @@ export default function ParagraphQuestions({
       const newQuestions = result.paragraphQuestions || [];
       
       setLocalQuestions(newQuestions);
-      onUpdate(newQuestions);
+      onUpdate(newQuestions, result._metadata?.usedPrompt);
 
     } catch (error) {
       console.error('Error generating paragraph questions:', error);
@@ -303,9 +307,21 @@ export default function ParagraphQuestions({
             {loading ? '처리 중...' : '7단계: 종합 문제 생성하기'}
           </button>
         </div>
-        <span className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
-          검토 및 수정
-        </span>
+        <div className="flex items-center space-x-2">
+          {lastUsedPrompt && (
+            <button
+              onClick={() => setShowPromptModal(true)}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md transition-colors font-medium text-sm flex items-center space-x-1"
+              title="문단 문제 생성에 사용된 프롬프트 확인"
+            >
+              <span>📋</span>
+              <span>프롬프트 확인</span>
+            </button>
+          )}
+          <span className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
+            검토 및 수정
+          </span>
+        </div>
       </div>
 
       <div className="mb-6">
@@ -409,6 +425,15 @@ export default function ParagraphQuestions({
           생성된 문단 문제가 없습니다.
         </div>
       )}
+
+      {/* 프롬프트 확인 모달 */}
+      <PromptModal
+        isOpen={showPromptModal}
+        onClose={() => setShowPromptModal(false)}
+        title="문단 문제 생성 프롬프트"
+        prompt={lastUsedPrompt}
+        stepName="6단계: 문단 문제 검토"
+      />
     </div>
   );
 }

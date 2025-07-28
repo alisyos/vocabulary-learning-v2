@@ -175,9 +175,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // 데이터베이스에 수정된 프롬프트 저장 시도
+    // 데이터베이스에 수정된 프롬프트 저장 시도 (모든 카테고리 지원)
     try {
-      // system_prompts_v2 테이블에 직접 저장 (제약 조건 우회)
+      // system_prompts_v3 테이블에 직접 저장
       const { supabase } = await import('@/lib/supabase');
       
       const updateData = {
@@ -197,7 +197,7 @@ export async function PUT(request: NextRequest) {
 
       // UPSERT로 저장
       const { data, error } = await supabase
-        .from('system_prompts_v2')
+        .from('system_prompts_v3')
         .upsert(updateData, { 
           onConflict: 'prompt_id',
           returning: 'minimal'
@@ -205,21 +205,42 @@ export async function PUT(request: NextRequest) {
 
       if (error) {
         console.error('프롬프트 저장 실패:', error);
-        // 저장 실패해도 성공으로 처리 (하드코딩된 프롬프트로 계속 작동)
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        
+        // 실제 DB 저장 실패 시 에러 반환
+        return NextResponse.json({
+          success: false,
+          error: '프롬프트 저장에 실패했습니다.',
+          message: error.message
+        }, { status: 500 });
       } else {
-        console.log(`✅ 프롬프트 수정 저장 성공: ${promptId}`);
+        console.log(`✅ 프롬프트 DB 저장 성공: ${promptId} (카테고리: ${originalPrompt.category})`);
       }
 
     } catch (dbError) {
       console.error('데이터베이스 저장 중 오류:', dbError);
-      // 데이터베이스 오류가 있어도 계속 진행
+      return NextResponse.json({
+        success: false,
+        error: '데이터베이스 연결 중 오류가 발생했습니다.',
+        message: dbError instanceof Error ? dbError.message : 'Unknown error'
+      }, { status: 500 });
     }
 
+    // 캐시 업데이트 (DB 저장 성공 여부와 관계없이)
+    const { updatePromptCache } = await import('@/lib/prompts');
+    updatePromptCache(originalPrompt.category, originalPrompt.subCategory, originalPrompt.key, promptText);
+    
     return NextResponse.json({
       success: true,
-      message: '프롬프트가 수정되었습니다.',
+      message: `프롬프트가 데이터베이스에 저장되었습니다. (카테고리: ${originalPrompt.category})`,
       promptId: promptId,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      category: originalPrompt.category
     });
 
   } catch (error) {

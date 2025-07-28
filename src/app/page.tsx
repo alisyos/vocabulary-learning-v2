@@ -46,6 +46,14 @@ export default function Home() {
     loading: false
   });
 
+  // 각 단계에서 사용된 프롬프트 저장
+  const [lastUsedPrompts, setLastUsedPrompts] = useState<{
+    passage?: string;
+    vocabulary?: string;
+    paragraph?: string;
+    comprehensive?: string;
+  }>({});
+
   // 1단계: 지문 생성
   const handlePassageGeneration = async (input: PassageInput) => {
     setWorkflowData(prev => ({ ...prev, loading: true, input }));
@@ -63,7 +71,15 @@ export default function Home() {
         throw new Error('지문 생성에 실패했습니다.');
       }
 
-      const result: Passage = await response.json();
+      const result: Passage & { _metadata?: { usedPrompt: string } } = await response.json();
+      
+      // 사용된 프롬프트 저장
+      if (result._metadata?.usedPrompt) {
+        setLastUsedPrompts(prev => ({
+          ...prev,
+          passage: result._metadata!.usedPrompt
+        }));
+      }
       
       // 생성된 지문을 편집 가능한 형태로 변환
       const editablePassage: EditablePassage = {
@@ -104,7 +120,15 @@ export default function Home() {
   };
 
   // 3단계: 어휘 문제 생성 완료 후 4단계로 이동
-  const handleVocabularyGenerated = (questions: VocabularyQuestion[]) => {
+  const handleVocabularyGenerated = (questions: VocabularyQuestion[], usedPrompt?: string) => {
+    // 사용된 프롬프트 저장
+    if (usedPrompt) {
+      setLastUsedPrompts(prev => ({
+        ...prev,
+        vocabulary: usedPrompt
+      }));
+    }
+    
     setWorkflowData(prev => ({
       ...prev,
       vocabularyQuestions: questions,
@@ -129,7 +153,15 @@ export default function Home() {
   };
 
   // 5단계: 문단 문제 생성 완료 후 6단계로 이동
-  const handleParagraphGenerated = (questions: ParagraphQuestionWorkflow[]) => {
+  const handleParagraphGenerated = (questions: ParagraphQuestionWorkflow[], usedPrompt?: string) => {
+    // 사용된 프롬프트 저장
+    if (usedPrompt) {
+      setLastUsedPrompts(prev => ({
+        ...prev,
+        paragraph: usedPrompt
+      }));
+    }
+    
     setWorkflowData(prev => ({
       ...prev,
       paragraphQuestions: questions,
@@ -154,7 +186,15 @@ export default function Home() {
   };
 
   // 7단계: 종합 문제 생성 완료 후 8단계로 이동
-  const handleComprehensiveGenerated = (questions: ComprehensiveQuestion[]) => {
+  const handleComprehensiveGenerated = (questions: ComprehensiveQuestion[], usedPrompt?: string) => {
+    // 사용된 프롬프트 저장
+    if (usedPrompt) {
+      setLastUsedPrompts(prev => ({
+        ...prev,
+        comprehensive: usedPrompt
+      }));
+    }
+    
     setWorkflowData(prev => ({
       ...prev,
       comprehensiveQuestions: questions,
@@ -286,6 +326,7 @@ export default function Home() {
                   onUpdate={handlePassageUpdate}
                   onNext={handleMoveToVocabularyGeneration}
                   loading={loading}
+                  lastUsedPrompt={lastUsedPrompts.passage}
                 />
               )}
             </div>
@@ -332,6 +373,7 @@ export default function Home() {
                 onNext={handleMoveToParagraphGeneration}
                 loading={loading}
                 currentStep="review"
+                lastUsedPrompt={lastUsedPrompts.vocabulary}
               />
             )}
           </div>
@@ -366,6 +408,7 @@ export default function Home() {
                 onNext={handleMoveToComprehensiveGeneration}
                 loading={loading}
                 currentStep="review"
+                lastUsedPrompt={lastUsedPrompts.paragraph}
               />
             )}
           </div>
@@ -400,6 +443,7 @@ export default function Home() {
                 onNext={handleMoveToFinalSave}
                 loading={loading}
                 currentStep="review"
+                lastUsedPrompt={lastUsedPrompts.comprehensive}
               />
             )}
           </div>

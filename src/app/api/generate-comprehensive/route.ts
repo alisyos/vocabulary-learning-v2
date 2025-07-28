@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
     console.log(`Generating ${questionCount} comprehensive questions:`, body.questionType);
 
     const comprehensiveQuestions: ComprehensiveQuestion[] = [];
+    let lastUsedPrompt = '';
     
     // 문제 유형 결정
     let typesToGenerate: string[] = [];
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
     console.log('Type groups to generate:', typeGroups);
 
     // 각 유형별로 정확한 개수만큼 문제 생성
+    let isFirstType = true;
     for (const [currentType, count] of Object.entries(typeGroups)) {
       try {
         // 해당 유형의 문제 생성 (DB에서 조회, 실패 시 기본값 사용)
@@ -87,6 +89,12 @@ export async function POST(request: NextRequest) {
           body.passage,
           body.division
         );
+
+        // 첫 번째 유형의 프롬프트를 저장 (대표 프롬프트로 사용)
+        if (isFirstType) {
+          lastUsedPrompt = prompt;
+          isFirstType = false;
+        }
 
         console.log(`Generating ${count} ${currentType} questions`);
 
@@ -219,7 +227,10 @@ JSON 형식으로 1개 문제만 생성:
         : { [body.questionType]: questionCount },
       basicCount: comprehensiveQuestions.filter(q => !q.isSupplementary).length,
       supplementaryCount: body.includeSupplementary ? comprehensiveQuestions.filter(q => q.isSupplementary).length : 0,
-      message: `종합 문제 ${questionCount}개가 성공적으로 생성되었습니다.${body.includeSupplementary ? ` (보완 문제 ${questionCount * 2}개 포함)` : ''}`
+      message: `종합 문제 ${questionCount}개가 성공적으로 생성되었습니다.${body.includeSupplementary ? ` (보완 문제 ${questionCount * 2}개 포함)` : ''}`,
+      _metadata: {
+        usedPrompt: lastUsedPrompt
+      }
     });
 
   } catch (error) {

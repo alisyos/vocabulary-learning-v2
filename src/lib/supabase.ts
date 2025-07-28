@@ -34,7 +34,7 @@ export async function initializeSystemPrompts(forceReset: boolean = false) {
     
     // 기존 데이터가 있는지 확인
     const { data: existingPrompts, error: checkError } = await supabase
-      .from('system_prompts_v2')
+      .from('system_prompts_v3')
       .select('prompt_id')
       .limit(1)
     
@@ -55,7 +55,7 @@ export async function initializeSystemPrompts(forceReset: boolean = false) {
     if (forceReset && existingPrompts && existingPrompts.length > 0) {
       console.log('🗑️ 기존 프롬프트 데이터를 삭제합니다...')
       const { error: deleteError } = await supabase
-        .from('system_prompts_v2')
+        .from('system_prompts_v3')
         .delete()
         .neq('prompt_id', 'dummy') // 모든 데이터 삭제
         
@@ -105,7 +105,7 @@ export async function initializeSystemPrompts(forceReset: boolean = false) {
       const batch = promptsToInsert.slice(i, i + batchSize)
       
       const { error: insertError } = await supabase
-        .from('system_prompts_v2')
+        .from('system_prompts_v3')
         .insert(batch)
       
       if (insertError) {
@@ -126,6 +126,11 @@ export async function initializeSystemPrompts(forceReset: boolean = false) {
     }
   } catch (error) {
     console.error('프롬프트 초기화 실패:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      fullError: error
+    })
     return {
       success: false,
       message: `프롬프트 초기화 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
@@ -498,7 +503,7 @@ export const db = {
   // System Prompts (V2 - 새로운 구조)
   async getSystemPrompts() {
     const { data, error } = await supabase
-      .from('system_prompts_v2')
+      .from('system_prompts_v3')
       .select('*')
       .eq('is_active', true)
       .order('category', { ascending: true })
@@ -529,7 +534,7 @@ export const db = {
 
   async getPromptByKey(category: string, subCategory: string, key: string) {
     const { data, error } = await supabase
-      .from('system_prompts_v2')
+      .from('system_prompts_v3')
       .select('*')
       .eq('category', category)
       .eq('sub_category', subCategory)
@@ -563,7 +568,7 @@ export const db = {
     try {
       // 1. 현재 프롬프트 정보 조회
       const { data: currentPrompt, error: selectError } = await supabase
-        .from('system_prompts_v2')
+        .from('system_prompts_v3')
         .select('*')
         .eq('prompt_id', promptId)
         .single()
@@ -592,7 +597,7 @@ export const db = {
       
       // 4. 프롬프트 업데이트
       const { data, error: updateError } = await supabase
-        .from('system_prompts_v2')
+        .from('system_prompts_v3')
         .update({ 
           prompt_text: promptText,
           version: newVersion,

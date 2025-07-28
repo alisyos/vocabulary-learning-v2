@@ -2,21 +2,25 @@
 
 import { useState } from 'react';
 import { EditablePassage } from '@/types';
+import PromptModal from './PromptModal';
 
 interface PassageReviewProps {
   editablePassage: EditablePassage;
   onUpdate: (updatedPassage: EditablePassage) => void;
   onNext: () => void;
   loading?: boolean;
+  lastUsedPrompt?: string; // GPT에 보낸 프롬프트
 }
 
 export default function PassageReview({ 
   editablePassage, 
   onUpdate, 
   onNext, 
-  loading = false 
+  loading = false,
+  lastUsedPrompt = ''
 }: PassageReviewProps) {
   const [localPassage, setLocalPassage] = useState<EditablePassage>(editablePassage);
+  const [showPromptModal, setShowPromptModal] = useState(false);
 
   // 제목 수정
   const handleTitleChange = (newTitle: string) => {
@@ -96,9 +100,21 @@ export default function PassageReview({
             {loading ? '처리 중...' : '3단계: 어휘 문제 생성하기'}
           </button>
         </div>
-        <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-          검토 및 수정
-        </span>
+        <div className="flex items-center space-x-2">
+          {lastUsedPrompt && (
+            <button
+              onClick={() => setShowPromptModal(true)}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md transition-colors font-medium text-sm flex items-center space-x-1"
+              title="지문 생성에 사용된 프롬프트 확인"
+            >
+              <span>📋</span>
+              <span>프롬프트 확인</span>
+            </button>
+          )}
+          <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+            검토 및 수정
+          </span>
+        </div>
       </div>
 
       {/* 제목 편집 */}
@@ -228,6 +244,15 @@ export default function PassageReview({
           )}
         </div>
       </div>
+
+      {/* 프롬프트 확인 모달 */}
+      <PromptModal
+        isOpen={showPromptModal}
+        onClose={() => setShowPromptModal(false)}
+        title="지문 생성 프롬프트"
+        prompt={lastUsedPrompt}
+        stepName="2단계: 지문 검토"
+      />
     </div>
   );
-} 
+}

@@ -2,16 +2,18 @@
 
 import { useState } from 'react';
 import { VocabularyQuestion, EditablePassage } from '@/types';
+import PromptModal from './PromptModal';
 
 interface VocabularyQuestionsProps {
   editablePassage: EditablePassage;
   division: string;
   keywords?: string; // 1단계에서 입력한 핵심 개념어
   vocabularyQuestions: VocabularyQuestion[];
-  onUpdate: (questions: VocabularyQuestion[]) => void;
+  onUpdate: (questions: VocabularyQuestion[], usedPrompt?: string) => void;
   onNext: () => void;
   loading?: boolean;
   currentStep: 'generation' | 'review';
+  lastUsedPrompt?: string; // GPT에 보낸 프롬프트
 }
 
 export default function VocabularyQuestions({
@@ -22,10 +24,12 @@ export default function VocabularyQuestions({
   onUpdate,
   onNext,
   loading = false,
-  currentStep
+  currentStep,
+  lastUsedPrompt = ''
 }: VocabularyQuestionsProps) {
   const [localQuestions, setLocalQuestions] = useState<VocabularyQuestion[]>(vocabularyQuestions);
   const [generatingVocab, setGeneratingVocab] = useState(false);
+  const [showPromptModal, setShowPromptModal] = useState(false);
   
   // 핵심 개념어와 매칭되는 용어들 찾기
   const getMatchedTerms = () => {
@@ -127,7 +131,7 @@ export default function VocabularyQuestions({
       const questions = result.vocabularyQuestions || [];
       
       setLocalQuestions(questions);
-      onUpdate(questions);
+      onUpdate(questions, result._metadata?.usedPrompt);
       
     } catch (error) {
       console.error('Error:', error);
@@ -316,9 +320,21 @@ export default function VocabularyQuestions({
             {loading ? '처리 중...' : '5단계: 문단 문제 생성하기'}
           </button>
         </div>
-        <span className="text-sm text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
-          검토 및 수정
-        </span>
+        <div className="flex items-center space-x-2">
+          {lastUsedPrompt && (
+            <button
+              onClick={() => setShowPromptModal(true)}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md transition-colors font-medium text-sm flex items-center space-x-1"
+              title="어휘 문제 생성에 사용된 프롬프트 확인"
+            >
+              <span>📋</span>
+              <span>프롬프트 확인</span>
+            </button>
+          )}
+          <span className="text-sm text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+            검토 및 수정
+          </span>
+        </div>
       </div>
 
       <div className="mb-6">
@@ -443,6 +459,15 @@ export default function VocabularyQuestions({
           {loading ? '처리 중...' : '5단계: 종합 문제 생성하기'}
         </button>
       </div>
+
+      {/* 프롬프트 확인 모달 */}
+      <PromptModal
+        isOpen={showPromptModal}
+        onClose={() => setShowPromptModal(false)}
+        title="어휘 문제 생성 프롬프트"
+        prompt={lastUsedPrompt}
+        stepName="4단계: 어휘 문제 검토"
+      />
     </div>
   );
-} 
+}

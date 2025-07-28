@@ -728,6 +728,16 @@ ${comprehensiveOutputFormats[questionType as keyof typeof comprehensiveOutputFor
 // ============================================================================
 
 export function getDefaultPrompts() {
+  // promptsV2의 DEFAULT_PROMPTS_V2를 반환
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { DEFAULT_PROMPTS_V2 } = require('./promptsV2');
+    return DEFAULT_PROMPTS_V2;
+  } catch (error) {
+    console.error('promptsV2 로드 실패:', error);
+  }
+  
+  // 폴백: 기존 하드코딩된 프롬프트 생성
   const defaultPrompts = [];
   let promptCounter = 1; // 고유 ID 생성용 카운터
 
@@ -1060,23 +1070,50 @@ export function getDefaultPrompts() {
 // DB에서 프롬프트를 조회하는 새로운 함수들
 // ============================================================================
 
+// 메모리 캐시를 저장할 전역 변수
+const promptCache = new Map<string, { text: string, timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5분
+
 // Supabase에서 프롬프트를 조회하여 기존 방식으로 사용할 수 있도록 하는 함수
 export async function getPromptFromDB(category: string, subCategory: string, key: string): Promise<string> {
+  const cacheKey = `${category}/${subCategory}/${key}`;
+  
+  // 캐시 확인
+  const cached = promptCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log(`캐시에서 프롬프트 사용: ${cacheKey}`);
+    return cached.text;
+  }
+  
   try {
     const { db } = await import('./supabase');
     const prompt = await db.getPromptByKey(category, subCategory, key);
     
     if (prompt && prompt.promptText) {
+      // 캐시에 저장
+      promptCache.set(cacheKey, { text: prompt.promptText, timestamp: Date.now() });
       return prompt.promptText;
     }
     
     // Supabase에서 찾지 못하면 기본값 사용
     console.warn(`프롬프트를 Supabase에서 찾지 못함: ${category}/${subCategory}/${key}, 기본값 사용`);
-    return getDefaultPromptByKey(category, subCategory, key);
+    const defaultText = getDefaultPromptByKey(category, subCategory, key);
+    // 기본값도 캐시에 저장
+    promptCache.set(cacheKey, { text: defaultText, timestamp: Date.now() });
+    return defaultText;
   } catch (error) {
     console.error('Supabase 프롬프트 조회 실패, 기본값 사용:', error);
-    return getDefaultPromptByKey(category, subCategory, key);
+    const defaultText = getDefaultPromptByKey(category, subCategory, key);
+    // 기본값도 캐시에 저장
+    promptCache.set(cacheKey, { text: defaultText, timestamp: Date.now() });
+    return defaultText;
   }
+}
+
+// 캐시 업데이트 함수 (프롬프트 수정 시 사용)
+export function updatePromptCache(category: string, subCategory: string, key: string, text: string) {
+  const cacheKey = `${category}/${subCategory}/${key}`;
+  promptCache.set(cacheKey, { text, timestamp: Date.now() });
 }
 
 // 기본값에서 프롬프트를 찾는 헬퍼 함수
@@ -1119,8 +1156,22 @@ function getDefaultPromptByKey(category: string, subCategory: string, key: strin
       return '';
     case 'comprehensiveType':
       return comprehensiveQuestionPrompts[key as keyof typeof comprehensiveQuestionPrompts] || '';
+    case 'subjectContent':
+      // promptsV2에서 과목 프롬프트 찾기
+      if (key === '과학' || key === 'science') {
+        return getDefaultPrompts().find(p => p.promptId === 'subject-science')?.promptText || '과학';
+      } else if (key === '사회' || key === 'social') {
+        return getDefaultPrompts().find(p => p.promptId === 'subject-social')?.promptText || '사회';
+      }
+      return key;
     default:
-      return '';
+      // promptsV2에서 직접 찾아보기
+      const prompt = getDefaultPrompts().find(p => 
+        p.category === category && 
+        p.subCategory === subCategory && 
+        p.key === key
+      );
+      return prompt?.promptText || '';
   }
 }
 
@@ -1142,6 +1193,7 @@ export async function generatePassagePromptFromDB(
     const lengthGuidelinePrompt = await getPromptFromDB('passage', 'lengthGuideline', length);
     const outputFormatPrompt = await getPromptFromDB('passage', 'outputFormat', length);
     const areaPrompt = await getPromptFromDB('area', 'areaContent', area);
+    const subjectPrompt = await getPromptFromDB('subject', 'subjectContent', subject);
     
     let prompt = `###지시사항
 다음 입력값을 받아 학습 지문(passage)을 생성하십시오. 출력은 하나의 영역으로 구분합니다.
@@ -1179,7 +1231,7 @@ ${divisionPrompt}
 ${lengthGuidelinePrompt || length}
 
 ###과목
-${subject}
+${subjectPrompt || subject}
 
 ###학년
 ${grade}

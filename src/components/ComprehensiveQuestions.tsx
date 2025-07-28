@@ -2,15 +2,17 @@
 
 import { useState } from 'react';
 import { ComprehensiveQuestion, ComprehensiveQuestionType, EditablePassage } from '@/types';
+import PromptModal from './PromptModal';
 
 interface ComprehensiveQuestionsProps {
   editablePassage: EditablePassage;
   division: string;
   comprehensiveQuestions: ComprehensiveQuestion[];
-  onUpdate: (questions: ComprehensiveQuestion[]) => void;
+  onUpdate: (questions: ComprehensiveQuestion[], usedPrompt?: string) => void;
   onNext: () => void;
   loading?: boolean;
   currentStep: 'generation' | 'review';
+  lastUsedPrompt?: string; // GPT에 보낸 프롬프트
 }
 
 export default function ComprehensiveQuestions({
@@ -20,9 +22,11 @@ export default function ComprehensiveQuestions({
   onUpdate,
   onNext,
   loading = false,
-  currentStep
+  currentStep,
+  lastUsedPrompt = ''
 }: ComprehensiveQuestionsProps) {
   const [localQuestions, setLocalQuestions] = useState<ComprehensiveQuestion[]>(comprehensiveQuestions);
+  const [showPromptModal, setShowPromptModal] = useState(false);
   const [selectedQuestionType, setSelectedQuestionType] = useState<ComprehensiveQuestionType>('Random');
   const [generatingComp, setGeneratingComp] = useState(false);
   const [includeSupplementary, setIncludeSupplementary] = useState(true);
@@ -65,7 +69,7 @@ export default function ComprehensiveQuestions({
       const questions = result.comprehensiveQuestions || [];
       
       setLocalQuestions(questions);
-      onUpdate(questions);
+      onUpdate(questions, result._metadata?.usedPrompt);
       
     } catch (error) {
       console.error('Error:', error);
@@ -305,9 +309,21 @@ export default function ComprehensiveQuestions({
             {loading ? '처리 중...' : '9단계: 최종 저장하기'}
           </button>
         </div>
-        <span className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
-          검토 및 수정
-        </span>
+        <div className="flex items-center space-x-2">
+          {lastUsedPrompt && (
+            <button
+              onClick={() => setShowPromptModal(true)}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md transition-colors font-medium text-sm flex items-center space-x-1"
+              title="종합 문제 생성에 사용된 프롬프트 확인"
+            >
+              <span>📋</span>
+              <span>프롬프트 확인</span>
+            </button>
+          )}
+          <span className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
+            검토 및 수정
+          </span>
+        </div>
       </div>
 
       <div className="mb-6">
@@ -607,6 +623,15 @@ export default function ComprehensiveQuestions({
           {loading ? '처리 중...' : '7단계: 최종 저장하기'}
         </button>
       </div>
+
+      {/* 프롬프트 확인 모달 */}
+      <PromptModal
+        isOpen={showPromptModal}
+        onClose={() => setShowPromptModal(false)}
+        title="종합 문제 생성 프롬프트"
+        prompt={lastUsedPrompt}
+        stepName="8단계: 종합 문제 검토"
+      />
     </div>
   );
-} 
+}

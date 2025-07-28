@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
 
     // 각 용어별로 문제 생성
     const vocabularyQuestions: VocabularyQuestion[] = [];
+    let lastUsedPrompt = '';
     
     for (let i = 0; i < body.terms.length; i++) {
       const term = body.terms[i];
@@ -59,6 +60,11 @@ export async function POST(request: NextRequest) {
         );
 
         console.log(`Generating question for term: ${termName}`);
+
+        // 첫 번째 용어의 프롬프트를 저장 (대표 프롬프트로 사용)
+        if (i === 0) {
+          lastUsedPrompt = prompt;
+        }
 
         // GPT API 호출
         const result = await generateQuestion(prompt);
@@ -97,7 +103,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       vocabularyQuestions,
       totalGenerated: vocabularyQuestions.length,
-      message: '어휘 문제가 성공적으로 생성되었습니다.'
+      message: '어휘 문제가 성공적으로 생성되었습니다.',
+      _metadata: {
+        usedPrompt: lastUsedPrompt
+      }
     });
 
   } catch (error) {

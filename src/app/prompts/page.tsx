@@ -19,6 +19,9 @@ export default function PromptsPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [activeTab, setActiveTab] = useState<'passage' | 'vocabulary' | 'paragraph' | 'comprehensive' | 'subject' | 'area' | 'division'>('passage');
+  const [showFullPrompt, setShowFullPrompt] = useState(false);
+  const [fullPromptContent, setFullPromptContent] = useState('');
+  const [fullPromptLoading, setFullPromptLoading] = useState(false);
 
   // 프롬프트 데이터 로드
   const loadPrompts = async () => {
@@ -116,8 +119,15 @@ export default function PromptsPage() {
       if (result.success) {
         setEditing(null);
         await loadPrompts(); // 업데이트 후 다시 로드
+        
+        // 성공 메시지 표시
+        setError(null);
+        console.log('프롬프트 저장 성공:', result.message);
       } else {
-        setError(result.message || '업데이트에 실패했습니다.');
+        const errorMessage = result.error || result.message || '업데이트에 실패했습니다.';
+        console.error('프롬프트 업데이트 실패:', errorMessage);
+        console.error('API 응답:', result);
+        setError(errorMessage);
       }
     } catch (err) {
       console.error('프롬프트 저장 실패:', err);
@@ -130,6 +140,86 @@ export default function PromptsPage() {
   // 수정 취소
   const cancelEditing = () => {
     setEditing(null);
+  };
+
+  // 전체 시스템 프롬프트 생성 및 표시
+  const showFullSystemPrompt = async () => {
+    setFullPromptLoading(true);
+    setShowFullPrompt(true);
+    
+    try {
+      let promptContent = '';
+      
+      if (activeTab === 'passage') {
+        // 지문 생성 전체 프롬프트 생성
+        const { generatePassagePromptFromDB } = await import('@/lib/prompts');
+        promptContent = await generatePassagePromptFromDB(
+          '초등학교 중학년(3-4학년)', // 예시 값
+          '4-5문장으로 구성한 5-6개 단락', // 예시 값
+          '사회', // 예시 값
+          '3학년', // 예시 값
+          '일반사회', // 예시 값
+          '[대주제 예시]', // 예시 값
+          '[소주제 예시]', // 예시 값
+          '[핵심개념어 예시]' // 예시 값
+        );
+      } else if (activeTab === 'vocabulary') {
+        // 어휘 문제 생성 전체 프롬프트 생성
+        const { generateVocabularyPromptFromDB } = await import('@/lib/prompts');
+        promptContent = await generateVocabularyPromptFromDB(
+          '[용어명 예시]', // 예시 값
+          '[용어 설명 예시]', // 예시 값
+          '[지문 내용 예시]', // 예시 값
+          '초등학교 중학년(3-4학년)' // 예시 값
+        );
+      } else if (activeTab === 'paragraph') {
+        // 문단 문제 생성 전체 프롬프트 생성 (generate-paragraph API의 generateParagraphPrompt 함수 사용)
+        promptContent = `다음 지문의 문단에 대한 Random 문제를 생성해주세요.
+이는 같은 문단에 대한 1번째 Random 문제입니다. 이전 문제들과 다른 관점이나 다른 부분을 다루어 주세요.
+
+**지문 제목**: [예시 지문 제목]
+**대상 학년**: 초등학교 중학년(3-4학년)
+**문단 내용**: [예시 문단 1 내용]
+**문제 번호**: 1번째 Random 문제
+
+**문제 유형별 요구사항**:
+
+- Random 선택 시 각 문단별로 5가지 유형을 1개씩 5개 문제가 생성됩니다.
+
+**출력 형식** (반드시 JSON 형식으로):
+
+{
+  "question": "문제 내용",
+  "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
+  "answer": "1",
+  "explanation": "정답 해설"
+}
+
+**주의사항**:
+- 초등학교 중학년(3-4학년)에 맞는 어휘와 난이도 사용
+- 명확하고 구체적인 문제 출제
+- 정답과 오답이 명확히 구분되도록 작성
+- 해설은 학생이 이해하기 쉽게 작성
+- 반드시 JSON 형식으로만 응답`;
+      } else if (activeTab === 'comprehensive') {
+        // 종합 문제 생성 전체 프롬프트 생성
+        const { generateComprehensivePromptFromDB } = await import('@/lib/prompts');
+        promptContent = await generateComprehensivePromptFromDB(
+          '단답형', // 예시 값
+          '[지문 내용 예시]', // 예시 값
+          '초등학교 중학년(3-4학년)' // 예시 값
+        );
+      } else {
+        promptContent = '해당 탭에서는 전체 시스템 프롬프트를 제공하지 않습니다.';
+      }
+      
+      setFullPromptContent(promptContent);
+    } catch (error) {
+      console.error('전체 프롬프트 생성 실패:', error);
+      setFullPromptContent('전체 프롬프트 생성 중 오류가 발생했습니다.');
+    } finally {
+      setFullPromptLoading(false);
+    }
   };
 
   // 현재 활성 탭의 프롬프트 그룹 가져오기
@@ -236,7 +326,13 @@ export default function PromptsPage() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
                       activeTab === tab.id
-                        ? `border-${tab.color}-500 text-${tab.color}-600`
+                        ? (activeTab === 'passage' ? 'border-blue-500 text-blue-600' :
+                           activeTab === 'vocabulary' ? 'border-purple-500 text-purple-600' :
+                           activeTab === 'paragraph' ? 'border-indigo-500 text-indigo-600' :
+                           activeTab === 'comprehensive' ? 'border-green-500 text-green-600' :
+                           activeTab === 'subject' ? 'border-orange-500 text-orange-600' :
+                           activeTab === 'area' ? 'border-pink-500 text-pink-600' :
+                           activeTab === 'division' ? 'border-gray-500 text-gray-600' : 'border-blue-500 text-blue-600')
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                   >
@@ -250,10 +346,47 @@ export default function PromptsPage() {
             <div className="mt-6">
               {getCurrentTabGroup() ? (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                  <div className={`bg-${tabs.find(t => t.id === activeTab)?.color}-50 px-6 py-4 border-b border-gray-200`}>
-                    <h2 className={`text-xl font-semibold text-${tabs.find(t => t.id === activeTab)?.color}-900`}>
-                      {getCurrentTabGroup()?.categoryName}
-                    </h2>
+                  <div className={`px-6 py-4 border-b border-gray-200 ${
+                    activeTab === 'passage' ? 'bg-blue-50' :
+                    activeTab === 'vocabulary' ? 'bg-purple-50' :
+                    activeTab === 'paragraph' ? 'bg-indigo-50' :
+                    activeTab === 'comprehensive' ? 'bg-green-50' :
+                    activeTab === 'subject' ? 'bg-orange-50' :
+                    activeTab === 'area' ? 'bg-pink-50' :
+                    activeTab === 'division' ? 'bg-gray-50' : 'bg-blue-50'
+                  }`}>
+                    <div className="flex justify-between items-center">
+                      <h2 className={`text-xl font-semibold ${
+                        activeTab === 'passage' ? 'text-blue-900' :
+                        activeTab === 'vocabulary' ? 'text-purple-900' :
+                        activeTab === 'paragraph' ? 'text-indigo-900' :
+                        activeTab === 'comprehensive' ? 'text-green-900' :
+                        activeTab === 'subject' ? 'text-orange-900' :
+                        activeTab === 'area' ? 'text-pink-900' :
+                        activeTab === 'division' ? 'text-gray-900' : 'text-blue-900'
+                      }`}>
+                        {getCurrentTabGroup()?.categoryName} - 전체 시스템 프롬프트
+                      </h2>
+                      
+                      {/* 완전한 프롬프트 미리보기 버튼 */}
+                      {(activeTab === 'passage' || activeTab === 'vocabulary' || activeTab === 'paragraph' || activeTab === 'comprehensive') && (
+                        <button
+                          onClick={showFullSystemPrompt}
+                          disabled={fullPromptLoading}
+                          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white shadow-sm transition-colors ${
+                            activeTab === 'passage' ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' :
+                            activeTab === 'vocabulary' ? 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500' :
+                            activeTab === 'paragraph' ? 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500' :
+                            activeTab === 'comprehensive' ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                          } focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50`}
+                        >
+                          {fullPromptLoading && (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          )}
+                          🔍 완전한 프롬프트 미리보기
+                        </button>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="p-6">
@@ -284,7 +417,15 @@ export default function PromptsPage() {
                                   
                                   <button
                                     onClick={() => startEditing(prompt)}
-                                    className={`ml-4 inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500`}
+                                    className={`ml-4 inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                      activeTab === 'passage' ? 'focus:ring-blue-500' :
+                                      activeTab === 'vocabulary' ? 'focus:ring-purple-500' :
+                                      activeTab === 'paragraph' ? 'focus:ring-indigo-500' :
+                                      activeTab === 'comprehensive' ? 'focus:ring-green-500' :
+                                      activeTab === 'subject' ? 'focus:ring-orange-500' :
+                                      activeTab === 'area' ? 'focus:ring-pink-500' :
+                                      activeTab === 'division' ? 'focus:ring-gray-500' : 'focus:ring-blue-500'
+                                    }`}
                                   >
                                     수정
                                   </button>
@@ -300,7 +441,15 @@ export default function PromptsPage() {
                                         value={editing.promptText}
                                         onChange={(e) => setEditing({ ...editing, promptText: e.target.value })}
                                         rows={10}
-                                        className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-${tabs.find(t => t.id === activeTab)?.color}-500 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500 text-sm font-mono`}
+                                        className={`block w-full rounded-md border-gray-300 shadow-sm text-sm font-mono ${
+                                          activeTab === 'passage' ? 'focus:border-blue-500 focus:ring-blue-500' :
+                                          activeTab === 'vocabulary' ? 'focus:border-purple-500 focus:ring-purple-500' :
+                                          activeTab === 'paragraph' ? 'focus:border-indigo-500 focus:ring-indigo-500' :
+                                          activeTab === 'comprehensive' ? 'focus:border-green-500 focus:ring-green-500' :
+                                          activeTab === 'subject' ? 'focus:border-orange-500 focus:ring-orange-500' :
+                                          activeTab === 'area' ? 'focus:border-pink-500 focus:ring-pink-500' :
+                                          activeTab === 'division' ? 'focus:border-gray-500 focus:ring-gray-500' : 'focus:border-blue-500 focus:ring-blue-500'
+                                        }`}
                                         placeholder="프롬프트 내용을 입력하세요..."
                                       />
                                     </div>
@@ -313,7 +462,15 @@ export default function PromptsPage() {
                                         type="text"
                                         value={editing.changeReason}
                                         onChange={(e) => setEditing({ ...editing, changeReason: e.target.value })}
-                                        className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-${tabs.find(t => t.id === activeTab)?.color}-500 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500 text-sm`}
+                                        className={`block w-full rounded-md border-gray-300 shadow-sm text-sm ${
+                                          activeTab === 'passage' ? 'focus:border-blue-500 focus:ring-blue-500' :
+                                          activeTab === 'vocabulary' ? 'focus:border-purple-500 focus:ring-purple-500' :
+                                          activeTab === 'paragraph' ? 'focus:border-indigo-500 focus:ring-indigo-500' :
+                                          activeTab === 'comprehensive' ? 'focus:border-green-500 focus:ring-green-500' :
+                                          activeTab === 'subject' ? 'focus:border-orange-500 focus:ring-orange-500' :
+                                          activeTab === 'area' ? 'focus:border-pink-500 focus:ring-pink-500' :
+                                          activeTab === 'division' ? 'focus:border-gray-500 focus:ring-gray-500' : 'focus:border-blue-500 focus:ring-blue-500'
+                                        }`}
                                         placeholder="변경한 이유를 간단히 적어주세요..."
                                       />
                                     </div>
@@ -321,14 +478,30 @@ export default function PromptsPage() {
                                     <div className="flex justify-end space-x-3">
                                       <button
                                         onClick={cancelEditing}
-                                        className={`px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500`}
+                                        className={`px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                          activeTab === 'passage' ? 'focus:ring-blue-500' :
+                                          activeTab === 'vocabulary' ? 'focus:ring-purple-500' :
+                                          activeTab === 'paragraph' ? 'focus:ring-indigo-500' :
+                                          activeTab === 'comprehensive' ? 'focus:ring-green-500' :
+                                          activeTab === 'subject' ? 'focus:ring-orange-500' :
+                                          activeTab === 'area' ? 'focus:ring-pink-500' :
+                                          activeTab === 'division' ? 'focus:ring-gray-500' : 'focus:ring-blue-500'
+                                        }`}
                                       >
                                         취소
                                       </button>
                                       <button
                                         onClick={savePrompt}
                                         disabled={saving}
-                                        className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-${tabs.find(t => t.id === activeTab)?.color}-600 hover:bg-${tabs.find(t => t.id === activeTab)?.color}-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${tabs.find(t => t.id === activeTab)?.color}-500 disabled:opacity-50`}
+                                        className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                          activeTab === 'passage' ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' :
+                                          activeTab === 'vocabulary' ? 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500' :
+                                          activeTab === 'paragraph' ? 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500' :
+                                          activeTab === 'comprehensive' ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' :
+                                          activeTab === 'subject' ? 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500' :
+                                          activeTab === 'area' ? 'bg-pink-600 hover:bg-pink-700 focus:ring-pink-500' :
+                                          activeTab === 'division' ? 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500' : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                                        }`}
                                       >
                                         {saving ? (
                                           <div className="flex items-center">
@@ -371,6 +544,90 @@ export default function PromptsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+        
+        {/* 전체 시스템 프롬프트 모달 */}
+        {showFullPrompt && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+              {/* 모달 헤더 */}
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    🔍 완전한 프롬프트 미리보기 - {getCurrentTabGroup()?.categoryName}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    실제 콘텐츠 생성에 사용되는 최종 완성 프롬프트입니다 (예시 값 포함)
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(fullPromptContent);
+                      alert('프롬프트가 클립보드에 복사되었습니다.');
+                    }}
+                    className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center space-x-1"
+                  >
+                    <span>📋 복사</span>
+                  </button>
+                  <button
+                    onClick={() => setShowFullPrompt(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* 모달 콘텐츠 */}
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="px-6 py-4 bg-blue-50 border-b border-blue-100">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <svg className="w-5 h-5 text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm text-blue-800">
+                        <strong>미리보기 정보:</strong> 위의 &ldquo;전체 시스템 프롬프트&rdquo;에서 보여지는 개별 프롬프트들이 조합되어 
+                        이 완전한 프롬프트가 생성됩니다. 실제 콘텐츠 생성 시에는 사용자 입력값으로 동적 대체됩니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto p-6">
+                  {fullPromptLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+                      <span className="text-gray-600">완전한 프롬프트 생성 중...</span>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-lg p-4 border">
+                      <pre className="whitespace-pre-wrap text-sm text-gray-800 font-mono leading-relaxed">
+                        {fullPromptContent}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 모달 푸터 */}
+              <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+                <div className="text-sm text-gray-500">
+                  완전한 프롬프트 길이: {fullPromptContent.length.toLocaleString()}자
+                </div>
+                <button
+                  onClick={() => setShowFullPrompt(false)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
             </div>
           </div>
         )}

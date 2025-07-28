@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
     console.log('Generating paragraph questions for type:', body.questionType);
 
     const paragraphQuestions: ParagraphQuestionWorkflow[] = [];
+    let lastUsedPrompt = '';
     
     // Random인 경우 각 문단별로 5가지 유형 1개씩 생성
     if (body.questionType === 'Random') {
@@ -60,15 +61,21 @@ export async function POST(request: NextRequest) {
         const paragraphText = body.paragraphs[paragraphNumber - 1];
         
         // 5가지 유형의 문제를 각각 생성
-        for (const questionType of questionTypes) {
+        for (let typeIndex = 0; typeIndex < questionTypes.length; typeIndex++) {
+          const questionType = questionTypes[typeIndex];
           try {
-            const question = await generateSingleParagraphQuestion(
+            const { question, usedPrompt } = await generateSingleParagraphQuestion(
               paragraphText,
               paragraphNumber,
               questionType,
               body.division,
               body.title
             );
+            
+            // 첫 번째 문제의 프롬프트를 저장 (대표 프롬프트로 사용)
+            if (paragraphNumber === body.selectedParagraphs[0] && typeIndex === 0) {
+              lastUsedPrompt = usedPrompt;
+            }
             
             if (question) {
               paragraphQuestions.push(question);
@@ -86,7 +93,7 @@ export async function POST(request: NextRequest) {
         // 각 문단에 대해 해당 유형의 문제를 5개 생성
         for (let questionIndex = 1; questionIndex <= 5; questionIndex++) {
           try {
-            const question = await generateSingleParagraphQuestion(
+            const { question, usedPrompt } = await generateSingleParagraphQuestion(
               paragraphText,
               paragraphNumber,
               body.questionType as Exclude<ParagraphQuestionType, 'Random'>,
@@ -94,6 +101,11 @@ export async function POST(request: NextRequest) {
               body.title,
               questionIndex  // 같은 유형의 몇 번째 문제인지 전달
             );
+            
+            // 첫 번째 문단의 첫 번째 문제의 프롬프트를 저장 (대표 프롬프트로 사용)
+            if (paragraphNumber === body.selectedParagraphs[0] && questionIndex === 1) {
+              lastUsedPrompt = usedPrompt;
+            }
             
             if (question) {
               paragraphQuestions.push(question);
@@ -129,7 +141,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       paragraphQuestions,
       totalGenerated: paragraphQuestions.length,
-      message: '문단 문제가 성공적으로 생성되었습니다.'
+      message: '문단 문제가 성공적으로 생성되었습니다.',
+      _metadata: {
+        usedPrompt: lastUsedPrompt
+      }
     });
 
   } catch (error) {
@@ -149,7 +164,7 @@ async function generateSingleParagraphQuestion(
   division: string,
   title: string,
   questionIndex: number = 1
-): Promise<ParagraphQuestionWorkflow | null> {
+): Promise<{ question: ParagraphQuestionWorkflow | null; usedPrompt: string }> {
   try {
     const prompt = generateParagraphPrompt(
       paragraphText,
@@ -169,32 +184,39 @@ async function generateSingleParagraphQuestion(
       const questionData = result as GeneratedParagraphQuestionData;
       
       return {
-        id: `paragraph_${paragraphNumber}_${questionType}_${questionIndex}_${Date.now()}`,
-        type: questionType,
-        paragraphNumber,
-        paragraphText,
-        question: questionData.question || '',
-        options: questionData.options || [],
-        answer: questionData.answer || '',
-        explanation: questionData.explanation || ''
+        question: {
+          id: `paragraph_${paragraphNumber}_${questionType}_${questionIndex}_${Date.now()}`,
+          type: questionType,
+          paragraphNumber,
+          paragraphText,
+          question: questionData.question || '',
+          options: questionData.options || [],
+          answer: questionData.answer || '',
+          explanation: questionData.explanation || ''
+        },
+        usedPrompt: prompt
       };
     }
 
-    return null;
+    return { question: null, usedPrompt: prompt };
 
   } catch (error) {
     console.error(`Error generating single paragraph question:`, error);
     
     // 실패한 경우 기본 문제로 대체
+    const prompt = generateParagraphPrompt(paragraphText, questionType, division, title, questionIndex);
     return {
-      id: `paragraph_${paragraphNumber}_${questionType}_${questionIndex}_${Date.now()}`,
-      type: questionType,
-      paragraphNumber,
-      paragraphText,
-      question: `다음 문단에 대한 ${questionType} 문제입니다. (${questionIndex}번째)`,
-      options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
-      answer: '1',
-      explanation: '문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.'
+      question: {
+        id: `paragraph_${paragraphNumber}_${questionType}_${questionIndex}_${Date.now()}`,
+        type: questionType,
+        paragraphNumber,
+        paragraphText,
+        question: `다음 문단에 대한 ${questionType} 문제입니다. (${questionIndex}번째)`,
+        options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
+        answer: '1',
+        explanation: '문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.'
+      },
+      usedPrompt: prompt
     };
   }
 }
