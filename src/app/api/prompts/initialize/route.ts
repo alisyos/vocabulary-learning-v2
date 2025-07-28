@@ -3,7 +3,10 @@ import { initializeSystemPrompts } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
-    const result = await initializeSystemPrompts();
+    const body = await request.json().catch(() => ({}));
+    const forceReset = body.forceReset || false;
+    
+    const result = await initializeSystemPrompts(forceReset);
     
     return NextResponse.json({
       success: result.success,

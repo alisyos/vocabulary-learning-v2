@@ -25,8 +25,8 @@ export type PassageLengthType =
 
 // 지문 유형 타입
 export type TextType = 
-  | '설명문' | '논설문' | '탐구문' | '뉴스 기사' | '인터뷰' 
-  | '동화' | '시' | '대본' | '소설';
+  | '논설문' | '탐구문' | '사례지문' | '인터뷰형지문' | '비교/대조형지문' 
+  | '실험/조사보고문';
 
 // 문제 형태 타입
 export type QuestionType = '객관식' | '주관식';
@@ -458,31 +458,47 @@ export interface CurriculumDataV2 {
 // 프롬프트 관리 시스템 타입들
 // ============================================================================
 
-// 프롬프트 카테고리 (생성 단계별)
+// 프롬프트 카테고리 (생성 단계별 + 변수 프롬프트)
 export type PromptCategory = 
   | 'passage'         // 지문 생성
   | 'vocabulary'      // 어휘 문제 생성
   | 'paragraph'       // 문단 문제 생성
-  | 'comprehensive';  // 종합 문제 생성
+  | 'comprehensive'   // 종합 문제 생성
+  | 'subject'         // 과목 변수 프롬프트
+  | 'area'            // 영역 변수 프롬프트
+  | 'division';       // 구분(학습단계) 변수 프롬프트
 
 // 프롬프트 서브 카테고리 (선택 옵션별)
 export type PromptSubCategory = 
   // 지문 생성
   | 'system'            // 전체 시스템 프롬프트
-  | 'division'          // 구분별 (초등 중학년/고학년, 중학생)
-  | 'area'              // 영역별 (일반사회, 지리, 역사, 경제, 물리, 화학, 생물, 지구과학)
-  | 'length'            // 길이별 (출력 형식)
-  | 'textType'          // 유형별 (설명문, 논설문, 탐구문 등)
+  | 'length'            // 지문 길이별 프롬프트
+  | 'textType'          // 유형별 프롬프트 (논설문, 탐구문 등)
   // 어휘 문제 생성
-  | 'vocabularyBase'    // 기본 어휘 문제 생성
+  | 'vocabularySystem'  // 전체 시스템 프롬프트
+  | 'vocabularyType'    // 문제 유형별 프롬프트: 객관식
   // 문단 문제 생성
-  | 'paragraphBase'     // 기본 문단 문제 생성
-  | 'paragraphType'     // 문단 문제 유형별 (어절순서, 빈칸채우기, 유의어, 반의어, 요약)
+  | 'paragraphSystem'   // 전체 시스템 프롬프트
+  | 'paragraphType'     // 문제 유형별: 어절순서, 빈칸채우기, 유의어, 반의어, 문단요약
   // 종합 문제 생성
-  | 'questionGrade'     // 학년별 (문제 난이도)
-  | 'questionType'      // 문제 유형별 (객관식, 주관식)
-  | 'comprehensiveType' // 종합 문제 유형별
-  | 'outputFormat';     // 출력 형식별
+  | 'comprehensiveSystem' // 전체 시스템 프롬프트
+  | 'comprehensiveType' // 문제 유형별: 단답형, 순서맞추기, 핵심요약, 핵심어찾기
+  // 과목 변수
+  | 'subjectScience'    // 과학
+  | 'subjectSocial'     // 사회
+  // 영역 변수
+  | 'areaGeography'     // 지리
+  | 'areaSocial'        // 일반사회
+  | 'areaPolitics'      // 정치
+  | 'areaEconomy'       // 경제
+  | 'areaChemistry'     // 화학
+  | 'areaPhysics'       // 물리
+  | 'areaBiology'       // 생명
+  | 'areaEarth'         // 지구과학
+  // 구분(학습단계) 변수
+  | 'divisionMiddle'    // 중학생(1~3학년)
+  | 'divisionElemHigh'  // 초등학교 고학년(5~6학년)
+  | 'divisionElemMid';  // 초등학교 중학년(3~4학년)
 
 // 프롬프트 데이터 (system_prompts_v2 테이블) - 새로운 구조
 export interface SystemPrompt {

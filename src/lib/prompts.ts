@@ -28,6 +28,19 @@ const areaPrompts = {
   '지구과학': `지구과학: 지구의 구조, 날씨와 계절 변화, 화산과 지진, 별과 행성, 지형의 생성, 기후와 환경 문제 등 우주와 지구 시스템을 설명합니다. 초등은 주변 자연 현상 중심으로 구성해야 합니다. 중학생은 심화된 주제를 이해 가능한 수준으로 구조적으로 제시합니다. 지문은 계절·천체 관련 질문으로 시작하세요.`
 };
 
+// 지문 길이별 프롬프트
+const lengthPrompts = {
+  '1-2문장으로 구성한 10개 단락': `1-2문장으로 구성한 10개 단락: 각 단락은 한 가지 핵심 내용만을 다루며, 1-2문장으로 간결하게 표현합니다. 총 10개 단락으로 구성하여 전체 내용을 단계적으로 전개하세요. 각 단락 간의 연결성을 유지하면서도 독립적인 내용으로 이해할 수 있도록 작성하세요.`,
+  
+  '1-2문장으로 구성한 12개 단락': `1-2문장으로 구성한 12개 단락: 각 단락은 한 가지 핵심 내용만을 다루며, 1-2문장으로 간결하게 표현합니다. 총 12개 단락으로 구성하여 전체 내용을 세밀하게 단계적으로 전개하세요. 중학생 수준에 맞는 논리적 연결과 깊이 있는 내용 구성을 하세요.`,
+  
+  '10문장 이하로 구성한 5개 단락': `10문장 이하로 구성한 5개 단락: 각 단락은 5-10문장으로 구성하여 하나의 주제를 충분히 설명합니다. 총 5개 단락으로 전체 내용을 체계적으로 조직하세요. 중학생 수준의 사고력과 이해력을 고려하여 복합적인 개념도 포함할 수 있습니다.`,
+  
+  '4-5문장으로 구성한 5-6개 단락': `4-5문장으로 구성한 5-6개 단락: 각 단락은 4-5문장으로 구성하여 하나의 소주제를 완성도 있게 설명합니다. 총 5-6개 단락으로 전체 내용을 균형 있게 전개하세요. 초등 중학년 수준에 맞는 친근하고 이해하기 쉬운 구성을 유지하세요.`,
+  
+  '5-6문장으로 구성한 6개 단락': `5-6문장으로 구성한 6개 단락: 각 단락은 5-6문장으로 구성하여 주제를 보다 상세히 설명합니다. 총 6개 단락으로 전체 내용을 체계적이고 충실하게 전개하세요. 초등 고학년 수준의 사고력을 고려하여 인과관계나 비교 등의 논리적 구조도 포함하세요.`
+};
+
 // 출력 형식 프롬프트
 const outputFormats = {
   '4-5문장으로 구성한 5-6개 단락': `{
@@ -273,7 +286,15 @@ const textTypePrompts = {
   
   '대본': `대본: 연극이나 드라마의 형식으로 구성된 글입니다. 등장인물의 대화와 행동 지시문으로 이루어지며, 학습 내용을 극적 상황으로 표현합니다. 무대 지시문과 대사를 명확히 구분하여 작성하세요.`,
   
-  '소설': `소설: 허구의 이야기를 통해 인물, 사건, 배경을 생생하게 그려내는 글입니다. 플롯과 갈등을 통해 학습 내용을 흥미롭게 전달하며, 서사적 구조를 갖춥니다. 묘사와 서술을 적절히 활용하세요.`
+  '소설': `소설: 허구의 이야기를 통해 인물, 사건, 배경을 생생하게 그려내는 글입니다. 플롯과 갈등을 통해 학습 내용을 흥미롭게 전달하며, 서사적 구조를 갖춥니다. 묘사와 서술을 적절히 활용하세요.`,
+  
+  '사례지문': `사례지문: 실제 사례나 구체적인 상황을 제시하여 학습 내용을 설명하는 글입니다. 구체적인 상황-문제 분석-해결 과정-교훈 도출의 구조로 구성하며, 실생활과의 연관성을 강조합니다. 생생한 사례를 통해 개념을 쉽게 이해할 수 있도록 하세요.`,
+  
+  '인터뷰형지문': `인터뷰형지문: 전문가나 관련자와의 질의응답 형식으로 구성된 글입니다. 질문자와 응답자의 대화를 통해 정보를 전달하며, 자연스러운 대화 흐름 속에서 학습 내용을 제시합니다. 구어체를 활용하여 친근하고 이해하기 쉽게 작성하세요.`,
+  
+  '비교/대조형지문': `비교/대조형지문: 두 개 이상의 대상을 비교하거나 대조하여 특성을 명확히 드러내는 글입니다. 공통점과 차이점을 체계적으로 분석하며, 표나 구분된 단락을 활용하여 비교 내용을 명확히 제시합니다. 비교 기준을 명확히 하여 작성하세요.`,
+  
+  '실험/조사보고문': `실험/조사보고문: 실험이나 조사를 통해 얻은 결과를 체계적으로 정리한 글입니다. 목적-방법-결과-결론의 구조로 구성하며, 객관적 데이터와 관찰 결과를 바탕으로 작성합니다. 과정과 결과를 명확하고 정확하게 기술하세요.`
 };
 
 // 지문 생성 프롬프트 생성
@@ -299,7 +320,7 @@ export function generatePassagePrompt(
 - 구분·과목·학년·영역·지문 길이를 파싱하여 ① 핵심 개념(기초→심화), ② 생활 연계 예시, ③ 학년별 어휘 수준을 도출합니다.
 2. 지문(passages) 생성
 - 도출한 가이드를 조합해 제목 1개와 본문을 작성합니다.
-- 본문은 입력된 지문 길이 옵션(단락 수·문장 수) 규칙을 정확히 준수합니다.
+- 본문은 입력된 지문 길이 가이드라인과 출력 형식 규칙을 정확히 준수합니다.
 - **용어 설명 필수 요구사항**: 지문에 등장하는 모든 학습 관련 용어들을 footnote에 포함시켜야 합니다. 최소 20개 이상의 용어를 추출하여 설명하세요.
   * 핵심 개념어와 관련 용어들
   * 지문에 직접 언급된 전문 용어들
@@ -722,7 +743,7 @@ export function getDefaultPrompts() {
 - 구분·과목·학년·영역·지문 길이를 파싱하여 ① 핵심 개념(기초→심화), ② 생활 연계 예시, ③ 학년별 어휘 수준을 도출합니다.
 2. 지문(passages) 생성
 - 도출한 가이드를 조합해 제목 1개와 본문을 작성합니다.
-- 본문은 입력된 지문 길이 옵션(단락 수·문장 수) 규칙을 정확히 준수합니다.
+- 본문은 입력된 지문 길이 가이드라인과 출력 형식 규칙을 정확히 준수합니다.
 - **용어 설명 필수 요구사항**: 지문에 등장하는 모든 학습 관련 용어들을 footnote에 포함시켜야 합니다. 최소 20개 이상의 용어를 추출하여 설명하세요.
   * 핵심 개념어와 관련 용어들
   * 지문에 직접 언급된 전문 용어들
@@ -885,12 +906,12 @@ export function getDefaultPrompts() {
     description: '종합 문제 생성에 사용되는 완전한 시스템 프롬프트 템플릿'
   });
 
-  // 1. 구분별 프롬프트 (Division)
+  // 1. 구분별 프롬프트 (Division) - 별도 카테고리로 분리
   Object.entries(divisionPrompts).forEach(([key, value]) => {
     defaultPrompts.push({
       promptId: `prompt_${promptCounter++}`,
-      category: 'passage' as const,
-      subCategory: 'division' as const,
+      category: 'division' as const,
+      subCategory: 'divisionLevel' as const,
       name: key,
       key: key,
       promptText: value,
@@ -898,12 +919,12 @@ export function getDefaultPrompts() {
     });
   });
 
-  // 2. 영역별 프롬프트 (Area)
+  // 2. 영역별 프롬프트 (Area) - 별도 카테고리로 분리
   Object.entries(areaPrompts).forEach(([key, value]) => {
     defaultPrompts.push({
       promptId: `prompt_${promptCounter++}`,
-      category: 'passage' as const,
-      subCategory: 'area' as const,
+      category: 'area' as const,
+      subCategory: 'areaContent' as const,
       name: key,
       key: key,
       promptText: value,
@@ -911,20 +932,33 @@ export function getDefaultPrompts() {
     });
   });
 
-  // 3. 출력 형식별 프롬프트 (Length/Output Format)
+  // 3. 지문 길이별 프롬프트 (Length Guidelines)
+  Object.entries(lengthPrompts).forEach(([key, value]) => {
+    defaultPrompts.push({
+      promptId: `prompt_${promptCounter++}`,
+      category: 'passage' as const,
+      subCategory: 'lengthGuideline' as const,
+      name: key,
+      key: key,
+      promptText: value,
+      description: `${key} 구성의 지문 생성 가이드라인`
+    });
+  });
+
+  // 4. 출력 형식별 프롬프트 (Output Format)
   Object.entries(outputFormats).forEach(([key, value]) => {
     defaultPrompts.push({
       promptId: `prompt_${promptCounter++}`,
       category: 'passage' as const,
-      subCategory: 'length' as const,
+      subCategory: 'outputFormat' as const,
       name: key,
       key: key,
       promptText: value,
-      description: `${key} 형식의 지문 출력 구조`
+      description: `${key} 형식의 지문 JSON 출력 구조`
     });
   });
 
-  // 4. 지문 유형별 프롬프트 (Text Type)
+  // 5. 지문 유형별 프롬프트 (Text Type)
   Object.entries(textTypePrompts).forEach(([key, value]) => {
     defaultPrompts.push({
       promptId: `prompt_${promptCounter++}`,
@@ -1060,11 +1094,16 @@ function getDefaultPromptByKey(category: string, subCategory: string, key: strin
       }
       return '';
     case 'division':
+    case 'divisionLevel':
       return divisionPrompts[key as keyof typeof divisionPrompts] || '';
     case 'area':
+    case 'areaContent':
       return areaPrompts[key as keyof typeof areaPrompts] || '';
     case 'length':
+    case 'outputFormat':
       return outputFormats[key as keyof typeof outputFormats] || '';
+    case 'lengthGuideline':
+      return lengthPrompts[key as keyof typeof lengthPrompts] || '';
     case 'textType':
       return textTypePrompts[key as keyof typeof textTypePrompts] || '';
     case 'questionGrade':
@@ -1099,9 +1138,10 @@ export async function generatePassagePromptFromDB(
 ): Promise<string> {
   try {
     // DB에서 각 프롬프트 조회
-    const divisionPrompt = await getPromptFromDB('passage', 'division', division);
-    const lengthPrompt = await getPromptFromDB('passage', 'length', length);
-    const areaPrompt = await getPromptFromDB('passage', 'area', area);
+    const divisionPrompt = await getPromptFromDB('division', 'divisionLevel', division);
+    const lengthGuidelinePrompt = await getPromptFromDB('passage', 'lengthGuideline', length);
+    const outputFormatPrompt = await getPromptFromDB('passage', 'outputFormat', length);
+    const areaPrompt = await getPromptFromDB('area', 'areaContent', area);
     
     let prompt = `###지시사항
 다음 입력값을 받아 학습 지문(passage)을 생성하십시오. 출력은 하나의 영역으로 구분합니다.
@@ -1114,7 +1154,7 @@ export async function generatePassagePromptFromDB(
 - 구분·과목·학년·영역·지문 길이를 파싱하여 ① 핵심 개념(기초→심화), ② 생활 연계 예시, ③ 학년별 어휘 수준을 도출합니다.
 2. 지문(passages) 생성
 - 도출한 가이드를 조합해 제목 1개와 본문을 작성합니다.
-- 본문은 입력된 지문 길이 옵션(단락 수·문장 수) 규칙을 정확히 준수합니다.
+- 본문은 입력된 지문 길이 가이드라인과 출력 형식 규칙을 정확히 준수합니다.
 - **용어 설명 필수 요구사항**: 지문에 등장하는 모든 학습 관련 용어들을 footnote에 포함시켜야 합니다. 최소 20개 이상의 용어를 추출하여 설명하세요.
   * 핵심 개념어와 관련 용어들
   * 지문에 직접 언급된 전문 용어들
@@ -1136,7 +1176,7 @@ export async function generatePassagePromptFromDB(
 ${divisionPrompt}
 
 ###지문 길이
-${length}
+${lengthGuidelinePrompt || length}
 
 ###과목
 ${subject}
@@ -1173,7 +1213,7 @@ ${textTypePrompt}`;
     prompt += `
 
 ###출력형식(JSON)
-${lengthPrompt}`;
+${outputFormatPrompt || outputFormats[length]}`;
 
     return prompt;
   } catch (error) {

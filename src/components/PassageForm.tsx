@@ -56,8 +56,8 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
   };
 
   const textTypeOptions: TextType[] = [
-    '설명문', '논설문', '탐구문', '뉴스 기사', '인터뷰', 
-    '동화', '시', '대본', '소설'
+    '논설문', '탐구문', '사례지문', '인터뷰형지문', '비교/대조형지문', 
+    '실험/조사보고문'
   ];
 
   // 초기 데이터가 변경될 때 폼 데이터 업데이트

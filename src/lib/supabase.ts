@@ -22,13 +22,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // 프롬프트 초기화 함수
-export async function initializeSystemPrompts() {
+export async function initializeSystemPrompts(forceReset: boolean = false) {
   try {
     console.log('🚀 프롬프트 초기화 시작...')
     
     // 기존 프롬프트 데이터 가져오기
-    const { getDefaultPrompts } = await import('./prompts')
-    const defaultPrompts = getDefaultPrompts()
+    const { DEFAULT_PROMPTS_V2 } = await import('./promptsV2')
+    const defaultPrompts = DEFAULT_PROMPTS_V2
     
     console.log(`📚 ${defaultPrompts.length}개의 기본 프롬프트를 발견했습니다.`)
     
@@ -43,12 +43,27 @@ export async function initializeSystemPrompts() {
       throw checkError
     }
     
-    if (existingPrompts && existingPrompts.length > 0) {
+    if (existingPrompts && existingPrompts.length > 0 && !forceReset) {
       return {
         success: false,
         message: '이미 프롬프트 데이터가 존재합니다. 초기화를 건너뜁니다.',
         count: 0
       }
+    }
+    
+    // 강제 리셋 모드인 경우 기존 데이터 삭제
+    if (forceReset && existingPrompts && existingPrompts.length > 0) {
+      console.log('🗑️ 기존 프롬프트 데이터를 삭제합니다...')
+      const { error: deleteError } = await supabase
+        .from('system_prompts_v2')
+        .delete()
+        .neq('prompt_id', 'dummy') // 모든 데이터 삭제
+        
+      if (deleteError) {
+        console.error('기존 데이터 삭제 실패:', deleteError)
+        throw deleteError
+      }
+      console.log('✅ 기존 데이터가 삭제되었습니다.')
     }
     
     // DB에 삽입할 데이터 형식으로 변환

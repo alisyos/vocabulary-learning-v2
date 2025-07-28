@@ -1,0 +1,239 @@
+
+> vocabulary-learning-app@0.1.0 dev
+> next dev
+
+ ⚠ Warning: Found multiple lockfiles. Selecting /mnt/d/test/package-lock.json.
+   Consider removing the lockfiles at:
+   * /mnt/d/test/vocabulary_learning2/vocabulary-learning-app/package-lock.json
+
+   ▲ Next.js 15.4.1
+   - Local:        http://localhost:3000
+   - Network:      http://172.27.165.220:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 21.4s
+ ○ Compiling /api/prompts ...
+ ✓ Compiled /api/prompts in 1436ms (284 modules)
+🚀 강제로 새로운 프롬프트 구조를 사용합니다.
+📚 로드된 프롬프트 수: 39개
+🔍 첫 번째 프롬프트 확인: 전체 시스템 프롬프트
+ GET /api/prompts 200 in 2437ms
+🚀 강제로 새로운 프롬프트 구조를 사용합니다.
+📚 로드된 프롬프트 수: 39개
+🔍 첫 번째 프롬프트 확인: 전체 시스템 프롬프트
+ GET /api/prompts 200 in 89ms
+🚀 강제로 새로운 프롬프트 구조를 사용합니다.
+📚 로드된 프롬프트 수: 39개
+🔍 첫 번째 프롬프트 확인: 전체 시스템 프롬프트
+ GET /api/prompts 200 in 124ms
+🚀 강제로 새로운 프롬프트 구조를 사용합니다.
+📚 로드된 프롬프트 수: 39개
+🔍 첫 번째 프롬프트 확인: 전체 시스템 프롬프트
+ GET /api/prompts 200 in 75ms
+ ○ Compiling / ...
+ ✓ Compiled / in 6s (659 modules)
+ GET / 200 in 3105ms
+ ✓ Compiled /api/auth/session in 485ms (647 modules)
+ GET /api/auth/session 200 in 772ms
+ ○ Compiling /api/get-curriculum-structure ...
+ ✓ Compiled /prompts in 1728ms (751 modules)
+Supabase에서 교육과정 구조 데이터를 가져오는 중...
+ GET /prompts 200 in 2130ms
+Supabase에서 351개의 교육과정 데이터를 가져왔습니다.
+ GET /api/get-curriculum-structure 200 in 3073ms
+Supabase에서 교육과정 구조 데이터를 가져오는 중...
+Supabase에서 351개의 교육과정 데이터를 가져왔습니다.
+ GET /api/get-curriculum-structure 200 in 230ms
+🚀 강제로 새로운 프롬프트 구조를 사용합니다.
+📚 로드된 프롬프트 수: 39개
+🔍 첫 번째 프롬프트 확인: 전체 시스템 프롬프트
+ GET /api/prompts 200 in 157ms
+ GET /api/auth/session 200 in 237ms
+ ○ Compiling /api/prompts/initialize ...
+ ✓ Compiled /api/prompts/initialize in 1017ms (747 modules)
+🚀 프롬프트 초기화 시작...
+📚 39개의 기본 프롬프트를 발견했습니다.
+🔍 생성된 promptId들:
+  - passage-system-base (전체 시스템 프롬프트)
+  - passage-length-1-2-10 (1-2문장으로 구성한 10개 단락)
+  - passage-length-1-2-12 (1-2문장으로 구성한 12개 단락)
+  - passage-length-10-5 (10문장 이하로 구성한 5개 단락)
+  - passage-length-4-5-5-6 (4-5문장으로 구성한 5-6개 단락)
+  - passage-length-5-6-6 (5-6문장으로 구성한 6개 단락)
+  - passage-type-essay (논설문)
+  - passage-type-inquiry (탐구문)
+  - passage-type-case (사례지문)
+  - passage-type-interview (인터뷰형지문)
+💾 프롬프트 데이터를 Supabase에 삽입 중...
+배치 1 삽입 실패: {
+  code: '23514',
+  details: 'Failing row contains (170bd933-58c3-4e02-9f0b-3f4e8fc3a2f5, paragraph-system-base, paragraph, paragraphSystem, 전체 시스템 프롬프트, system_base, 문단별 독해 문제를 생성합니다. 각 문단의 내용..., 문단 문제 생성의 기본 시스템 프롬프트, t, t, 1, 2025-07-28 04:20:26.776487+00, 2025-07-28 04:20:26.776487+00, system, system).',
+  hint: null,
+  message: 'new row for relation "system_prompts_v2" violates check constraint "system_prompts_v2_category_check"'
+}
+프롬프트 초기화 실패: {
+  code: '23514',
+  details: 'Failing row contains (170bd933-58c3-4e02-9f0b-3f4e8fc3a2f5, paragraph-system-base, paragraph, paragraphSystem, 전체 시스템 프롬프트, system_base, 문단별 독해 문제를 생성합니다. 각 문단의 내용..., 문단 문제 생성의 기본 시스템 프롬프트, t, t, 1, 2025-07-28 04:20:26.776487+00, 2025-07-28 04:20:26.776487+00, system, system).',
+  hint: null,
+  message: 'new row for relation "system_prompts_v2" violates check constraint "system_prompts_v2_category_check"'
+}
+ POST /api/prompts/initialize 200 in 1994ms
+ ○ Compiling /api/generate-passage ...
+ ✓ Compiled /api/generate-passage in 1020ms (850 modules)
+Supabase 프롬프트 조회 실패, 기본값 사용: {
+  code: 'PGRST116',
+  details: 'The result contains 0 rows',
+  hint: null,
+  message: 'JSON object requested, multiple (or no) rows returned'
+}
+Supabase 프롬프트 조회 실패, 기본값 사용: {
+  code: 'PGRST116',
+  details: 'The result contains 0 rows',
+  hint: null,
+  message: 'JSON object requested, multiple (or no) rows returned'
+}
+Supabase 프롬프트 조회 실패, 기본값 사용: {
+  code: 'PGRST116',
+  details: 'The result contains 0 rows',
+  hint: null,
+  message: 'JSON object requested, multiple (or no) rows returned'
+}
+Supabase 프롬프트 조회 실패, 기본값 사용: {
+  code: 'PGRST116',
+  details: 'The result contains 0 rows',
+  hint: null,
+  message: 'JSON object requested, multiple (or no) rows returned'
+}
+Generated prompt: ###지시사항
+다음 입력값을 받아 학습 지문(passage)을 생성하십시오. 출력은 하나의 영역으로 구분합니다.
+- passage: 입력 조건을 반영해 생성한 지문
+
+모든 지문은 질문형·호기심 유발형 제목을 사용하고, 실생활 예시를 활용해 추상 개념을 설명해야 하며, 임의(random) 로직은 사용하지 않습니다.
+
+###작성절차
+1. 키워드 도출
+- 구분·과목·학년·영역·지문 길이를 파싱하여 ① 핵심 개념(기초→심화), ② 생활 연계 예시, ③ 학년별 어휘 수준을 도출합니다.
+2. 지문(passages) 생성
+- 도출한 가이드를 조합해 제목 1개와 본문을 작성합니다.
+- 본문은 입력된 지문 길이 가이드라인과 출력 형식 규칙을 정확히 준수합니다.
+- **용어 설명 필수 요구사항**: 지문에 등장하는 모든 학습 관련 용어들을 footnote에 포함시켜야 합니다. 최소 20개 이상의 용어를 추출하여 설명하세요.
+  * 핵심 개념어와 관련 용어들
+  * 지문에 직접 언급된 전문 용어들
+  * 학년 수준에 맞는 중요한 어휘들
+  * 관련 배경 지식이 필요한 용어들
+  * 생활 속에서 사용되는 관련 용어들도 포함
+- **용어 설명 형식**: 각 용어에 대해 "용어: 설명 (예시: 예시문장)" 형태로 작성하세요.
+  * 설명: 학년 수준에 맞는 간단하고 명확한 설명
+  * 예시문장: 해당 용어가 실제로 사용되는 자연스러운 문장
+3. 흥미 요소 적용
+- 도입부에 실생활 상황·질문을 배치하여 독자의 호기심을 자극합니다.
+- 단순 설명문뿐 아니라 비교·예측·원인결과 등 다양한 서술 방식을 활용합니다.
+4. 출력 생성
+- 아래 [공통 출력 스키마] 형식을 준수한 JSON만 출력하십시오.
+- 지정된 키가 없거나 데이터를 찾을 수 없으면 **"-"**로 표기합니다.
+- **footnote는 반드시 20개 이상의 용어 설명을 포함해야 하며, 각 용어는 설명과 예시문장을 모두 포함해야 합니다.**
+
+###구분
+초등학교 중학년(3-4학년): 학습자는 짧은 문장 구조와 익숙한 단어를 중심으로 이해할 수 있습니다. 설명은 구체적인 사례와 생활 속 경험에 기반해야 하며, 새로운 개념어에는 간단한 풀이가 필요합니다. 추상적인 개념은 '왜 그럴까?', '무엇이 다를까?'와 같은 질문으로 흥미를 유도하고, 그림을 그리듯 서술해 주세요.
+
+###지문 길이
+4-5문장으로 구성한 5-6개 단락: 각 단락은 4-5문장으로 구성하여 하나의 소주제를 완성도 있게 설명합니다. 총 5-6개 단락으로 전체 내용을 균형 있게 전개하세요. 초등 중학년 수준에 맞는 친근하고 이해하기 쉬운 구성을 유지하세요.
+
+###과목
+과학
+
+###학년
+초3
+
+###영역
+물리: 힘과 운동, 속력, 마찰, 에너지 전환, 빛과 소리, 전기와 자기 등 자연 현상의 기본 원리를 설명합니다. 초등은 놀이와 생활 도구를 예시로 사용하여 개념을 쉽게 설명합니다. 중학생은 정량적 또는 개념적 분석 중심으로 설명할 수 있습니다. 지문은 탐구 동기를 유도하는 질문으로 시작하세요.
+
+###대주제
+빛과 반사
+위 대주제를 중심으로 물리 영역의 학습 내용과 연결하여 지문을 구성하세요.
+
+###소주제
+거울 속 모습
+이 소주제를 구체적으로 다루며, 대주제와의 연관성을 명확히 하여 지문을 작성하세요.
+
+###핵심 개념어
+반사/거울/입사각/반사각/상
+이 핵심 개념어들을 지문에 자연스럽게 포함시키고, 학년 수준에 맞게 설명하세요. footnote에는 이 용어들을 포함하여 최소 20개 이상의 관련 용어 해설을 추가하세요.
+
+###출력형식(JSON)
+{
+  "passages": [
+    {
+      "title": "<질문형·흥미유발형 제목>",
+      "paragraphs": [
+        "<4-5문장으로 구성한 단락1>",
+        "<4-5문장으로 구성한 단락2>",
+        "<4-5문장으로 구성한 단락3>",
+        "<4-5문장으로 구성한 단락4>",
+        "<4-5문장으로 구성한 단락5>",
+        "<4-5문장으로 구성한 단락6(생략가능)>"
+      ],
+      "footnote": [
+        "용어1: 간단하고 명확한 설명 (예시: 용어1을 사용한 자연스러운 예시문장)",
+        "용어2: 간단하고 명확한 설명 (예시: 용어2를 사용한 자연스러운 예시문장)",
+        "용어3: 간단하고 명확한 설명 (예시: 용어3을 사용한 자연스러운 예시문장)",
+        "용어4: 간단하고 명확한 설명 (예시: 용어4를 사용한 자연스러운 예시문장)",
+        "용어5: 간단하고 명확한 설명 (예시: 용어5를 사용한 자연스러운 예시문장)",
+        "용어6: 간단하고 명확한 설명 (예시: 용어6을 사용한 자연스러운 예시문장)",
+        "용어7: 간단하고 명확한 설명 (예시: 용어7을 사용한 자연스러운 예시문장)",
+        "용어8: 간단하고 명확한 설명 (예시: 용어8을 사용한 자연스러운 예시문장)",
+        "용어9: 간단하고 명확한 설명 (예시: 용어9를 사용한 자연스러운 예시문장)",
+        "용어10: 간단하고 명확한 설명 (예시: 용어10을 사용한 자연스러운 예시문장)",
+        "용어11: 간단하고 명확한 설명 (예시: 용어11을 사용한 자연스러운 예시문장)",
+        "용어12: 간단하고 명확한 설명 (예시: 용어12를 사용한 자연스러운 예시문장)",
+        "용어13: 간단하고 명확한 설명 (예시: 용어13을 사용한 자연스러운 예시문장)",
+        "용어14: 간단하고 명확한 설명 (예시: 용어14를 사용한 자연스러운 예시문장)",
+        "용어15: 간단하고 명확한 설명 (예시: 용어15를 사용한 자연스러운 예시문장)",
+        "용어16: 간단하고 명확한 설명 (예시: 용어16을 사용한 자연스러운 예시문장)",
+        "용어17: 간단하고 명확한 설명 (예시: 용어17을 사용한 자연스러운 예시문장)",
+        "용어18: 간단하고 명확한 설명 (예시: 용어18을 사용한 자연스러운 예시문장)",
+        "용어19: 간단하고 명확한 설명 (예시: 용어19를 사용한 자연스러운 예시문장)",
+        "용어20: 간단하고 명확한 설명 (예시: 용어20을 사용한 자연스러운 예시문장)",
+        "추가용어21: 간단하고 명확한 설명 (예시: 추가용어21을 사용한 자연스러운 예시문장)",
+        "추가용어22: 간단하고 명확한 설명 (예시: 추가용어22를 사용한 자연스러운 예시문장)",
+        "추가용어23: 간단하고 명확한 설명 (예시: 추가용어23을 사용한 자연스러운 예시문장)",
+        "추가용어24: 간단하고 명확한 설명 (예시: 추가용어24를 사용한 자연스러운 예시문장)",
+        "추가용어25: 간단하고 명확한 설명 (예시: 추가용어25를 사용한 자연스러운 예시문장)"
+      ]
+    }
+  ]
+}
+GPT response: {
+  passages: [
+    {
+      title: '거울 속 내 모습이 반대로 보이는 이유는 무엇일까?',
+      paragraphs: [Array],
+      footnote: [Array]
+    }
+  ]
+}
+ POST /api/generate-passage 200 in 19867ms
+ ○ Compiling /api/test-db ...
+ ✓ Compiled /api/test-db in 820ms (747 modules)
+ GET /api/test-db 200 in 1701ms
+ ✓ Compiled /api/prompts in 455ms (511 modules)
+📂 데이터베이스 조회 실패, 하드코딩된 프롬프트를 사용합니다.
+📚 로드된 프롬프트 수: 39개
+🔍 첫 번째 프롬프트 확인: 전체 시스템 프롬프트
+🔧 데이터베이스 사용 여부: false
+ GET /api/prompts 200 in 919ms
+ GET /prompts 200 in 579ms
+ GET / 200 in 583ms
+✅ 프롬프트 수정 저장 성공: passage-system-base
+ PUT /api/prompts 200 in 199ms
+ GET /prompts 200 in 299ms
+ ○ Compiling /api/prompts/update ...
+ ✓ Compiled /api/prompts/update in 2.2s (747 modules)
+ POST /api/prompts/update 200 in 3171ms
+ ✓ Compiled /api/prompts in 365ms (511 modules)
+🗄️ 데이터베이스에서 1개 프롬프트를 로드했습니다.
+📚 로드된 프롬프트 수: 1개
+🔍 첫 번째 프롬프트 확인: 전체 시스템 프롬프트
+🔧 데이터베이스 사용 여부: true
+ GET /api/prompts 200 in 609ms
