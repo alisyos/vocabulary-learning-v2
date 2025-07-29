@@ -87,7 +87,8 @@ export async function POST(request: NextRequest) {
         const prompt = await generateComprehensivePromptFromDB(
           currentType,
           body.passage,
-          body.division
+          body.division,
+          count
         );
 
         // 첫 번째 유형의 프롬프트를 저장 (대표 프롬프트로 사용)
@@ -100,25 +101,45 @@ export async function POST(request: NextRequest) {
 
         // GPT API 호출
         const result = await generateQuestion(prompt);
+        console.log(`API Response for ${currentType}:`, JSON.stringify(result, null, 2));
 
         // 결과 파싱 및 ComprehensiveQuestion 형태로 변환
-        if (result && typeof result === 'object' && 'questions' in result) {
-          const questionSet = result as GeneratedQuestionSet;
-          
-          if (questionSet.questions && Array.isArray(questionSet.questions)) {
-            // 요청한 개수만큼만 추가 (API가 더 많이 반환할 수 있으므로)
-            const questionsToAdd = questionSet.questions.slice(0, count);
-            questionsToAdd.forEach((q, index) => {
-              comprehensiveQuestions.push({
-                id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${index + 1}_${Date.now()}`,
-                type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
-                question: q.question || '',
-                options: q.options || undefined,
-                answer: q.answer || '',
-                explanation: q.explanation || ''
-              });
-            });
+        let questionSet: GeneratedQuestionSet | null = null;
+        
+        // raw 응답 처리
+        if (result && typeof result === 'object' && 'raw' in result) {
+          try {
+            // raw 텍스트에서 JSON 추출 시도
+            const rawText = result.raw as string;
+            const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              questionSet = JSON.parse(jsonMatch[0]) as GeneratedQuestionSet;
+            }
+          } catch (parseError) {
+            console.error(`Failed to parse raw response for ${currentType}:`, parseError);
           }
+        } else if (result && typeof result === 'object' && 'questions' in result) {
+          questionSet = result as GeneratedQuestionSet;
+        }
+        
+        if (questionSet && questionSet.questions && Array.isArray(questionSet.questions)) {
+          // 요청한 개수만큼만 추가 (API가 더 많이 반환할 수 있으므로)
+          const questionsToAdd = questionSet.questions.slice(0, count);
+          console.log(`Adding ${questionsToAdd.length} questions of type ${currentType}`);
+          
+          questionsToAdd.forEach((q, index) => {
+            comprehensiveQuestions.push({
+              id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${index + 1}_${Date.now()}`,
+              type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
+              question: q.question || '',
+              options: q.options || undefined,
+              answer: q.answer || '',
+              explanation: q.explanation || ''
+            });
+          });
+        } else {
+          console.error(`No valid questions found in response for ${currentType}`);
+          throw new Error('Invalid question format in API response');
         }
 
       } catch (setError) {
@@ -174,14 +195,33 @@ JSON 형식으로 1개 문제만 생성:
 
             const supplementaryResult = await generateQuestion(supplementaryPrompt);
             
-            if (supplementaryResult?.question) {
+            // 보완 문제 결과 파싱
+            let supplementaryQuestion = null;
+            
+            if (supplementaryResult && typeof supplementaryResult === 'object') {
+              if ('raw' in supplementaryResult) {
+                try {
+                  const rawText = supplementaryResult.raw as string;
+                  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+                  if (jsonMatch) {
+                    supplementaryQuestion = JSON.parse(jsonMatch[0]);
+                  }
+                } catch (parseError) {
+                  console.error(`Failed to parse supplementary raw response:`, parseError);
+                }
+              } else if ('question' in supplementaryResult) {
+                supplementaryQuestion = supplementaryResult;
+              }
+            }
+            
+            if (supplementaryQuestion?.question) {
               supplementaryQuestions.push({
                 id: `comp_sup_${originalQuestion.id}_${supIndex}_${Date.now()}`,
                 type: originalQuestion.type,
-                question: supplementaryResult.question,
-                options: supplementaryResult.options,
-                answer: supplementaryResult.answer,
-                explanation: supplementaryResult.explanation || '보완 문제입니다.',
+                question: supplementaryQuestion.question,
+                options: supplementaryQuestion.options,
+                answer: supplementaryQuestion.answer,
+                explanation: supplementaryQuestion.explanation || '보완 문제입니다.',
                 isSupplementary: true, // 보완 문제 표시
                 originalQuestionId: originalQuestion.id // 원본 문제 ID 참조
               });

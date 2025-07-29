@@ -632,7 +632,7 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
     name: '전체 시스템 프롬프트',
     key: 'system_base',
     promptText: `###지시사항
-주어진 지문을 바탕으로 **{questionType}** 유형의 문제 3개를 생성하십시오.
+주어진 지문을 바탕으로 **{questionType}** 유형의 문제 {questionCount}개를 생성하십시오.
 - 지문의 전체적인 이해와 핵심 내용 파악을 평가하는 문제를 생성합니다.
 - 각 문제는 서로 다른 관점이나 내용을 다뤄야 합니다.
 - 지문에 직접 언급된 내용이나 논리적으로 추론 가능한 내용만을 바탕으로 출제합니다.

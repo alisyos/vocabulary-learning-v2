@@ -415,20 +415,49 @@ export default function PromptsPage() {
                                     </div>
                                   </div>
                                   
-                                  <button
-                                    onClick={() => startEditing(prompt)}
-                                    className={`ml-4 inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                                      activeTab === 'passage' ? 'focus:ring-blue-500' :
-                                      activeTab === 'vocabulary' ? 'focus:ring-purple-500' :
-                                      activeTab === 'paragraph' ? 'focus:ring-indigo-500' :
-                                      activeTab === 'comprehensive' ? 'focus:ring-green-500' :
-                                      activeTab === 'subject' ? 'focus:ring-orange-500' :
-                                      activeTab === 'area' ? 'focus:ring-pink-500' :
-                                      activeTab === 'division' ? 'focus:ring-gray-500' : 'focus:ring-blue-500'
-                                    }`}
-                                  >
-                                    수정
-                                  </button>
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      onClick={async () => {
+                                        const { getDefaultPromptById } = await import('@/lib/prompts');
+                                        const defaultPromptText = getDefaultPromptById(prompt.promptId);
+                                        if (defaultPromptText && confirm('이 프롬프트를 하드코딩된 기본값으로 초기화하시겠습니까?')) {
+                                          setEditing({
+                                            promptId: prompt.promptId,
+                                            promptText: defaultPromptText,
+                                            changeReason: '하드코딩된 기본값으로 초기화'
+                                          });
+                                        } else if (!defaultPromptText) {
+                                          alert('이 프롬프트에 대한 하드코딩된 기본값이 없습니다.');
+                                        }
+                                      }}
+                                      className={`inline-flex items-center px-3 py-1 border shadow-sm text-sm font-medium rounded-md text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                        activeTab === 'passage' ? 'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500 border-blue-600' :
+                                        activeTab === 'vocabulary' ? 'bg-purple-500 hover:bg-purple-600 focus:ring-purple-500 border-purple-600' :
+                                        activeTab === 'paragraph' ? 'bg-indigo-500 hover:bg-indigo-600 focus:ring-indigo-500 border-indigo-600' :
+                                        activeTab === 'comprehensive' ? 'bg-green-500 hover:bg-green-600 focus:ring-green-500 border-green-600' :
+                                        activeTab === 'subject' ? 'bg-orange-500 hover:bg-orange-600 focus:ring-orange-500 border-orange-600' :
+                                        activeTab === 'area' ? 'bg-pink-500 hover:bg-pink-600 focus:ring-pink-500 border-pink-600' :
+                                        activeTab === 'division' ? 'bg-gray-500 hover:bg-gray-600 focus:ring-gray-500 border-gray-600' : 'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500 border-blue-600'
+                                      }`}
+                                      title="하드코딩된 기본값으로 초기화"
+                                    >
+                                      ↺ 초기화
+                                    </button>
+                                    <button
+                                      onClick={() => startEditing(prompt)}
+                                      className={`inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                        activeTab === 'passage' ? 'focus:ring-blue-500' :
+                                        activeTab === 'vocabulary' ? 'focus:ring-purple-500' :
+                                        activeTab === 'paragraph' ? 'focus:ring-indigo-500' :
+                                        activeTab === 'comprehensive' ? 'focus:ring-green-500' :
+                                        activeTab === 'subject' ? 'focus:ring-orange-500' :
+                                        activeTab === 'area' ? 'focus:ring-pink-500' :
+                                        activeTab === 'division' ? 'focus:ring-gray-500' : 'focus:ring-blue-500'
+                                      }`}
+                                    >
+                                      수정
+                                    </button>
+                                  </div>
                                 </div>
                                 
                                 {editing?.promptId === prompt.promptId ? (

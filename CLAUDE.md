@@ -28,7 +28,22 @@ AI 기반 과목별 독해 지문 및 문제 생성 웹 애플리케이션
 - **vocabulary_questions**: 어휘 문제 (5지선다)
 - **comprehensive_questions**: 종합 문제 (객관식/주관식)
 - **ai_generation_logs**: AI 생성 로그 및 통계
-- **system_prompts**: 시스템 프롬프트 관리
+- **system_prompts_v3**: 🆕 시스템 프롬프트 관리 (v3 스키마)
+
+#### 🔧 system_prompts_v3 테이블 구조
+```sql
+CREATE TABLE system_prompts_v3 (
+  id SERIAL PRIMARY KEY,
+  category VARCHAR(50) NOT NULL,        -- 'area', 'division', 'subject' 등
+  subcategory VARCHAR(100) NOT NULL,    -- 'areaBiology', 'divisionMiddle' 등
+  key VARCHAR(100) NOT NULL,            -- 'biology', 'middle', 'science' 등
+  prompt_content TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(category, subcategory, key)
+);
+```
 
 
 ## 주요 기능 요구사항
@@ -481,6 +496,199 @@ export const db = {
 - 불필요한 JSON 파싱 최소화
 - 구조화된 데이터 직접 활용
 - 효율적인 쿼리 패턴 사용
+
+## 🔧 시스템 프롬프트 관리 및 매핑
+
+### 📋 한글-영어 키 매핑 시스템
+
+콘텐츠 생성 시스템은 한글 UI 이름을 영어 데이터베이스 키로 변환하는 매핑 시스템을 사용합니다.
+
+#### 🗂️ 영역(Area) 매핑
+```typescript
+// 영역명 한글 -> 영어 키 매핑
+const areaKeyMap = {
+  '지리': 'geography',
+  '일반사회': 'social', 
+  '역사': 'history',
+  '경제': 'economy',
+  '정치': 'politics',
+  '화학': 'chemistry',
+  '물리': 'physics',
+  '생물': 'biology',
+  '생명': 'biology',
+  '지구과학': 'earth',
+  '과학탐구': 'science_inquiry'
+};
+
+// 서브카테고리 매핑
+const areaSubcategoryMap = {
+  'geography': 'areaGeography',
+  'social': 'areaSocial',
+  'history': 'areaHistory',
+  'economy': 'areaEconomy',
+  'chemistry': 'areaChemistry',
+  'physics': 'areaPhysics',
+  'biology': 'areaBiology',
+  'earth': 'areaEarth'
+};
+```
+
+#### 🎓 구분(Division) 매핑
+```typescript
+const divisionKeyMap = {
+  '초등학교': 'elementary',
+  '중학교': 'middle'
+};
+
+const divisionSubcategoryMap = {
+  'elementary': 'divisionElementary',
+  'middle': 'divisionMiddle'
+};
+```
+
+#### 📚 과목(Subject) 매핑
+```typescript
+const subjectKeyMap = {
+  '사회': 'social',
+  '과학': 'science'
+};
+
+const subjectSubcategoryMap = {
+  'social': 'subjectSocial',
+  'science': 'subjectScience'
+};
+```
+
+### 🔍 프롬프트 조회 프로세스
+
+1. **한글 입력값 수신** (예: area = '생물')
+2. **영어 키 변환** (`getAreaKey('생물')` → `'biology'`)
+3. **서브카테고리 결정** (`getAreaSubcategory('biology')` → `'areaBiology'`)
+4. **DB 조회** (`system_prompts_v3` 테이블에서 `category='area', subcategory='areaBiology', key='biology'` 조회)
+5. **프롬프트 반환** (조회 실패 시 하드코딩된 기본값 사용)
+
+### 🛠️ 프롬프트 관리 시스템 위치
+
+- **매핑 함수**: `/src/lib/prompts.ts`
+- **DB 조회 함수**: `/src/lib/supabase.ts` (`getPromptByKey`)
+- **프롬프트 생성**: `/src/lib/prompts.ts` (`generateComprehensivePromptFromDB` 등)
+
+## 🚨 문제 해결 가이드
+
+### 🔧 일반적인 문제 및 해결방법
+
+#### 1. 프롬프트가 DB에서 조회되지 않는 문제
+
+**증상**: "###영역", "###구분", "###과목" 섹션이 비어있거나 하드코딩된 값이 표시됨
+
+**원인**: 
+- 한글 이름과 영어 키 간의 매핑 문제
+- `system_prompts_v3` 테이블에 해당 키가 없음
+- 서브카테고리 매핑 오류
+
+**해결방법**:
+1. **매핑 확인**: `/src/lib/prompts.ts`에서 매핑 함수 확인
+2. **DB 데이터 확인**: Supabase에서 `system_prompts_v3` 테이블 조회
+3. **로그 확인**: 콘솔에서 `getPromptFromDB` 함수의 로그 확인
+
+```typescript
+// 디버깅용 로그 추가
+console.log('Requesting prompt:', { category, subcategory, key });
+console.log('Mapped key:', getAreaKey(areaName));
+```
+
+#### 2. 콘텐츠 생성 실패
+
+**증상**: GPT API 호출 실패 또는 잘못된 형식의 응답
+
+**원인**:
+- OpenAI API 키 문제
+- 프롬프트 형식 오류
+- 네트워크 연결 문제
+
+**해결방법**:
+1. **환경변수 확인**: `OPENAI_API_KEY` 설정 확인
+2. **API 응답 로그**: 콘솔에서 GPT 응답 확인
+3. **프롬프트 검증**: 생성된 프롬프트 내용 확인
+
+#### 3. Supabase 연결 문제
+
+**증상**: 데이터 저장/조회 실패
+
+**원인**:
+- Supabase 환경변수 설정 오류
+- 네트워크 연결 문제
+- 테이블 스키마 변경
+
+**해결방법**:
+1. **환경변수 확인**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+2. **테이블 존재 확인**: Supabase 대시보드에서 테이블 확인
+3. **권한 확인**: RLS 정책 및 API 권한 확인
+
+### 🔍 디버깅 도구
+
+#### 프롬프트 매핑 테스트
+```typescript
+// 콘솔에서 테스트 가능
+import { getAreaKey, getAreaSubcategory } from '@/lib/prompts';
+
+console.log(getAreaKey('생물')); // 'biology'
+console.log(getAreaSubcategory('biology')); // 'areaBiology'
+```
+
+#### DB 조회 테스트
+```typescript
+// API 경로에서 테스트
+import { getPromptByKey } from '@/lib/supabase';
+
+const prompt = await getPromptByKey('area', 'areaBiology', 'biology');
+console.log('Retrieved prompt:', prompt);
+```
+
+### 📝 로그 분석
+
+**중요한 로그 패턴**:
+- `getPromptFromDB`: DB 조회 결과
+- `Mapped key`: 매핑된 키 값
+- `API Response`: GPT API 응답
+- `Generated questions`: 생성된 문제 수
+
+**오류 패턴**:
+- `undefined prompt`: 매핑 또는 DB 조회 실패
+- `JSON parse error`: GPT 응답 파싱 실패
+- `Supabase error`: 데이터베이스 연결 문제
+
+## 🔄 최근 업데이트 (2025년 1월)
+
+### ✅ 완료된 수정 사항
+
+1. **프롬프트 매핑 시스템 구현** (2025-01-29)
+   - 한글 UI 이름 → 영어 DB 키 매핑 함수 추가
+   - `getAreaKey`, `getDivisionKey`, `getSubjectKey` 함수 구현
+   - 서브카테고리 매핑 함수 추가
+
+2. **DB 조회 최적화**
+   - `system_prompts_v3` 테이블 구조 활용
+   - 올바른 키와 서브카테고리로 조회 수정
+   - 폴백 메커니즘 유지
+
+3. **타입 안전성 강화**
+   - TypeScript 매핑 함수 타입 정의
+   - 오류 처리 개선
+
+### 🚀 다음 개선 계획
+
+1. **프롬프트 관리 UI 개선**
+   - 매핑 관계 시각화
+   - 프롬프트 편집 시 키 매핑 표시
+
+2. **자동 테스트 추가**
+   - 매핑 함수 단위 테스트
+   - DB 조회 통합 테스트
+
+3. **모니터링 강화**
+   - 프롬프트 조회 성공률 추적
+   - 실패 원인 분석 로깅
 
 ---
 

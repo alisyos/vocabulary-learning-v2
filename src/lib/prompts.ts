@@ -351,7 +351,7 @@ ${subject}
 ${grade}
 
 ###영역
-${areaPrompts[area]}
+${areaPrompts[area] || area}
 
 ###대주제
 ${maintopic}
@@ -696,10 +696,11 @@ const comprehensiveOutputFormats = {
 export function generateComprehensivePrompt(
   questionType: string, // '단답형', '문단별 순서 맞추기', etc.
   passage: string,
-  division: string
+  division: string,
+  questionCount: number = 3
 ): string {
   return `###지시사항
-주어진 지문을 바탕으로 **${questionType}** 유형의 문제 3개를 생성하십시오.
+주어진 지문을 바탕으로 **${questionType}** 유형의 문제 ${questionCount}개를 생성하십시오.
 - 지문의 전체적인 이해와 핵심 내용 파악을 평가하는 문제를 생성합니다.
 - 각 문제는 서로 다른 관점이나 내용을 다뤄야 합니다.
 - 지문에 직접 언급된 내용이나 논리적으로 추론 가능한 내용만을 바탕으로 출제합니다.
@@ -718,6 +719,7 @@ ${comprehensiveOutputFormats[questionType as keyof typeof comprehensiveOutputFor
 
 ###주의사항
 - 반드시 위의 JSON 형식을 정확히 준수하십시오.
+- 정확히 ${questionCount}개의 문제를 생성하십시오.
 - 각 문제는 서로 다른 내용이나 관점을 다뤄야 합니다.
 - 정답과 해설은 지문에 명확히 근거해야 합니다.
 - 객관식 문제의 오답 선택지도 그럴듯하게 구성하십시오.`;
@@ -881,7 +883,7 @@ export function getDefaultPrompts() {
 
   // 0-2. 전체 종합 문제 생성 시스템 프롬프트
   const fullComprehensivePrompt = `###지시사항
-주어진 지문을 바탕으로 **{question_type}** 유형의 문제 3개를 생성하십시오.
+주어진 지문을 바탕으로 **{question_type}** 유형의 문제 {question_count}개를 생성하십시오.
 - 지문의 전체적인 이해와 핵심 내용 파악을 평가하는 문제를 생성합니다.
 - 각 문제는 서로 다른 관점이나 내용을 다뤄야 합니다.
 - 지문에 직접 언급된 내용이나 논리적으로 추론 가능한 내용만을 바탕으로 출제합니다.
@@ -1074,6 +1076,125 @@ export function getDefaultPrompts() {
 const promptCache = new Map<string, { text: string, timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5분
 
+// 영역명 한글 -> 영어 키 매핑
+export function getAreaKey(areaName: string): string {
+  const areaKeyMap: { [key: string]: string } = {
+    '지리': 'geography',
+    '일반사회': 'social', 
+    '역사': 'history',
+    '경제': 'economy',
+    '정치': 'politics',
+    '화학': 'chemistry',
+    '물리': 'physics',
+    '생물': 'biology',
+    '생명': 'biology', // 생물과 생명은 같은 키 사용
+    '지구과학': 'earth',
+    '과학탐구': 'science_inquiry'
+  };
+  return areaKeyMap[areaName] || areaName;
+}
+
+// 영역명 한글 -> 서브카테고리 매핑
+export function getAreaSubCategory(areaName: string): string {
+  const areaSubCategoryMap: { [key: string]: string } = {
+    '지리': 'areaGeography',
+    '일반사회': 'areaSocial', 
+    '역사': 'areaHistory',
+    '경제': 'areaEconomy',
+    '정치': 'areaPolitics',
+    '화학': 'areaChemistry',
+    '물리': 'areaPhysics',
+    '생물': 'areaBiology',
+    '생명': 'areaBiology', // 생물과 생명은 같은 서브카테고리 사용
+    '지구과학': 'areaEarth',
+    '과학탐구': 'areaScienceInquiry'
+  };
+  return areaSubCategoryMap[areaName] || 'areaContent';
+}
+
+// 구분명 한글 -> 영어 키 매핑
+export function getDivisionKey(divisionName: string): string {
+  const divisionKeyMap: { [key: string]: string } = {
+    '중학생(1-3학년)': 'middle',
+    '초등학교 고학년(5-6학년)': 'elem_high',
+    '초등학교 중학년(3-4학년)': 'elem_mid'
+  };
+  return divisionKeyMap[divisionName] || divisionName;
+}
+
+// 구분명 한글 -> 서브카테고리 매핑
+export function getDivisionSubCategory(divisionName: string): string {
+  const divisionSubCategoryMap: { [key: string]: string } = {
+    '중학생(1-3학년)': 'divisionMiddle',
+    '초등학교 고학년(5-6학년)': 'divisionElemHigh',
+    '초등학교 중학년(3-4학년)': 'divisionElemMid'
+  };
+  return divisionSubCategoryMap[divisionName] || 'divisionLevel';
+}
+
+// 과목명 한글 -> 영어 키 매핑
+export function getSubjectKey(subjectName: string): string {
+  const subjectKeyMap: { [key: string]: string } = {
+    '과학': 'science',
+    '사회': 'social'
+  };
+  return subjectKeyMap[subjectName] || subjectName;
+}
+
+// 과목명 한글 -> 서브카테고리 매핑
+export function getSubjectSubCategory(subjectName: string): string {
+  const subjectSubCategoryMap: { [key: string]: string } = {
+    '과학': 'subjectScience',
+    '사회': 'subjectSocial'
+  };
+  return subjectSubCategoryMap[subjectName] || 'subjectContent';
+}
+
+// 글의 유형명 한글 -> 영어 키 매핑
+export function getTextTypeKey(textTypeName: string): string {
+  const textTypeKeyMap: { [key: string]: string } = {
+    '설명문': 'type_description',
+    '논설문': 'type_essay',
+    '탐구문': 'type_inquiry',
+    '뉴스 기사': 'type_news',
+    '인터뷰': 'type_interview',
+    '인터뷰형지문': 'type_interview',
+    '동화': 'type_fairytale',
+    '시': 'type_poem',
+    '대본': 'type_script',
+    '소설': 'type_novel',
+    '사례지문': 'type_case',
+    '비교/대조형지문': 'type_compare',
+    '실험/조사보고문': 'type_experiment'
+  };
+  return textTypeKeyMap[textTypeName] || textTypeName;
+}
+
+// 기본 텍스트 유형 프롬프트 반환 함수
+function getDefaultTextTypePrompt(textType: string): string {
+  const textTypePrompts: { [key: string]: string } = {
+    '설명문': `설명문: 특정 대상, 현상, 개념을 명확하고 체계적으로 설명하는 글입니다. 객관적 사실에 기반하여 정보를 전달하며, 정의-특성-예시-결론의 구조로 구성합니다. 학년에 맞는 어휘로 개념을 쉽게 풀어서 설명하세요.`,
+    
+    '논설문': `논설문: 특정 주제에 대한 의견이나 주장을 논리적으로 전개하는 글입니다. 문제 제기-근거 제시-반박-결론의 구조를 가지며, 설득력 있는 근거와 사례를 활용합니다. 학년 수준에 맞는 논리적 사고를 유도하세요.`,
+    
+    '탐구문': `탐구문: 궁금한 점이나 문제를 해결하기 위해 탐구하는 과정을 담은 글입니다. 문제 발견-가설 설정-탐구 과정-결과 도출의 구조로 구성하며, 과학적 사고와 탐구 방법을 보여줍니다. 호기심을 자극하는 질문으로 시작하세요.`,
+    
+    '뉴스 기사': `뉴스 기사: 최근 일어난 사건이나 이슈를 객관적으로 보도하는 글입니다. 5W1H(누가, 언제, 어디서, 무엇을, 왜, 어떻게)를 포함하여 사실을 정확하고 간결하게 전달합니다. 헤드라인 형태의 제목을 사용하세요.`,
+    
+    '인터뷰': `인터뷰: 전문가나 관련자와의 대화를 통해 정보를 얻는 글입니다. 질문과 답변의 형식으로 구성하며, 인터뷰 대상자의 경험과 견해를 생생하게 전달합니다. 대화체를 활용하여 현장감을 살리세요.`,
+    
+    '동화': `동화: 교훈이나 메시지를 재미있는 이야기로 전달하는 글입니다. 등장인물과 사건을 통해 학습 내용을 자연스럽게 녹여내며, 상상력을 자극하는 요소를 포함합니다. "옛날 옛적에" 같은 동화적 표현을 사용하세요.`,
+    
+    '시': `시: 함축적이고 운율이 있는 언어로 감정과 사상을 표현하는 글입니다. 은유, 의인법 등의 표현 기법을 사용하여 학습 내용을 시적으로 형상화합니다. 운율과 리듬감을 고려하여 작성하세요.`,
+    
+    '대본': `대본: 연극이나 드라마의 형식으로 구성된 글입니다. 등장인물의 대화와 행동 지시문으로 이루어지며, 학습 내용을 극적 상황으로 표현합니다. 무대 지시문과 대사를 명확히 구분하여 작성하세요.`,
+    
+    '소설': `소설: 인물, 사건, 배경이 어우러진 서사 구조를 가진 글입니다. 등장인물의 성격과 갈등을 통해 학습 내용을 자연스럽게 전개하며, 독자의 몰입을 유도하는 스토리텔링을 사용하세요.`
+  };
+  
+  return textTypePrompts[textType] || '';
+}
+
 // Supabase에서 프롬프트를 조회하여 기존 방식으로 사용할 수 있도록 하는 함수
 export async function getPromptFromDB(category: string, subCategory: string, key: string): Promise<string> {
   const cacheKey = `${category}/${subCategory}/${key}`;
@@ -1086,23 +1207,25 @@ export async function getPromptFromDB(category: string, subCategory: string, key
   }
   
   try {
+    console.log(`🔍 DB 조회 시도: ${category}/${subCategory}/${key}`);
     const { db } = await import('./supabase');
     const prompt = await db.getPromptByKey(category, subCategory, key);
     
     if (prompt && prompt.promptText) {
+      console.log(`✅ DB 조회 성공: ${cacheKey} (${prompt.promptText.length} chars)`);
       // 캐시에 저장
       promptCache.set(cacheKey, { text: prompt.promptText, timestamp: Date.now() });
       return prompt.promptText;
     }
     
     // Supabase에서 찾지 못하면 기본값 사용
-    console.warn(`프롬프트를 Supabase에서 찾지 못함: ${category}/${subCategory}/${key}, 기본값 사용`);
+    console.warn(`❌ 프롬프트를 Supabase에서 찾지 못함: ${category}/${subCategory}/${key}, 기본값 사용`);
     const defaultText = getDefaultPromptByKey(category, subCategory, key);
     // 기본값도 캐시에 저장
     promptCache.set(cacheKey, { text: defaultText, timestamp: Date.now() });
     return defaultText;
   } catch (error) {
-    console.error('Supabase 프롬프트 조회 실패, 기본값 사용:', error);
+    console.error(`❌ Supabase 프롬프트 조회 실패: ${category}/${subCategory}/${key}`, error);
     const defaultText = getDefaultPromptByKey(category, subCategory, key);
     // 기본값도 캐시에 저장
     promptCache.set(cacheKey, { text: defaultText, timestamp: Date.now() });
@@ -1137,7 +1260,6 @@ function getDefaultPromptByKey(category: string, subCategory: string, key: strin
     case 'areaContent':
       return areaPrompts[key as keyof typeof areaPrompts] || '';
     case 'length':
-    case 'outputFormat':
       return outputFormats[key as keyof typeof outputFormats] || '';
     case 'lengthGuideline':
       return lengthPrompts[key as keyof typeof lengthPrompts] || '';
@@ -1189,13 +1311,76 @@ export async function generatePassagePromptFromDB(
 ): Promise<string> {
   try {
     // DB에서 각 프롬프트 조회
-    const divisionPrompt = await getPromptFromDB('division', 'divisionLevel', division);
-    const lengthGuidelinePrompt = await getPromptFromDB('passage', 'lengthGuideline', length);
-    const outputFormatPrompt = await getPromptFromDB('passage', 'outputFormat', length);
-    const areaPrompt = await getPromptFromDB('area', 'areaContent', area);
-    const subjectPrompt = await getPromptFromDB('subject', 'subjectContent', subject);
+    console.log('🔍 Starting prompt DB queries...');
     
-    let prompt = `###지시사항
+    // 전체 시스템 프롬프트 조회 - 실제 DB 키 사용
+    let systemPrompt = await getPromptFromDB('passage', 'system', 'system_base');
+    console.log(`🔧 System prompt: ${systemPrompt ? 'FROM DB (' + systemPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'}`);
+    
+    const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(division), getDivisionKey(division));
+    console.log(`📊 Division prompt: ${divisionPrompt ? 'FROM DB (' + divisionPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'}`);
+    
+    const lengthGuidelinePrompt = await getPromptFromDB('passage', 'lengthGuideline', length);
+    console.log(`📏 Length prompt: ${lengthGuidelinePrompt ? 'FROM DB (' + lengthGuidelinePrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'}`);
+    
+    const outputFormatPrompt = await getPromptFromDB('passage', 'type', 'json');
+    console.log(`📋 Output format prompt: ${outputFormatPrompt ? 'FROM DB (' + outputFormatPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'}`);
+    
+    const areaPrompt = await getPromptFromDB('area', getAreaSubCategory(area), getAreaKey(area));
+    console.log(`🧬 Area prompt: ${areaPrompt ? 'FROM DB (' + areaPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'}`);
+    
+    const subjectPrompt = await getPromptFromDB('subject', getSubjectSubCategory(subject), getSubjectKey(subject));
+    console.log(`📚 Subject prompt: ${subjectPrompt ? 'FROM DB (' + subjectPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'}`);
+    
+    console.log('✅ All prompt DB queries completed');
+    
+    // 시스템 프롬프트가 DB에서 가져와진 경우 템플릿 변수 치환
+    let prompt;
+    if (systemPrompt) {
+      console.log('🔧 Using server system prompt with template substitution');
+      // 글의 유형 프롬프트 준비
+      let textTypePromptText = '';
+      if (textType) {
+        console.log(`🔍 Text type lookup: passage/textType/${getTextTypeKey(textType)}`);
+        const textTypePrompt = await getPromptFromDB('passage', 'textType', getTextTypeKey(textType));
+        console.log(`📄 Text type prompt found: ${textTypePrompt ? 'YES (' + textTypePrompt.length + ' chars)' : 'NO - using default'}`);
+        
+        if (textTypePrompt) {
+          textTypePromptText = textTypePrompt;
+        } else {
+          console.log(`⚠️ No server prompt for text type '${textType}', using hardcoded fallback`);
+          textTypePromptText = getDefaultTextTypePrompt(textType);
+        }
+      }
+      
+      // 템플릿 변수 치환
+      prompt = systemPrompt
+        .replace('{division_prompt}', divisionPrompt || '구분 정보가 없습니다.')
+        .replace('{length_prompt}', lengthGuidelinePrompt || length)
+        .replace('{subject}', subjectPrompt || subject)
+        .replace('{grade}', grade)
+        .replace('{area_prompt}', areaPrompt || area)
+        .replace('{area}', area)
+        .replace('{maintopic}', maintopic)
+        .replace('{subtopic}', subtopic)
+        .replace('{keyword}', keyword)
+        .replace('{text_type_prompt}', textTypePromptText)
+        .replace('{output_format}', outputFormatPrompt || `다음 JSON 형식으로만 출력하십시오:
+{
+  "passages": [
+    {
+      "title": "질문형·호기심 유발형 제목",
+      "paragraphs": ["단락1 내용", "단락2 내용", "..."],
+      "footnote": ["용어1: 설명1 (예시: 예시문장1)", "용어2: 설명2 (예시: 예시문장2)", "..."]
+    }
+  ]
+}`);
+      
+      console.log('✅ Template substitution completed');
+    } else {
+      console.log('🔧 Using fallback hardcoded system prompt');
+      // 기존 하드코딩된 프롬프트 사용 (폴백)
+      prompt = `###지시사항
 다음 입력값을 받아 학습 지문(passage)을 생성하십시오. 출력은 하나의 영역으로 구분합니다.
 - passage: 입력 조건을 반영해 생성한 지문
 
@@ -1225,7 +1410,7 @@ export async function generatePassagePromptFromDB(
 - **footnote는 반드시 20개 이상의 용어 설명을 포함해야 하며, 각 용어는 설명과 예시문장을 모두 포함해야 합니다.**
 
 ###구분
-${divisionPrompt}
+${divisionPrompt || '구분 정보가 없습니다.'}
 
 ###지문 길이
 ${lengthGuidelinePrompt || length}
@@ -1237,7 +1422,7 @@ ${subjectPrompt || subject}
 ${grade}
 
 ###영역
-${areaPrompt}
+${areaPrompt || area}
 
 ###대주제
 ${maintopic}
@@ -1250,22 +1435,46 @@ ${subtopic}
 ###핵심 개념어
 ${keyword}
 이 핵심 개념어들을 지문에 자연스럽게 포함시키고, 학년 수준에 맞게 설명하세요. footnote에는 이 용어들을 포함하여 최소 20개 이상의 관련 용어 해설을 추가하세요.`;
+    }
 
-    // 선택적 유형 추가
-    if (textType) {
-      const textTypePrompt = await getPromptFromDB('passage', 'textType', textType);
-      if (textTypePrompt) {
-        prompt += `
+    // 시스템 프롬프트가 없는 경우 (폴백)에만 텍스트 타입과 출력 형식 추가
+    if (!systemPrompt) {
+      if (textType) {
+        console.log(`🔍 Text type lookup (fallback): passage/textType/${getTextTypeKey(textType)}`);
+        const textTypePrompt = await getPromptFromDB('passage', 'textType', getTextTypeKey(textType));
+        console.log(`📄 Text type prompt found: ${textTypePrompt ? 'YES (' + textTypePrompt.length + ' chars)' : 'NO - using default'}`);
+        
+        if (textTypePrompt) {
+          prompt += `
 
 ###글의 유형
 ${textTypePrompt}`;
-      }
-    }
+        } else {
+          console.log(`⚠️ No server prompt for text type '${textType}', using hardcoded fallback`);
+          const defaultTextTypePrompt = getDefaultTextTypePrompt(textType);
+          if (defaultTextTypePrompt) {
+            prompt += `
 
-    prompt += `
+###글의 유형
+${defaultTextTypePrompt}`;
+          }
+        }
+      }
+
+      prompt += `
 
 ###출력형식(JSON)
-${outputFormatPrompt || outputFormats[length]}`;
+${outputFormatPrompt || `다음 JSON 형식으로만 출력하십시오:
+{
+  "passages": [
+    {
+      "title": "질문형·호기심 유발형 제목",
+      "paragraphs": ["단락1 내용", "단락2 내용", "..."],
+      "footnote": ["용어1: 설명1 (예시: 예시문장1)", "용어2: 설명2 (예시: 예시문장2)", "..."]
+    }
+  ]
+}`}`;
+    }
 
     return prompt;
   } catch (error) {
@@ -1281,7 +1490,7 @@ export async function generateQuestionPromptFromDB(
   questionType: QuestionType
 ): Promise<string> {
   try {
-    const divisionPrompt = await getPromptFromDB('vocabulary', 'questionGrade', division);
+    const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(division), getDivisionKey(division));
     const questionTypePrompt = await getPromptFromDB('vocabulary', 'questionType', questionType);
     const outputFormatPrompt = await getPromptFromDB('vocabulary', 'outputFormat', questionType);
 
@@ -1317,7 +1526,7 @@ export async function generateVocabularyPromptFromDB(
 ): Promise<string> {
   try {
     const basePrompt = await getPromptFromDB('vocabulary', 'vocabularyBase', 'vocabularyBase');
-    const divisionPrompt = await getPromptFromDB('vocabulary', 'questionGrade', division);
+    const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(division), getDivisionKey(division));
 
     return `${basePrompt}
 
@@ -1373,15 +1582,24 @@ ${divisionPrompt}
 export async function generateComprehensivePromptFromDB(
   questionType: string,
   passage: string,
-  division: string
+  division: string,
+  questionCount: number = 3
 ): Promise<string> {
   try {
     const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', questionType);
     const outputPrompt = await getPromptFromDB('comprehensive', 'outputFormat', questionType);
-    const divisionPrompt = await getPromptFromDB('vocabulary', 'questionGrade', division);
+    const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(division), getDivisionKey(division));
+    
+    console.log('Comprehensive prompt generation:', {
+      questionType,
+      typePrompt: typePrompt ? 'Found' : 'Not found',
+      outputPrompt: outputPrompt ? 'Found' : 'Not found',
+      outputPromptLength: outputPrompt?.length || 0,
+      divisionPrompt: divisionPrompt ? 'Found' : 'Not found'
+    });
 
     return `###지시사항
-주어진 지문을 바탕으로 **${questionType}** 유형의 문제 3개를 생성하십시오.
+주어진 지문을 바탕으로 **${questionType}** 유형의 문제 ${questionCount}개를 생성하십시오.
 - 지문의 전체적인 이해와 핵심 내용 파악을 평가하는 문제를 생성합니다.
 - 각 문제는 서로 다른 관점이나 내용을 다뤄야 합니다.
 - 지문에 직접 언급된 내용이나 논리적으로 추론 가능한 내용만을 바탕으로 출제합니다.
@@ -1400,11 +1618,21 @@ ${outputPrompt}
 
 ###주의사항
 - 반드시 위의 JSON 형식을 정확히 준수하십시오.
+- 정확히 ${questionCount}개의 문제를 생성하십시오.
 - 각 문제는 서로 다른 내용이나 관점을 다뤄야 합니다.
 - 정답과 해설은 지문에 명확히 근거해야 합니다.
 - 객관식 문제의 오답 선택지도 그럴듯하게 구성하십시오.`;
   } catch (error) {
     console.error('DB 종합 프롬프트 생성 실패, 기본 함수 사용:', error);
-    return generateComprehensivePrompt(questionType, passage, division);
+    return generateComprehensivePrompt(questionType, passage, division, questionCount);
   }
+}
+
+// ============================================================================
+// 특정 프롬프트 ID로 기본 프롬프트 가져오기
+// ============================================================================
+export function getDefaultPromptById(promptId: string): string | null {
+  const defaultPrompts = getDefaultPrompts();
+  const prompt = defaultPrompts.find(p => p.promptId === promptId);
+  return prompt ? prompt.promptText : null;
 }
