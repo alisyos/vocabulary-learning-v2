@@ -358,6 +358,16 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     const mainQuestions = editableComprehensive.filter(q => !q.isSupplementary);
     const totalMainSets = mainQuestions.length;
     
+    // 문단문제 유형별 분포 계산
+    const paragraphTypeStats = editableParagraphQuestions.reduce((acc, question) => {
+      const type = question.questionType || '기타';
+      if (!acc[type]) {
+        acc[type] = 0;
+      }
+      acc[type]++;
+      return acc;
+    }, {} as Record<string, number>);
+
     // 종합문제 유형별 분포 계산 (실제 문제 유형 기준)
     const comprehensiveTypeStats = editableComprehensive.reduce((acc, question) => {
       // questionType이 있으면 사용, 없으면 type 사용 (호환성)
@@ -387,6 +397,8 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         .title { font-size: 28px; font-weight: bold; color: #1e40af; margin-bottom: 15px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .content-id { text-align: center; font-size: 18px; color: #6b7280; margin-bottom: 30px; font-weight: 600; background-color: #fff; padding: 8px 16px; border-radius: 20px; display: inline-block; border: 2px solid #e5e7eb; }
         .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .info-row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .info-row .info-section { flex: 1; min-width: 0; }
         .info-section { background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s ease; }
         .info-section:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .info-title { font-size: 16px; font-weight: bold; color: #1e40af; margin-bottom: 15px; display: flex; align-items: center; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
@@ -425,9 +437,16 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         .explanation { background-color: #fef3c7; padding: 12px; border-radius: 6px; margin-top: 10px; }
         .explanation-label { font-weight: bold; color: #92400e; }
         .vocab-question { background-color: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+         @media (max-width: 768px) {
+             .info-row { flex-direction: column; }
+             .info-row .info-section { flex: none; }
+         }
+         
          @media print { 
              body { max-width: none; margin: 0; padding: 15px; } 
              .info-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } 
+             .info-row { display: flex; gap: 10px; margin-bottom: 10px; }
+             .info-row .info-section { flex: 1; min-width: 0; }
              .header { background: #f8fafc; }
              .info-section { box-shadow: none; border: 1px solid #e2e8f0; }
              .info-section:hover { transform: none; }
@@ -441,39 +460,43 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
              <div class="content-id">콘텐츠 세트 ID: ${contentSet.setId || contentSet.id || 'N/A'}</div>
          </div>
         
-        <div class="info-grid">
-             <div class="info-section">
-                 <div class="info-title">기본 정보</div>
-                 <div class="info-item">
-                     <span class="info-label">과목:</span>
-                     <span class="info-value">${contentSet.subject} / ${contentSet.grade} / ${contentSet.area}</span>
-                 </div>
-                 <div class="info-item">
-                     <span class="info-label">주제:</span>
-                     <span class="info-value">${contentSet.mainTopic || contentSet.maintopic} > ${contentSet.subTopic || contentSet.subtopic}</span>
-                 </div>
-                 <div class="info-item">
-                     <span class="info-label">핵심 개념어:</span>
-                     <span class="info-value">${contentSet.keywords || contentSet.keyword}</span>
-                 </div>
-             </div>
-             
-             <div class="info-section">
-                 <div class="info-title">생성 정보</div>
-                 <div class="info-item">
-                     <span class="info-label">교육과정:</span>
-                     <span class="info-value">${contentSet.division}</span>
-                 </div>
-                 <div class="info-item">
-                     <span class="info-label">지문길이:</span>
-                     <span class="info-value">${contentSet.passageLength || '정보 없음'}</span>
-                 </div>
-                 <div class="info-item">
-                     <span class="info-label">유형:</span>
-                     <span class="info-value">${contentSet.textType || '선택안함'}</span>
-                 </div>
-             </div>
+        <!-- 첫 번째 행: 기본 정보 + 생성 정보 -->
+        <div class="info-row">
+            <div class="info-section">
+                <div class="info-title">기본 정보</div>
+                <div class="info-item">
+                    <span class="info-label">과목:</span>
+                    <span class="info-value">${contentSet.subject} / ${contentSet.grade} / ${contentSet.area}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">주제:</span>
+                    <span class="info-value">${contentSet.mainTopic || contentSet.maintopic} > ${contentSet.subTopic || contentSet.subtopic}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">핵심 개념어:</span>
+                    <span class="info-value">${contentSet.keywords || contentSet.keyword}</span>
+                </div>
+            </div>
             
+            <div class="info-section">
+                <div class="info-title">생성 정보</div>
+                <div class="info-item">
+                    <span class="info-label">교육과정:</span>
+                    <span class="info-value">${contentSet.division}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">지문길이:</span>
+                    <span class="info-value">${contentSet.passageLength || '정보 없음'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">유형:</span>
+                    <span class="info-value">${contentSet.textType || '선택안함'}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 두 번째 행: 지문 정보 + 어휘 문제 -->
+        <div class="info-row">
             <div class="info-section">
                 <div class="info-title">지문 정보</div>
                 <div class="info-item">
@@ -497,35 +520,49 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                     <span class="info-value">객관식 (5지선다)</span>
                 </div>
             </div>
-            
+        </div>
+        
+        <!-- 세 번째 행: 문단 문제 + 종합 문제 -->
+        <div class="info-row">
             <div class="info-section">
                 <div class="info-title">문단 문제</div>
                 <div class="info-item">
                     <span class="info-label">총 문제 수:</span>
                     <span class="info-value">${editableParagraphQuestions.length}개</span>
                 </div>
+                ${editableParagraphQuestions.length > 0 ? `
+                <div class="info-item" style="flex-direction: column; align-items: flex-start;">
+                    <span class="info-label">유형별 분포:</span>
+                    <div class="type-stats">
+                        ${Object.entries(paragraphTypeStats).map(([type, count]) => 
+                          `<div class="type-stat-item">${type}: ${count}개</div>`
+                        ).join('')}
+                    </div>
+                </div>
+                ` : `
                 <div class="info-item">
                     <span class="info-label">문제형태:</span>
-                    <span class="info-value">객관식 (5가지 유형)</span>
+                    <span class="info-value">저장된 문단 문제가 없습니다</span>
+                </div>
+                `}
+            </div>
+            
+            <div class="info-section">
+                <div class="info-title">종합 문제</div>
+                <div class="info-item">
+                    <span class="info-label">총 문제 수:</span>
+                    <span class="info-value">${editableComprehensive.length}개 (${totalMainSets}세트)</span>
+                </div>
+                <div class="info-item" style="flex-direction: column; align-items: flex-start;">
+                    <span class="info-label">유형별 분포:</span>
+                    <div class="type-stats">
+                        ${Object.entries(comprehensiveTypeStats).map(([type, stats]) => 
+                          `<div class="type-stat-item">${type}: 기본 문제 ${stats.main}개, 보완 문제 ${stats.supplementary}개</div>`
+                        ).join('')}
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <div class="info-section" style="grid-column: 1 / -1;">
-             <div class="info-title">종합 문제</div>
-             <div class="info-item">
-                 <span class="info-label">총 문제 수:</span>
-                 <span class="info-value">${editableComprehensive.length}개 (${totalMainSets}세트)</span>
-             </div>
-             <div class="info-item" style="flex-direction: column; align-items: flex-start;">
-                 <span class="info-label">유형별 분포:</span>
-                 <div class="type-stats">
-                     ${Object.entries(comprehensiveTypeStats).map(([type, stats]) => 
-                       `<div class="type-stat-item">${type}: 기본 문제 ${stats.main}개, 보완 문제 ${stats.supplementary}개</div>`
-                     ).join('')}
-                 </div>
-             </div>
-         </div>
     </div>
 
          <div class="section">
@@ -590,34 +627,62 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         <h2 class="section-title">📋 문단 문제 (${editableParagraphQuestions.length}개)</h2>
         ${editableParagraphQuestions.length === 0 ? 
           '<div style="text-align: center; padding: 40px; color: #6b7280; background-color: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">저장된 문단 문제가 없습니다.</div>' :
-          editableParagraphQuestions.map((question, index) => `
-          <div class="vocab-question">
-            <div class="question-header">
-                <span class="question-number">[문단 문제 ${index + 1}]</span>
-                <span class="question-type-badge">${question.questionType}</span>
-                <span style="margin-left: 10px; font-size: 12px; color: #6b7280;">관련 문단: ${question.paragraphNumber}번</span>
-            </div>
+          (() => {
+            // 문단 번호별로 그룹화
+            const questionsByParagraph = editableParagraphQuestions.reduce((acc, question) => {
+              const paragraphNum = question.paragraphNumber || 1;
+              if (!acc[paragraphNum]) {
+                acc[paragraphNum] = [];
+              }
+              acc[paragraphNum].push(question);
+              return acc;
+            }, {});
             
-            ${question.paragraphText ? `
-              <div style="background-color: #f1f5f9; padding: 15px; border-radius: 6px; margin: 10px 0; border-left: 4px solid #3b82f6;">
-                <div style="font-weight: bold; color: #1e40af; margin-bottom: 8px;">관련 문단 내용:</div>
-                <div style="line-height: 1.6; color: #374151;">${question.paragraphText}</div>
-              </div>
-            ` : ''}
-            
-            <div class="question-text">${question.question}</div>
-            <div class="options">
-                ${question.options.map((option, optIndex) => `
-                  <div class="option ${(optIndex + 1).toString() === question.correctAnswer ? 'correct-answer' : ''}">
-                    ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === question.correctAnswer ? '✓' : ''}
+            // 문단 번호 순으로 정렬하여 HTML 생성
+            return Object.keys(questionsByParagraph)
+              .sort((a, b) => parseInt(a) - parseInt(b))
+              .map(paragraphNum => {
+                const questions = questionsByParagraph[paragraphNum];
+                const firstQuestion = questions[0];
+                
+                return `
+                <div class="question-set">
+                  <div class="set-header">
+                    <h3 class="set-title">[문단 ${paragraphNum}번 관련 문제] (${questions.length}개 문제)</h3>
                   </div>
-                `).join('')}
-            </div>
-            <div class="explanation">
-                <span class="explanation-label">해설:</span> ${question.explanation}
-            </div>
-          </div>
-        `).join('')}
+                  
+                  ${firstQuestion.paragraphText ? `
+                    <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+                      <div style="font-weight: bold; color: #1e40af; margin-bottom: 12px; font-size: 16px;">📖 관련 문단 내용:</div>
+                      <div style="line-height: 1.7; color: #374151; font-size: 15px;">${firstQuestion.paragraphText}</div>
+                    </div>
+                  ` : ''}
+                  
+                  ${questions.map((question, questionIndex) => `
+                    <div class="question main-question">
+                      <div class="question-header">
+                        <span class="question-number">[문제 ${questionIndex + 1}]</span>
+                        <span class="question-type-badge">${question.questionType}</span>
+                      </div>
+                      
+                      <div class="question-text">${question.question}</div>
+                      <div class="options">
+                        ${question.options.map((option, optIndex) => `
+                          <div class="option ${(optIndex + 1).toString() === question.correctAnswer ? 'correct-answer' : ''}">
+                            ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === question.correctAnswer ? '✓' : ''}
+                          </div>
+                        `).join('')}
+                      </div>
+                      <div class="explanation">
+                        <span class="explanation-label">해설:</span> ${question.explanation}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+                `;
+              }).join('');
+          })()
+        }
     </div>
 
     <div class="section">
