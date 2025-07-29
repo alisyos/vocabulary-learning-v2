@@ -389,33 +389,17 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
     version: 1,
   },
 
+  // 더 이상 사용하지 않는 프롬프트 (basePrompt에 통합됨)
   {
     promptId: 'vocabulary-type-multiple',
     category: 'vocabulary',
     subCategory: 'vocabularyType',
-    name: '객관식',
+    name: '객관식 (사용 안함)',
     key: 'type_multiple',
-    promptText: `다음 JSON 형식으로 어휘 문제를 생성하세요:
-{
-  "vocabularyQuestions": [
-    {
-      "term": "용어명",
-      "question": "다음 중 [용어명]의 의미로 가장 적절한 것은?",
-      "options": [
-        "1. 첫 번째 선택지",
-        "2. 두 번째 선택지",
-        "3. 세 번째 선택지",
-        "4. 네 번째 선택지",
-        "5. 다섯 번째 선택지"
-      ],
-      "answer": "3",
-      "explanation": "정답 설명과 개념 해설"
-    }
-  ]
-}`,
-    description: '어휘 문제 객관식 출력 형식',
-    isActive: true,
-    isDefault: true,
+    promptText: `[더 이상 사용하지 않는 프롬프트입니다. vocabulary-system-base에 통합되었습니다.]`,
+    description: '어휘 문제 객관식 출력 형식 (더 이상 사용 안함)',
+    isActive: false,
+    isDefault: false,
     version: 1,
   },
 
@@ -428,27 +412,22 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
     name: '전체 시스템 프롬프트',
     key: 'system_base',
     promptText: `###지시사항
-다음 지문의 문단에 대한 {questionType} 문제를 생성해주세요.
+다음의 지문의 문단에 대한 {questionType} 문제를 생성해주세요.
 {questionIndexNote}
 
 **지문 제목**: {title}
-**대상 학년**: {division}
+**대상 학년**: {grade}
 **문단 내용**: {paragraphText}
 **문제 번호**: {questionIndex}번째 {questionType} 문제
+
+###구분 (난이도 조절)
+{divisionPrompt}
 
 ###문제 유형별 요구사항
 {specificPrompt}
 
-###출력 형식 (반드시 JSON 형식으로)
-{
-  "question": "문제 내용",
-  "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
-  "answer": "1",
-  "explanation": "정답 해설"
-}
-
 ###주의사항
-- {division}에 맞는 어휘와 난이도 사용
+- {grade}에 맞는 어휘와 난이도 사용
 - 명확하고 구체적인 문제 출제
 - 정답과 오답이 명확히 구분되도록 작성
 - 해설은 학생이 이해하기 쉽게 작성
@@ -479,7 +458,16 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
 **문단 요약**:
 - 문단의 핵심 내용을 가장 잘 요약한 문장을 선택하는 문제
 - 문단의 주요 정보와 핵심 메시지를 파악하는 능력 평가
-- 독해력과 요약 능력을 평가`,
+- 독해력과 요약 능력을 평가
+
+###출력 형식 (반드시 JSON 형식으로)
+
+{
+  "question": "문제 내용",
+  "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
+  "answer": "1",
+  "explanation": "정답 해설"
+}`,
     description: '문단 문제 생성의 기본 시스템 프롬프트',
     isActive: true,
     isDefault: true,
@@ -498,16 +486,16 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
 출력 형식:
 {
   "type": "어절 순서 맞추기",
-  "question": "다음 어절들을 올바른 순서로 배열하여 문장을 완성하세요.",
-  "shuffledWords": ["어절1", "어절2", "어절3", ...],
+  "question": "다음 어절들을 올바른 문장 순서로 배열했을 때, 알맞은 번호 순서를 고르세요.\\n① 어절1\\n② 어절2\\n③ 어절3\\n④ 어절4\\n⑤ 어절5",
   "options": [
-    "1. 첫 번째 배열 순서",
-    "2. 두 번째 배열 순서",
-    "3. 세 번째 배열 순서",
-    "4. 네 번째 배열 순서"
+    "첫 번째 배열 순서",
+    "두 번째 배열 순서",
+    "세 번째 배열 순서",
+    "네 번째 배열 순서",
+    "다섯 번째 배열 순서"
   ],
   "answer": "정답 번호",
-  "explanation": "올바른 순서와 그 이유 설명"
+  "explanation": "정답 해설 (정해진 문장도 함께 제시)"
 }`,
     description: '어절 순서 맞추기 문제 형식',
     isActive: true,
@@ -528,10 +516,11 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
   "type": "빈칸 채우기",
   "question": "다음 빈칸에 들어갈 말로 가장 적절한 것은?\\n\\n[빈칸이 포함된 문장]",
   "options": [
-    "1. 첫 번째 선택지",
-    "2. 두 번째 선택지",
-    "3. 세 번째 선택지",
-    "4. 네 번째 선택지"
+    "첫 번째 선택지",
+    "두 번째 선택지",
+    "세 번째 선택지",
+    "네 번째 선택지",
+    "다섯 번째 선택지"
   ],
   "answer": "정답 번호",
   "explanation": "정답인 이유와 문맥 설명"
@@ -555,10 +544,11 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
   "type": "유의어 고르기",
   "question": "밑줄 친 '[단어]'와 의미가 가장 비슷한 것은?\\n\\n[해당 단어가 포함된 문장]",
   "options": [
-    "1. 첫 번째 선택지",
-    "2. 두 번째 선택지",
-    "3. 세 번째 선택지",
-    "4. 네 번째 선택지"
+    "첫 번째 선택지",
+    "두 번째 선택지",
+    "세 번째 선택지",
+    "네 번째 선택지",
+    "다섯 번째 선택지"
   ],
   "answer": "정답 번호",
   "explanation": "유의어 관계 설명"
@@ -582,10 +572,11 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
   "type": "반의어 고르기",
   "question": "밑줄 친 '[단어]'와 반대되는 의미를 가진 것은?\\n\\n[해당 단어가 포함된 문장]",
   "options": [
-    "1. 첫 번째 선택지",
-    "2. 두 번째 선택지",
-    "3. 세 번째 선택지",
-    "4. 네 번째 선택지"
+    "첫 번째 선택지",
+    "두 번째 선택지",
+    "세 번째 선택지",
+    "네 번째 선택지",
+    "다섯 번째 선택지"
   ],
   "answer": "정답 번호",
   "explanation": "반의어 관계 설명"
@@ -609,10 +600,11 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
   "type": "문단 요약",
   "question": "이 문단의 내용을 가장 잘 요약한 것은?",
   "options": [
-    "1. 첫 번째 요약문",
-    "2. 두 번째 요약문",
-    "3. 세 번째 요약문",
-    "4. 네 번째 요약문"
+    "첫 번째 요약문",
+    "두 번째 요약문",
+    "세 번째 요약문",
+    "네 번째 요약문",
+    "다섯 번째 요약문"
   ],
   "answer": "정답 번호",
   "explanation": "핵심 내용과 요약의 적절성 설명"
@@ -718,10 +710,11 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
   "question": "다음 내용을 시간/논리적 순서대로 배열한 것은?",
   "items": ["항목1", "항목2", "항목3", "항목4"],
   "options": [
-    "1. ① → ② → ③ → ④",
-    "2. ② → ① → ④ → ③",
-    "3. ③ → ① → ② → ④",
-    "4. ① → ③ → ② → ④"
+    "① → ② → ③ → ④",
+    "② → ① → ④ → ③",
+    "③ → ① → ② → ④",
+    "① → ③ → ② → ④",
+    "④ → ③ → ② → ①"
   ],
   "answer": "정답 번호",
   "explanation": "올바른 순서와 그 근거 설명"
@@ -745,10 +738,11 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
   "type": "핵심 내용 요약",
   "question": "이 글의 핵심 내용으로 가장 적절한 것은?",
   "options": [
-    "1. 첫 번째 요약문",
-    "2. 두 번째 요약문",
-    "3. 세 번째 요약문",
-    "4. 네 번째 요약문"
+    "첫 번째 요약문",
+    "두 번째 요약문",
+    "세 번째 요약문",
+    "네 번째 요약문",
+    "다섯 번째 요약문"
   ],
   "answer": "정답 번호",
   "explanation": "핵심 내용 파악의 근거 설명"
@@ -772,10 +766,11 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
   "type": "핵심어/핵심문장 찾기",
   "question": "이 글의 핵심어/핵심문장으로 가장 적절한 것은?",
   "options": [
-    "1. 첫 번째 선택지",
-    "2. 두 번째 선택지",
-    "3. 세 번째 선택지",
-    "4. 네 번째 선택지"
+    "첫 번째 선택지",
+    "두 번째 선택지",
+    "세 번째 선택지",
+    "네 번째 선택지",
+    "다섯 번째 선택지"
   ],
   "answer": "정답 번호",
   "explanation": "핵심어/핵심문장 선정 이유 설명"
@@ -1027,7 +1022,7 @@ export const SUBCATEGORY_NAMES: Record<PromptSubCategory, string> = {
   textType: '유형별 프롬프트',
   // 어휘 문제 생성
   vocabularySystem: '전체 시스템 프롬프트',
-  vocabularyType: '문제 유형별 프롬프트',
+  vocabularyType: '문제 유형별 프롬프트 (사용 안함)',
   // 문단 문제 생성
   paragraphSystem: '전체 시스템 프롬프트',
   paragraphType: '문제 유형별 프롬프트',

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateQuestion } from '@/lib/openai';
 import { ParagraphQuestionWorkflow, ParagraphQuestionType } from '@/types';
 import { db } from '@/lib/supabase';
+import { getDivisionKey, getDivisionSubCategory } from '@/lib/prompts';
 
 interface ParagraphGenerationRequest {
   paragraphs: string[];  // 선택된 문단들
@@ -166,7 +167,7 @@ async function generateSingleParagraphQuestion(
   questionIndex: number = 1
 ): Promise<{ question: ParagraphQuestionWorkflow | null; usedPrompt: string }> {
   try {
-    const prompt = generateParagraphPrompt(
+    const prompt = await generateParagraphPrompt(
       paragraphText,
       questionType,
       division,
@@ -204,7 +205,7 @@ async function generateSingleParagraphQuestion(
     console.error(`Error generating single paragraph question:`, error);
     
     // 실패한 경우 기본 문제로 대체
-    const prompt = generateParagraphPrompt(paragraphText, questionType, division, title, questionIndex);
+    const prompt = await generateParagraphPrompt(paragraphText, questionType, division, title, questionIndex);
     return {
       question: {
         id: `paragraph_${paragraphNumber}_${questionType}_${questionIndex}_${Date.now()}`,
@@ -222,101 +223,169 @@ async function generateSingleParagraphQuestion(
 }
 
 // 문단 문제 프롬프트 생성 함수
-function generateParagraphPrompt(
+async function generateParagraphPrompt(
+  paragraphText: string,
+  questionType: Exclude<ParagraphQuestionType, 'Random'>,
+  division: string,
+  title: string,
+  questionIndex: number = 1
+): Promise<string> {
+  try {
+    // 1. 전체 시스템 프롬프트 가져오기
+    console.log('🔍 시스템 프롬프트 조회 시작:', { category: 'paragraph', subCategory: 'paragraphSystem', key: 'system_base' });
+    const systemPrompt = await db.getPromptByKey('paragraph', 'paragraphSystem', 'system_base');
+    console.log('✅ 시스템 프롬프트 조회 완료:', systemPrompt.name);
+    
+    // 2. 문제 유형별 프롬프트 가져오기
+    const typeKeyMap: Record<string, string> = {
+      '어절 순서 맞추기': 'type_order',
+      '빈칸 채우기': 'type_blank',
+      '유의어 고르기': 'type_synonym',
+      '반의어 고르기': 'type_antonym',
+      '문단 요약': 'type_summary'
+    };
+    
+    const typeKey = typeKeyMap[questionType];
+    if (!typeKey) {
+      throw new Error(`Unknown question type: ${questionType}`);
+    }
+    
+    console.log('🔍 문제 유형별 프롬프트 조회 시작:', { category: 'paragraph', subCategory: 'paragraphType', key: typeKey });
+    const typePrompt = await db.getPromptByKey('paragraph', 'paragraphType', typeKey);
+    console.log('✅ 문제 유형별 프롬프트 조회 완료:', typePrompt.name);
+    
+    // 3. 구분별 프롬프트 가져오기
+    let divisionPromptText = '';
+    try {
+      console.log('🔍 구분별 프롬프트 조회 시작:', { division });
+      const divisionKey = getDivisionKey(division);
+      const divisionSubCategory = getDivisionSubCategory(division);
+      const divisionPrompt = await db.getPromptByKey('division', divisionSubCategory, divisionKey);
+      console.log('✅ 구분별 프롬프트 조회 완료:', divisionPrompt.name);
+      divisionPromptText = divisionPrompt.promptText;
+    } catch (error) {
+      console.warn('⚠️ 구분별 프롬프트 조회 실패, 빈 문자열 사용:', error);
+    }
+    
+    // 3. 프롬프트 템플릿에 변수 치환
+    const questionIndexNote = questionIndex > 1 
+      ? `이는 같은 문단에 대한 ${questionIndex}번째 ${questionType} 문제입니다. 이전 문제들과 다른 관점이나 다른 부분을 다루어 주세요.`
+      : '';
+    
+    let finalPrompt = systemPrompt.promptText
+      .replace(/{questionType}/g, questionType)
+      .replace(/{questionIndexNote}/g, questionIndexNote)
+      .replace(/{title}/g, title)
+      .replace(/{grade}/g, division)
+      .replace(/{paragraphText}/g, paragraphText)
+      .replace(/{questionIndex}/g, questionIndex.toString())
+      .replace(/{divisionPrompt}/g, divisionPromptText)
+      .replace(/{specificPrompt}/g, typePrompt.promptText);
+    
+    console.log('✅ 문단 문제 프롬프트 생성 완료:', { questionType, questionIndex });
+    return finalPrompt;
+    
+  } catch (error) {
+    console.error('❌ 문단 문제 프롬프트 생성 실패:', error);
+    
+    // 폴백: 기존 하드코딩된 프롬프트 사용
+    console.log('⚠️ 폴백 프롬프트 사용');
+    return generateFallbackParagraphPrompt(paragraphText, questionType, division, title, questionIndex);
+  }
+}
+
+// 폴백용 기존 프롬프트 생성 함수
+function generateFallbackParagraphPrompt(
   paragraphText: string,
   questionType: Exclude<ParagraphQuestionType, 'Random'>,
   division: string,
   title: string,
   questionIndex: number = 1
 ): string {
-  const basePrompt = `
-다음 지문의 문단에 대한 ${questionType} 문제를 생성해주세요.
-${questionIndex > 1 ? `이는 같은 문단에 대한 ${questionIndex}번째 ${questionType} 문제입니다. 이전 문제들과 다른 관점이나 다른 부분을 다루어 주세요.` : ''}
+  const questionIndexNote = questionIndex > 1 
+    ? `이는 같은 문단에 대한 ${questionIndex}번째 ${questionType} 문제입니다. 이전 문제들과 다른 관점이나 다른 부분을 다루어 주세요.`
+    : '';
+
+  const basePrompt = `###지시사항
+다음의 지문의 문단에 대한 ${questionType} 문제를 생성해주세요.
+${questionIndexNote}
 
 **지문 제목**: ${title}
 **대상 학년**: ${division}
 **문단 내용**: ${paragraphText}
 **문제 번호**: ${questionIndex}번째 ${questionType} 문제
 
-**문제 유형별 요구사항**:
+###구분 (난이도 조절)
+
+
+###문제 유형별 요구사항
 `;
 
+  // 개별 문제 유형별 추가 요구사항 (questionIndex > 1인 경우)
   let specificPrompt = '';
-
-  switch (questionType) {
-    case '어절 순서 맞추기':
-      specificPrompt = `
-- 문단에서 의미 있는 문장을 선택하여 어절들을 원형 번호로 제시
-- 어절들을 올바른 순서로 배열했을 때의 번호 순서를 선택하는 문제
-- 5개의 선택지로 제시 (정답 1개, 오답 4개)
-- 어절 배열과 문장 구성 능력을 평가
-${questionIndex > 1 ? `- ${questionIndex}번째 문제이므로 이전 문제와 다른 문장을 선택하여 문제를 만들어 주세요` : ''}
-`;
-      break;
-
-    case '빈칸 채우기':
-      specificPrompt = `
-- 문단에서 핵심 어휘나 중요한 단어를 빈칸으로 처리
-- 문맥에 맞는 적절한 단어를 선택하도록 하는 문제
-- 5개의 선택지로 제시 (정답 1개, 오답 4개)
-- 어휘의 의미와 문맥 적절성을 평가
-${questionIndex > 1 ? `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어나 위치를 빈칸으로 처리해 주세요` : ''}
-`;
-      break;
-
-    case '유의어 고르기':
-      specificPrompt = `
-- 문단에서 특정 단어를 제시하고, 유사한 의미의 단어를 찾는 문제
-- 제시된 단어와 비슷한 의미를 가진 선택지 제공
-- 5개의 선택지로 제시 (정답 1개, 오답 4개)
-- 어휘 확장 및 의미군 이해를 평가
-${questionIndex > 1 ? `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어를 선택하여 유의어를 찾는 문제를 만들어 주세요` : ''}
-`;
-      break;
-
-    case '반의어 고르기':
-      specificPrompt = `
-- 문단에서 특정 단어를 제시하고, 반대 의미의 단어를 찾는 문제
-- 제시된 단어와 반대 의미를 가진 선택지 제공
-- 5개의 선택지로 제시 (정답 1개, 오답 4개)
-- 어휘 관계 이해를 평가
-${questionIndex > 1 ? `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어를 선택하여 반의어를 찾는 문제를 만들어 주세요` : ''}
-`;
-      break;
-
-    case '문단 요약':
-      specificPrompt = `
-- 문단의 핵심 내용을 가장 잘 요약한 문장을 선택하는 문제
-- 문단의 주요 정보와 핵심 메시지를 파악하는 능력 평가
-- 5개의 선택지로 제시 (정답 1개, 오답 4개)
-- 독해력과 요약 능력을 평가
-${questionIndex > 1 ? `- ${questionIndex}번째 문제이므로 문단의 다른 측면이나 다른 관점에서 요약하는 문제를 만들어 주세요` : ''}
-`;
-      break;
+  if (questionIndex > 1) {
+    switch (questionType) {
+      case '어절 순서 맞추기':
+        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 문장을 선택하여 문제를 만들어 주세요`;
+        break;
+      case '빈칸 채우기':
+        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어나 위치를 빈칸으로 처리해 주세요`;
+        break;
+      case '유의어 고르기':
+        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어를 선택하여 유의어를 찾는 문제를 만들어 주세요`;
+        break;
+      case '반의어 고르기':
+        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어를 선택하여 반의어를 찾는 문제를 만들어 주세요`;
+        break;
+      case '문단 요약':
+        specificPrompt = `- ${questionIndex}번째 문제이므로 문단의 다른 측면이나 다른 관점에서 요약하는 문제를 만들어 주세요`;
+        break;
+    }
   }
 
   return basePrompt + specificPrompt + `
 
-**출력 형식** (반드시 JSON 형식으로):
-${questionType === '어절 순서 맞추기' ? `
-{
-  "question": "다음 어절들을 올바른 문장 순서로 배열했을 때, 알맞은 번호 순서를 고르세요.\\n① 어절1\\n② 어절2\\n③ 어절3\\n④ 어절4\\n⑤ 어절5",
-  "options": ["② - ③ - ① - ④ - ⑤", "① - ② - ③ - ④ - ⑤", "③ - ② - ① - ④ - ⑤", "④ - ② - ③ - ① - ⑤", "⑤ - ④ - ③ - ② - ①"],
-  "answer": "1",
-  "explanation": "정답 해설 (정해진 문장도 함께 제시)"
-}` : `
-{
-  "question": "문제 내용",
-  "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
-  "answer": "1",
-  "explanation": "정답 해설"
-}`}
-
-**주의사항**:
+###주의사항
 - ${division}에 맞는 어휘와 난이도 사용
 - 명확하고 구체적인 문제 출제
 - 정답과 오답이 명확히 구분되도록 작성
 - 해설은 학생이 이해하기 쉽게 작성
 - 반드시 JSON 형식으로만 응답
+
+### 문제 유형별 상세 가이드라인
+
+**어절 순서 맞추기**:
+- 문단에서 의미 있는 문장을 선택하여 어절들을 원형 번호로 제시
+- 어절들을 올바른 순서로 배열했을 때의 번호 순서를 선택하는 문제
+- 어절 배열과 문장 구성 능력을 평가
+
+**빈칸 채우기**:
+- 문단에서 핵심 어휘나 중요한 단어를 빈칸으로 처리
+- 문맥에 맞는 적절한 단어를 선택하도록 하는 문제
+- 어휘의 의미와 문맥 적절성을 평가
+
+**유의어 고르기**:
+- 문단에서 특정 단어를 제시하고, 유사한 의미의 단어를 찾는 문제
+- 제시된 단어와 비슷한 의미를 가진 선택지 제공
+- 어휘 확장 및 의미군 이해를 평가
+
+**반의어 고르기**:
+- 문단에서 특정 단어를 제시하고, 반대 의미의 단어를 찾는 문제
+- 제시된 단어와 반대 의미를 가진 선택지 제공
+- 어휘 관계 이해를 평가
+
+**문단 요약**:
+- 문단의 핵심 내용을 가장 잘 요약한 문장을 선택하는 문제
+- 문단의 주요 정보와 핵심 메시지를 파악하는 능력 평가
+- 독해력과 요약 능력을 평가
+
+###출력 형식 (반드시 JSON 형식으로)
+
+{
+  "question": "문제 내용",
+  "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
+  "answer": "1",
+  "explanation": "정답 해설"
+}
 `;
 }

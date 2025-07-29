@@ -69,9 +69,18 @@ export async function POST(request: NextRequest) {
         // GPT API 호출
         const result = await generateQuestion(prompt);
 
+        console.log(`🤖 GPT API response for term "${termName}":`, {
+          resultType: typeof result,
+          hasQuestionField: result && typeof result === 'object' && 'question' in result,
+          resultKeys: result && typeof result === 'object' ? Object.keys(result) : 'not an object',
+          resultPreview: result && typeof result === 'object' ? JSON.stringify(result).substring(0, 200) + '...' : result
+        });
+
         // 결과 파싱 및 VocabularyQuestion 형태로 변환
         if (result && typeof result === 'object' && 'question' in result) {
           const questionData = result as GeneratedQuestionData;
+          
+          console.log(`✅ Successfully parsed question for term "${termName}"`);
           
           vocabularyQuestions.push({
             id: `vocab_${i + 1}_${Date.now()}`,
@@ -81,6 +90,8 @@ export async function POST(request: NextRequest) {
             answer: questionData.answer || '',
             explanation: questionData.explanation || ''
           });
+        } else {
+          console.log(`❌ Failed to parse question for term "${termName}" - result does not match expected format`);
         }
 
       } catch (termError) {

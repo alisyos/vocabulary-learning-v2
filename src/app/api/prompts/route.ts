@@ -10,9 +10,14 @@ export async function GET(request: NextRequest) {
     
     try {
       // 데이터베이스에서 프롬프트 조회 시도
-      prompts = await db.getSystemPrompts();
-      if (prompts && prompts.length > 0) {
-        console.log(`🗄️ 데이터베이스에서 ${prompts.length}개 프롬프트를 로드했습니다.`);
+      const dbPrompts = await db.getSystemPrompts();
+      if (dbPrompts && dbPrompts.length > 0) {
+        // 추가 필터링: vocabularyType 제외
+        prompts = dbPrompts.filter(p => 
+          p.isActive && 
+          !(p.category === 'vocabulary' && p.subCategory === 'vocabularyType')
+        );
+        console.log(`🗄️ 데이터베이스에서 ${prompts.length}개 프롬프트를 로드했습니다 (필터링 후).`);
         isFromDatabase = true;
       } else {
         throw new Error('데이터베이스가 비어있음');
@@ -21,7 +26,10 @@ export async function GET(request: NextRequest) {
       // 데이터베이스 실패 시 하드코딩된 프롬프트 사용
       console.log('📂 데이터베이스 조회 실패, 하드코딩된 프롬프트를 사용합니다.');
       const { DEFAULT_PROMPTS_V2 } = await import('@/lib/promptsV2');
-      prompts = DEFAULT_PROMPTS_V2;
+      prompts = DEFAULT_PROMPTS_V2.filter(p => 
+        p.isActive && 
+        !(p.category === 'vocabulary' && p.subCategory === 'vocabularyType')
+      ); // 비활성화된 프롬프트 및 vocabularyType 제외
       isFromDatabase = false;
     }
     
@@ -51,7 +59,6 @@ export async function GET(request: NextRequest) {
       'textType': '유형별 프롬프트',
       // 어휘 문제 생성
       'vocabularySystem': '전체 시스템 프롬프트',
-      'vocabularyType': '문제 유형별 프롬프트',
       // 문단 문제 생성
       'paragraphSystem': '전체 시스템 프롬프트',
       'paragraphType': '문제 유형별 프롬프트',
@@ -78,7 +85,7 @@ export async function GET(request: NextRequest) {
     };
 
     categories.forEach(cat => {
-      const categoryPrompts = prompts.filter(p => p.category === cat.category);
+      const categoryPrompts = prompts.filter(p => p.category === cat.category && p.isActive);
       
       // 서브카테고리별로 그룹화
       const subCategories: { [key: string]: SystemPrompt[] } = {};
@@ -93,7 +100,7 @@ export async function GET(request: NextRequest) {
       // 서브카테고리 배열로 변환 (순서 유지)
       const subCategoryOrder: Record<string, string[]> = {
         'passage': ['system', 'length', 'textType'],
-        'vocabulary': ['vocabularySystem', 'vocabularyType'],
+        'vocabulary': ['vocabularySystem'],
         'paragraph': ['paragraphSystem', 'paragraphType'],
         'comprehensive': ['comprehensiveSystem', 'comprehensiveType'],
         'subject': ['subjectScience', 'subjectSocial'],

@@ -476,7 +476,6 @@ export type PromptSubCategory =
   | 'textType'          // 유형별 프롬프트 (논설문, 탐구문 등)
   // 어휘 문제 생성
   | 'vocabularySystem'  // 전체 시스템 프롬프트
-  | 'vocabularyType'    // 문제 유형별 프롬프트: 객관식
   // 문단 문제 생성
   | 'paragraphSystem'   // 전체 시스템 프롬프트
   | 'paragraphType'     // 문제 유형별: 어절순서, 빈칸채우기, 유의어, 반의어, 문단요약

@@ -1195,6 +1195,17 @@ function getDefaultTextTypePrompt(textType: string): string {
   return textTypePrompts[textType] || '';
 }
 
+// 종합 문제 유형명 한글 -> 영어 키 매핑
+export function getComprehensiveTypeKey(typeName: string): string {
+  const typeKeyMap: { [key: string]: string } = {
+    '단답형': 'type_short',
+    '문단별 순서 맞추기': 'type_sequence', 
+    '핵심 내용 요약': 'type_summary',
+    '핵심어/핵심문장 찾기': 'type_keyword'
+  };
+  return typeKeyMap[typeName] || typeName;
+}
+
 // Supabase에서 프롬프트를 조회하여 기존 방식으로 사용할 수 있도록 하는 함수
 export async function getPromptFromDB(category: string, subCategory: string, key: string): Promise<string> {
   const cacheKey = `${category}/${subCategory}/${key}`;
@@ -1525,54 +1536,29 @@ export async function generateVocabularyPromptFromDB(
   division: string
 ): Promise<string> {
   try {
-    const basePrompt = await getPromptFromDB('vocabulary', 'vocabularyBase', 'vocabularyBase');
+    // 전체 시스템 프롬프트: system_prompts_v3 테이블의 vocabulary-system-base (완전한 프롬프트)
+    const basePrompt = await getPromptFromDB('vocabulary', 'vocabularySystem', 'system_base');
     const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(division), getDivisionKey(division));
 
-    return `${basePrompt}
+    console.log('🔧 Vocabulary prompt generation:', {
+      basePrompt: basePrompt ? 'FROM DB (' + basePrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
+      divisionPrompt: divisionPrompt ? 'FROM DB (' + divisionPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'
+    });
 
-###대상 용어
-**용어명**: ${termName}
-**용어 설명**: ${termDescription || '지문에서 추출된 용어'}
+    // DB에서 가져온 전체 시스템 프롬프트에 변수 치환
+    let finalPrompt = basePrompt || '';
+    
+    // 템플릿 변수 치환
+    finalPrompt = finalPrompt
+      .replace(/{termName}/g, termName)
+      .replace(/{termDescription}/g, termDescription || '지문에서 추출된 용어')
+      .replace(/{passage}/g, passage)
+      .replace(/{divisionPrompt}/g, divisionPrompt || '');
 
-###지문 맥락
-${passage}
+    // typePrompt는 basePrompt와 충돌하므로 사용하지 않음
+    // basePrompt (vocabulary-system-base)가 이미 완전한 프롬프트 구조를 포함
 
-###구분 (난이도 조절)
-${divisionPrompt}
-
-###출력형식(JSON)
-다음 JSON 형식으로만 출력하십시오:
-{
-  "question": "용어의 의미나 사용법을 묻는 질문",
-  "options": [
-    "정답 선택지",
-    "오답 선택지 1", 
-    "오답 선택지 2",
-    "오답 선택지 3",
-    "오답 선택지 4"
-  ],
-  "answer": "정답 선택지",
-  "explanation": "정답인 이유와 오답인 이유를 포함한 해설"
-}
-
-###문제 생성 가이드라인
-1. **질문 유형**:
-   - 용어의 정의를 직접 묻는 문제
-   - 용어가 사용된 맥락에서의 의미를 묻는 문제
-   - 용어와 관련된 개념이나 예시를 묻는 문제
-   - 용어를 다른 상황에 적용하는 문제
-
-2. **선택지 구성**:
-   - 정답: 용어의 정확한 의미 또는 올바른 사용법
-   - 오답 1: 비슷하지만 미묘하게 다른 의미
-   - 오답 2: 관련 있지만 틀린 개념
-   - 오답 3: 일반적인 오해나 혼동 가능한 내용
-   - 오답 4: 명백히 틀렸지만 그럴듯한 내용
-
-3. **해설 작성**:
-   - 정답인 이유를 명확히 설명
-   - 주요 오답들이 왜 틀렸는지 간단히 설명
-   - 용어의 핵심 개념을 강화하는 내용 포함`;
+    return finalPrompt;
   } catch (error) {
     console.error('DB 어휘 프롬프트 생성 실패, 기본 함수 사용:', error);
     return generateVocabularyPrompt(termName, termDescription, passage, division);
@@ -1586,18 +1572,38 @@ export async function generateComprehensivePromptFromDB(
   questionCount: number = 3
 ): Promise<string> {
   try {
-    const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', questionType);
+    // 서버에서 전체 시스템 프롬프트, 문제 유형별 프롬프트, 출력 형식, 구분 프롬프트 조회
+    const systemPrompt = await getPromptFromDB('comprehensive', 'comprehensiveSystem', 'system_base');
+    const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', getComprehensiveTypeKey(questionType));
     const outputPrompt = await getPromptFromDB('comprehensive', 'outputFormat', questionType);
     const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(division), getDivisionKey(division));
     
     console.log('Comprehensive prompt generation:', {
       questionType,
-      typePrompt: typePrompt ? 'Found' : 'Not found',
-      outputPrompt: outputPrompt ? 'Found' : 'Not found',
-      outputPromptLength: outputPrompt?.length || 0,
-      divisionPrompt: divisionPrompt ? 'Found' : 'Not found'
+      systemPrompt: systemPrompt ? 'FROM DB (' + systemPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
+      typePrompt: typePrompt ? 'FROM DB (' + typePrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
+      outputPrompt: outputPrompt ? 'FROM DB (' + outputPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
+      divisionPrompt: divisionPrompt ? 'FROM DB (' + divisionPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'
     });
 
+    // 서버 시스템 프롬프트가 있으면 템플릿 변수 치환 사용
+    if (systemPrompt) {
+      console.log('🔧 Using server comprehensive system prompt with template substitution');
+      
+      const finalPrompt = systemPrompt
+        .replace('{questionType}', questionType)
+        .replace('{questionCount}', questionCount.toString())
+        .replace('{passage}', passage)
+        .replace('{divisionPrompt}', divisionPrompt || '난이도 정보가 없습니다.')
+        .replace('{typePrompt}', typePrompt || '문제 유형 가이드라인이 없습니다.')
+        .replace('{outputPrompt}', outputPrompt || '출력 형식이 없습니다.');
+      
+      console.log('✅ Comprehensive template substitution completed');
+      return finalPrompt;
+    }
+
+    // 폴백: 하드코딩된 프롬프트 사용
+    console.log('🔧 Using fallback hardcoded comprehensive system prompt');
     return `###지시사항
 주어진 지문을 바탕으로 **${questionType}** 유형의 문제 ${questionCount}개를 생성하십시오.
 - 지문의 전체적인 이해와 핵심 내용 파악을 평가하는 문제를 생성합니다.
@@ -1608,13 +1614,13 @@ export async function generateComprehensivePromptFromDB(
 ${passage}
 
 ###구분 (난이도 조절)  
-${divisionPrompt}
+${divisionPrompt || '난이도 정보가 없습니다.'}
 
 ###문제 유형 가이드라인
-${typePrompt}
+${typePrompt || '문제 유형 가이드라인이 없습니다.'}
 
 ###출력형식(JSON)
-${outputPrompt}
+${outputPrompt || '출력 형식이 없습니다.'}
 
 ###주의사항
 - 반드시 위의 JSON 형식을 정확히 준수하십시오.

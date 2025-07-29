@@ -168,30 +168,57 @@ export async function POST(request: NextRequest) {
       for (const originalQuestion of comprehensiveQuestions) {
         for (let supIndex = 1; supIndex <= 2; supIndex++) {
           try {
-            // 보완 문제용 프롬프트 생성
-            const supplementaryPrompt = `다음 종합 문제의 보완 문제 ${supIndex}번을 생성해주세요.
+            // 보완 문제용 프롬프트 생성 (DB에서 필요한 프롬프트만 조회)
+            const { getPromptFromDB, getDivisionSubCategory, getDivisionKey, getComprehensiveTypeKey } = await import('@/lib/prompts');
+            
+            // DB에서 구분 프롬프트와 문제 유형 프롬프트만 조회
+            const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(body.division), getDivisionKey(body.division));
+            const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', getComprehensiveTypeKey(originalQuestion.type));
+            
+            console.log(`🔧 Supplementary question ${supIndex} DB queries:`, {
+              divisionPrompt: divisionPrompt ? 'FROM DB' : 'FALLBACK',
+              typePrompt: typePrompt ? 'FROM DB' : 'FALLBACK'
+            });
+            
+            // 보완 문제 전용 프롬프트 (단일 문제 생성에 특화)
+            const supplementaryPrompt = `###지시사항
+다음 종합 문제의 보완 문제 ${supIndex}번을 생성해주세요.
+- 원본 문제와 같은 유형이지만 다른 관점에서 접근
+- 학습 강화를 위한 추가 연습 문제로 제작
+- 오답 시 학습에 도움이 되는 내용으로 구성
+- 지문에 직접 언급된 내용이나 논리적으로 추론 가능한 내용만 활용
 
-원본 문제:
-유형: ${originalQuestion.type}
-질문: ${originalQuestion.question}
-정답: ${originalQuestion.answer}
+###원본 문제 정보
+- 유형: ${originalQuestion.type}
+- 질문: "${originalQuestion.question}"
+- 정답: "${originalQuestion.answer}"
 
-지문:
+###지문
 ${body.passage}
 
-요구사항:
-- 원본 문제와 같은 유형이지만 다른 관점에서 접근
-- 학습 강화를 위한 추가 연습 문제
-- 난이도: ${body.division}에 적합
-- 오답 시 학습 도움이 되는 내용
+###구분 (난이도 조절)
+${divisionPrompt || `${body.division}에 적합한 난이도로 조절`}
 
-JSON 형식으로 1개 문제만 생성:
+###문제 유형 가이드라인
+${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
+
+###출력 형식 (JSON)
+다음 JSON 형식으로 정확히 1개 문제만 생성하십시오:
 {
   "question": "질문 내용",
-  "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"] (객관식인 경우만),
+  "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
   "answer": "정답",
   "explanation": "해설"
-}`;
+}
+
+###주의사항
+- 반드시 위의 JSON 형식을 정확히 준수하십시오
+- 단답형이 아닌 경우 options 배열을 포함하십시오
+- 단답형인 경우 options는 생략 가능합니다
+- 정답과 해설은 지문에 명확히 근거해야 합니다
+- 원본 문제와 중복되지 않는 새로운 관점의 문제를 생성하십시오`;
+            
+            console.log(`✅ Using enhanced supplementary prompt for question ${supIndex}`);
 
             const supplementaryResult = await generateQuestion(supplementaryPrompt);
             
