@@ -239,9 +239,10 @@ export async function POST(request: NextRequest) {
         const timestamp = Date.now();
         const typeCodeMap: { [key: string]: string } = {
           '단답형': 'short',
-          '문단별 순서 맞추기': 'order',
           '핵심 내용 요약': 'summary',
-          '핵심어/핵심문장 찾기': 'keyword'
+          '핵심문장 찾기': 'keyword',
+          'OX문제': 'ox',
+          '자료분석하기': 'data'
         };
         const typeCode = typeCodeMap[questionType] || 'comp';
         typeToSetIdMap[questionType] = `comp_${typeCode}_${timestamp}_${questionType}`;
@@ -261,6 +262,7 @@ export async function POST(request: NextRequest) {
         options?: string[]; 
         correctAnswer: string; 
         answer: string; 
+        answerInitials?: string;
         explanation: string;
         questionSetNumber?: number;
       }, index: number) => {
@@ -284,6 +286,7 @@ export async function POST(request: NextRequest) {
           option_4: q.options?.[3],
           option_5: q.options?.[4],
           correct_answer: q.answer,
+          answer_initials: questionType === '단답형' ? (q.answerInitials || null) : null,
           explanation: q.explanation,
           is_supplementary: q.isSupplementary || false,
           original_question_id: originalQuestionId,

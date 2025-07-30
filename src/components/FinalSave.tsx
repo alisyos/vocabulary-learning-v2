@@ -101,9 +101,10 @@ export default function FinalSave({
     } : null,
     typeDistribution: comprehensiveQuestions && comprehensiveQuestions.length > 0 ? {
       '단답형': comprehensiveQuestions.filter(q => q.type === '단답형').length,
-      '문단별 순서 맞추기': comprehensiveQuestions.filter(q => q.type === '문단별 순서 맞추기').length,
       '핵심 내용 요약': comprehensiveQuestions.filter(q => q.type === '핵심 내용 요약').length,
-      '핵심어/핵심문장 찾기': comprehensiveQuestions.filter(q => q.type === '핵심어/핵심문장 찾기').length
+      '핵심문장 찾기': comprehensiveQuestions.filter(q => q.type === '핵심문장 찾기').length,
+      'OX문제': comprehensiveQuestions.filter(q => q.type === 'OX문제').length,
+      '자료분석하기': comprehensiveQuestions.filter(q => q.type === '자료분석하기').length
     } : null
   };
 

@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
               question: q.question_text,
               options: [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(opt => opt && opt.trim() !== ''),
               correctAnswer: q.correct_answer,
+              answerInitials: q.answer_initials, // 초성 힌트 필드 추가
               explanation: q.explanation
             })),
             comprehensiveQuestions: (setDetails.comprehensive_questions || []).map((q: ComprehensiveQuestionDB) => {
@@ -124,6 +125,7 @@ export async function GET(request: NextRequest) {
                   ? [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(opt => opt && opt.trim() !== '')
                   : [],
                 correctAnswer: q.correct_answer,
+                answerInitials: q.answer_initials, // 초성 힌트 필드 추가
                 explanation: q.explanation,
                 isSupplementary: q.is_supplementary || false,
                 originalQuestionId: q.original_question_id,

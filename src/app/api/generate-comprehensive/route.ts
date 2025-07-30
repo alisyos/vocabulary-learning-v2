@@ -35,12 +35,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 기본값 설정
-    const questionCount = body.questionCount || 12;
+    const questionCount = body.questionCount || 5;
     
-    // 문제 개수 검증 (4, 8, 12만 허용)
-    if (![4, 8, 12].includes(questionCount)) {
+    // 문제 개수 검증 (5, 10, 15만 허용)
+    if (![5, 10, 15].includes(questionCount)) {
       return NextResponse.json(
-        { error: '문제 개수는 4, 8, 12 중 하나여야 합니다.' },
+        { error: '문제 개수는 5, 10, 15 중 하나여야 합니다.' },
         { status: 400 }
       );
     }
@@ -54,9 +54,9 @@ export async function POST(request: NextRequest) {
     let typesToGenerate: string[] = [];
     
     if (body.questionType === 'Random') {
-      // Random 선택 시: 4가지 유형을 고르게 분배
-      const questionsPerType = questionCount / 4; // 4개→1개씩, 8개→2개씩, 12개→3개씩
-      const questionTypes = ['단답형', '문단별 순서 맞추기', '핵심 내용 요약', '핵심어/핵심문장 찾기'];
+      // Random 선택 시: 5가지 유형을 고르게 분배
+      const questionsPerType = questionCount / 5; // 5개→1개씩, 10개→2개씩, 15개→3개씩
+      const questionTypes = ['단답형', '핵심 내용 요약', '핵심문장 찾기', 'OX문제', '자료분석하기'];
       
       questionTypes.forEach(type => {
         for (let i = 0; i < questionsPerType; i++) {
@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
 
         // 결과 파싱 및 ComprehensiveQuestion 형태로 변환
         let questionSet: GeneratedQuestionSet | null = null;
+        let singleQuestion: any = null;
         
         // raw 응답 처리
         if (result && typeof result === 'object' && 'raw' in result) {
@@ -113,19 +114,28 @@ export async function POST(request: NextRequest) {
             const rawText = result.raw as string;
             const jsonMatch = rawText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-              questionSet = JSON.parse(jsonMatch[0]) as GeneratedQuestionSet;
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (parsed.questions && Array.isArray(parsed.questions)) {
+                questionSet = parsed as GeneratedQuestionSet;
+              } else if (parsed.question) {
+                singleQuestion = parsed;
+              }
             }
           } catch (parseError) {
             console.error(`Failed to parse raw response for ${currentType}:`, parseError);
           }
-        } else if (result && typeof result === 'object' && 'questions' in result) {
-          questionSet = result as GeneratedQuestionSet;
+        } else if (result && typeof result === 'object') {
+          if ('questions' in result) {
+            questionSet = result as GeneratedQuestionSet;
+          } else if ('question' in result) {
+            singleQuestion = result;
+          }
         }
         
+        // questions 배열이 있는 경우
         if (questionSet && questionSet.questions && Array.isArray(questionSet.questions)) {
-          // 요청한 개수만큼만 추가 (API가 더 많이 반환할 수 있으므로)
           const questionsToAdd = questionSet.questions.slice(0, count);
-          console.log(`Adding ${questionsToAdd.length} questions of type ${currentType}`);
+          console.log(`Adding ${questionsToAdd.length} questions of type ${currentType} from questions array`);
           
           questionsToAdd.forEach((q, index) => {
             comprehensiveQuestions.push({
@@ -134,8 +144,25 @@ export async function POST(request: NextRequest) {
               question: q.question || '',
               options: q.options || undefined,
               answer: q.answer || '',
-              explanation: q.explanation || ''
+              answerInitials: q.answerInitials || undefined,
+              explanation: q.explanation || '',
+              isSupplementary: false
             });
+          });
+        } 
+        // 단일 문제 객체인 경우
+        else if (singleQuestion && singleQuestion.question) {
+          console.log(`Adding 1 question of type ${currentType} from single question object`);
+          
+          comprehensiveQuestions.push({
+            id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_1_${Date.now()}`,
+            type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
+            question: singleQuestion.question || '',
+            options: singleQuestion.options || undefined,
+            answer: singleQuestion.answer || '',
+            answerInitials: singleQuestion.answerInitials || undefined,
+            explanation: singleQuestion.explanation || '',
+            isSupplementary: false
           });
         } else {
           console.error(`No valid questions found in response for ${currentType}`);
@@ -153,7 +180,9 @@ export async function POST(request: NextRequest) {
             question: `${currentType} 문제 ${j + 1}`,
             options: currentType !== '단답형' ? ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'] : undefined,
             answer: currentType !== '단답형' ? '선택지 1' : '기본 답안',
-            explanation: '문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.'
+            answerInitials: currentType === '단답형' ? 'ㄱㅂㄷㅇ' : undefined, // 단답형일 때만 기본 초성 힌트
+            explanation: '문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.',
+            isSupplementary: false // 기본 문제임을 명시
           });
         }
       }
@@ -208,6 +237,7 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
   "question": "질문 내용",
   "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
   "answer": "정답",
+  "answerInitials": "초성 힌트 (단답형일 때만, 예: ㅈㄹㅎㅁ)",
   "explanation": "해설"
 }
 
@@ -248,6 +278,7 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
                 question: supplementaryQuestion.question,
                 options: supplementaryQuestion.options,
                 answer: supplementaryQuestion.answer,
+                answerInitials: supplementaryQuestion.answerInitials || undefined, // 초성 힌트 추가
                 explanation: supplementaryQuestion.explanation || '보완 문제입니다.',
                 isSupplementary: true, // 보완 문제 표시
                 originalQuestionId: originalQuestion.id // 원본 문제 ID 참조
@@ -263,6 +294,7 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
               question: `${originalQuestion.type} 보완 문제 ${supIndex}`,
               options: originalQuestion.type !== '단답형' ? ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'] : undefined,
               answer: originalQuestion.type !== '단답형' ? '선택지 1' : '기본 답안',
+              answerInitials: originalQuestion.type === '단답형' ? 'ㄱㅂㄷㅇ' : undefined, // 단답형일 때만 기본 초성 힌트
               explanation: '보완 문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.',
               isSupplementary: true,
               originalQuestionId: originalQuestion.id // 원본 문제 ID 참조
@@ -276,7 +308,18 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
       console.log(`Generated ${supplementaryQuestions.length} supplementary questions`);
     }
 
+    // 디버깅 로그 추가
+    const basicCount = comprehensiveQuestions.filter(q => !q.isSupplementary).length;
+    const supplementaryCount = comprehensiveQuestions.filter(q => q.isSupplementary).length;
+    
     console.log(`Generated total ${comprehensiveQuestions.length} comprehensive questions (${body.includeSupplementary ? 'with supplementary' : 'basic only'})`);
+    console.log(`Basic questions: ${basicCount}, Supplementary questions: ${supplementaryCount}`);
+    console.log('All questions:', comprehensiveQuestions.map(q => ({ 
+      id: q.id, 
+      type: q.type, 
+      isSupplementary: q.isSupplementary,
+      question: q.question.substring(0, 50) + '...'
+    })));
 
     return NextResponse.json({
       comprehensiveQuestions,
@@ -286,10 +329,11 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
       includeSupplementary: body.includeSupplementary,
       typeDistribution: body.questionType === 'Random' 
         ? { 
-            '단답형': questionCount / 4, 
-            '문단별 순서 맞추기': questionCount / 4, 
-            '핵심 내용 요약': questionCount / 4, 
-            '핵심어/핵심문장 찾기': questionCount / 4 
+            '단답형': questionCount / 5, 
+            '핵심 내용 요약': questionCount / 5, 
+            '핵심문장 찾기': questionCount / 5, 
+            'OX문제': questionCount / 5,
+            '자료분석하기': questionCount / 5
           }
         : { [body.questionType]: questionCount },
       basicCount: comprehensiveQuestions.filter(q => !q.isSupplementary).length,

@@ -137,6 +137,7 @@ export async function PUT(request: NextRequest) {
           option_4: question.options?.[3],
           option_5: question.options?.[4],
           correct_answer: question.answer || question.correctAnswer,
+          answer_initials: question.answerInitials, // 초성 힌트 필드 추가
           explanation: question.explanation,
           question_type: question.type || question.questionType || '단답형',
           question_format: (question.options ? '객관식' : '주관식') as '객관식' | '주관식'
@@ -170,6 +171,7 @@ export async function PUT(request: NextRequest) {
           option_4: question.options?.[3] || '',
           option_5: question.options?.[4] || '',
           correct_answer: question.correctAnswer,
+          answer_initials: question.answerInitials, // 초성 힌트 필드 추가
           explanation: question.explanation
         };
         

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ComprehensiveQuestion, ComprehensiveQuestionType, EditablePassage } from '@/types';
 import PromptModal from './PromptModal';
 
@@ -26,21 +26,43 @@ export default function ComprehensiveQuestions({
   lastUsedPrompt = ''
 }: ComprehensiveQuestionsProps) {
   const [localQuestions, setLocalQuestions] = useState<ComprehensiveQuestion[]>(comprehensiveQuestions);
+  
+  // Props 변경 시 디버깅
+  console.log('ComprehensiveQuestions props:', {
+    comprehensiveQuestionsLength: comprehensiveQuestions.length,
+    localQuestionsLength: localQuestions.length,
+    currentStep,
+    propsQuestions: comprehensiveQuestions.slice(0, 2).map(q => ({
+      id: q.id,
+      type: q.type, 
+      isSupplementary: q.isSupplementary
+    }))
+  });
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [selectedQuestionType, setSelectedQuestionType] = useState<ComprehensiveQuestionType>('Random');
   const [generatingComp, setGeneratingComp] = useState(false);
   const [includeSupplementary, setIncludeSupplementary] = useState(true);
-  const [questionCount, setQuestionCount] = useState<number>(8);
+  const [questionCount, setQuestionCount] = useState<number>(5);
+
+  // props가 변경될 때 localQuestions 업데이트
+  useEffect(() => {
+    console.log('useEffect triggered - updating localQuestions from props:', {
+      propsLength: comprehensiveQuestions.length,
+      localLength: localQuestions.length
+    });
+    setLocalQuestions(comprehensiveQuestions);
+  }, [comprehensiveQuestions]);
 
   const questionTypeOptions: ComprehensiveQuestionType[] = [
     'Random',
     '단답형',
-    '문단별 순서 맞추기',
     '핵심 내용 요약',
-    '핵심어/핵심문장 찾기'
+    '핵심문장 찾기',
+    'OX문제',
+    '자료분석하기'
   ];
 
-  const questionCountOptions = [4, 8, 12];
+  const questionCountOptions = [5, 10, 15];
 
   // 종합 문제 생성
   const handleGenerateComprehensive = async () => {
@@ -67,6 +89,19 @@ export default function ComprehensiveQuestions({
 
       const result = await response.json();
       const questions = result.comprehensiveQuestions || [];
+      
+      // API 응답 디버깅
+      console.log('API Response received:', {
+        totalQuestions: questions.length,
+        basicQuestions: questions.filter((q: any) => !q.isSupplementary).length,
+        supplementaryQuestions: questions.filter((q: any) => q.isSupplementary).length,
+        firstFewQuestions: questions.slice(0, 3).map((q: any) => ({
+          id: q.id,
+          type: q.type,
+          isSupplementary: q.isSupplementary,
+          question: q.question?.substring(0, 30) + '...'
+        }))
+      });
       
       setLocalQuestions(questions);
       onUpdate(questions, result._metadata?.usedPrompt);
@@ -191,7 +226,7 @@ export default function ComprehensiveQuestions({
               <div className="mt-3 text-sm text-gray-600">
                 <p><strong>선택된 유형:</strong> {selectedQuestionType}</p>
                 {selectedQuestionType === 'Random' ? (
-                  <p>• 4가지 유형을 {questionCount / 4}개씩 총 {questionCount}개 문제가 생성됩니다.</p>
+                  <p>• 5가지 유형을 {questionCount / 5}개씩 총 {questionCount}개 문제가 생성됩니다.</p>
                 ) : (
                   <p>• {selectedQuestionType} 유형으로 {questionCount}개 문제가 생성됩니다.</p>
                 )}
@@ -342,8 +377,8 @@ export default function ComprehensiveQuestions({
         {/* 문제 유형별 분류 표시 */}
         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
           <h4 className="text-sm font-medium text-gray-700 mb-2">문제 유형별 분포</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-3">
-            {['단답형', '문단별 순서 맞추기', '핵심 내용 요약', '핵심어/핵심문장 찾기'].map(type => {
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs mb-3">
+            {['단답형', '핵심 내용 요약', '핵심문장 찾기', 'OX문제', '자료분석하기'].map(type => {
               const count = localQuestions.filter(q => q.type === type).length;
               const supplementaryCount = localQuestions.filter(q => q.type === type && q.isSupplementary).length;
               const mainCount = count - supplementaryCount;
@@ -372,6 +407,19 @@ export default function ComprehensiveQuestions({
             // 기본 문제와 해당 보완 문제들을 그룹으로 정렬
             const basicQuestions = localQuestions.filter(q => !q.isSupplementary);
             const supplementaryQuestions = localQuestions.filter(q => q.isSupplementary);
+            
+            // 디버깅 로그
+            console.log('ComprehensiveQuestions Debug:', {
+              totalQuestions: localQuestions.length,
+              basicQuestions: basicQuestions.length,
+              supplementaryQuestions: supplementaryQuestions.length,
+              questions: localQuestions.map(q => ({
+                id: q.id,
+                type: q.type,
+                isSupplementary: q.isSupplementary,
+                question: q.question.substring(0, 30) + '...'
+              }))
+            });
             
             // 기본 문제 순서대로 배치하되, 각 기본 문제 바로 뒤에 해당 보완 문제들 배치
             const orderedQuestions: ComprehensiveQuestion[] = [];
@@ -457,9 +505,10 @@ export default function ComprehensiveQuestions({
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
                 >
                   <option value="단답형">단답형</option>
-                  <option value="문단별 순서 맞추기">문단별 순서 맞추기</option>
                   <option value="핵심 내용 요약">핵심 내용 요약</option>
-                  <option value="핵심어/핵심문장 찾기">핵심어/핵심문장 찾기</option>
+                  <option value="핵심문장 찾기">핵심문장 찾기</option>
+                  <option value="OX문제">OX문제</option>
+                  <option value="자료분석하기">자료분석하기</option>
                 </select>
               </div>
 
@@ -557,18 +606,37 @@ export default function ComprehensiveQuestions({
                   정답
                 </label>
                 {question.type === '단답형' ? (
-                  <input
-                    type="text"
-                    value={question.answer}
-                    onChange={(e) => {
-                      const actualIndex = localQuestions.findIndex(q => q.id === question.id);
-                      if (actualIndex !== -1) {
-                        handleQuestionUpdate(actualIndex, 'answer', e.target.value);
-                      }
-                    }}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                    placeholder="정답을 입력하세요"
-                  />
+                  <>
+                    <input
+                      type="text"
+                      value={question.answer}
+                      onChange={(e) => {
+                        const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                        if (actualIndex !== -1) {
+                          handleQuestionUpdate(actualIndex, 'answer', e.target.value);
+                        }
+                      }}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                      placeholder="정답을 입력하세요"
+                    />
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        초성 힌트
+                      </label>
+                      <input
+                        type="text"
+                        value={question.answerInitials || ''}
+                        onChange={(e) => {
+                          const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                          if (actualIndex !== -1) {
+                            handleQuestionUpdate(actualIndex, 'answerInitials', e.target.value);
+                          }
+                        }}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                        placeholder="초성 힌트를 입력하세요 (예: ㅈㄹㅎㅁ)"
+                      />
+                    </div>
+                  </>
                 ) : (
                   <select
                     value={question.answer}

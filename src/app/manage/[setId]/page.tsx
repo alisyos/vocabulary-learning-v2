@@ -63,6 +63,7 @@ interface ComprehensiveQuestion {
   questionFormat: string;
   options?: string[];
   correctAnswer: string;       // v2 구조: correctAnswer
+  answerInitials?: string;     // 단답형 문제의 초성 힌트
   explanation: string;
   isSupplementary: boolean;
   originalQuestionId?: string;
@@ -83,6 +84,7 @@ interface ParagraphQuestion {
   question: string;
   options: string[];
   correctAnswer: string;
+  answerInitials?: string; // 단답형 문제의 초성 힌트
   explanation: string;
 }
 
@@ -666,13 +668,27 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                       </div>
                       
                       <div class="question-text">${question.question}</div>
-                      <div class="options">
-                        ${question.options.map((option, optIndex) => `
-                          <div class="option ${(optIndex + 1).toString() === question.correctAnswer ? 'correct-answer' : ''}">
-                            ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === question.correctAnswer ? '✓' : ''}
-                          </div>
-                        `).join('')}
-                      </div>
+                      ${question.questionType === '주관식 단답형' ? `
+                        <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px;">
+                          <strong>정답:</strong> ${question.correctAnswer}
+                        </div>
+                      ` : question.questionType === 'OX문제' ? `
+                        <div class="options">
+                          ${question.options.slice(0, 2).map((option, optIndex) => `
+                            <div class="option ${(optIndex + 1).toString() === question.correctAnswer ? 'correct-answer' : ''}">
+                              ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === question.correctAnswer ? '✓' : ''}
+                            </div>
+                          `).join('')}
+                        </div>
+                      ` : `
+                        <div class="options">
+                          ${question.options.map((option, optIndex) => `
+                            <div class="option ${(optIndex + 1).toString() === question.correctAnswer ? 'correct-answer' : ''}">
+                              ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === question.correctAnswer ? '✓' : ''}
+                            </div>
+                          `).join('')}
+                        </div>
+                      `}
                       <div class="explanation">
                         <span class="explanation-label">해설:</span> ${question.explanation}
                       </div>
@@ -711,15 +727,25 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                     </span>
                 </div>
                 <div class="question-text">${question.question}</div>
-                ${question.options && question.options.length > 0 ? `
-                  <div class="options">
-                      ${question.options.map((option, optIndex) => `
-                        <div class="option ${option === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}">
-                          ${optIndex + 1}. ${option} ${option === (question.correctAnswer || question.answer) ? '✓' : ''}
-                        </div>
-                      `).join('')}
-                  </div>
-                ` : `
+                ${question.options && question.options.length > 0 ? (
+                  (question.questionType || question.type) === 'OX문제' ? `
+                    <div class="options">
+                        ${question.options.slice(0, 2).map((option, optIndex) => `
+                          <div class="option ${(optIndex + 1).toString() === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}">
+                            ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (question.correctAnswer || question.answer) ? '✓' : ''}
+                          </div>
+                        `).join('')}
+                    </div>
+                  ` : `
+                    <div class="options">
+                        ${question.options.map((option, optIndex) => `
+                          <div class="option ${(optIndex + 1).toString() === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}">
+                            ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (question.correctAnswer || question.answer) ? '✓' : ''}
+                          </div>
+                        `).join('')}
+                    </div>
+                  `
+                ) : `
                   <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px;">
                     <strong>정답:</strong> ${question.correctAnswer || question.answer}
                   </div>
@@ -828,12 +854,13 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       id: '',
       questionId: `paragraph_${Date.now()}`,
       questionNumber: editableParagraphQuestions.length + 1,
-      questionType: '어절 순서 맞추기',
+      questionType: '빈칸 채우기',
       paragraphNumber: 1,
       paragraphText: '문단 내용을 입력하세요.',
       question: '새 문단 문제를 입력하세요.',
       options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
       correctAnswer: '1',
+      answerInitials: '', // 초성 힌트 기본값
       explanation: '해설을 입력하세요.'
     };
     setEditableParagraphQuestions(prev => [...prev, newQuestion]);
@@ -862,6 +889,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       question: '새 질문을 입력하세요.',
       questionFormat: 'short_answer',
       correctAnswer: '정답을 입력하세요.',
+      answerInitials: '', // 초성 힌트 기본값
       explanation: '해설을 입력하세요.',
       isSupplementary: false,
       originalQuestionId: baseId, // 기본문제도 original_question_id 설정
@@ -876,6 +904,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       question: '보완 질문 1을 입력하세요.',
       questionFormat: 'short_answer',
       correctAnswer: '정답을 입력하세요.',
+      answerInitials: '', // 초성 힌트 기본값
       explanation: '해설을 입력하세요.',
       isSupplementary: true,
       originalQuestionId: baseId, // 기본문제와 같은 original_question_id
@@ -889,6 +918,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       question: '보완 질문 2를 입력하세요.',
       questionFormat: 'short_answer',
       correctAnswer: '정답을 입력하세요.',
+      answerInitials: '', // 초성 힌트 기본값
       explanation: '해설을 입력하세요.',
       isSupplementary: true,
       originalQuestionId: baseId, // 기본문제와 같은 original_question_id
@@ -1412,7 +1442,17 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                     {editableParagraphQuestions.map((question, index) => (
                       <div key={question.questionId || question.id} className="border border-gray-200 rounded-lg p-6">
                         <div className="flex justify-between items-center mb-4">
-                          <h4 className="text-lg font-medium text-gray-900">문제 {index + 1}</h4>
+                          <div>
+                            <h4 className="text-lg font-medium text-gray-900">문제 {index + 1}</h4>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                {question.questionType}
+                              </span>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                문단 {question.paragraphNumber}번
+                              </span>
+                            </div>
+                          </div>
                           <button
                             onClick={() => removeParagraphQuestion(index)}
                             className="text-red-600 hover:text-red-800 text-sm"
@@ -1426,17 +1466,24 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">문제 유형</label>
-                              <select
-                                value={question.questionType}
-                                onChange={(e) => handleParagraphQuestionChange(index, 'questionType', e.target.value)}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              >
-                                <option value="어절 순서 맞추기">어절 순서 맞추기</option>
-                                <option value="빈칸 채우기">빈칸 채우기</option>
-                                <option value="유의어 고르기">유의어 고르기</option>
-                                <option value="반의어 고르기">반의어 고르기</option>
-                                <option value="문단 요약">문단 요약</option>
-                              </select>
+                              <div className="flex items-center space-x-3">
+                                <select
+                                  value={question.questionType}
+                                  onChange={(e) => handleParagraphQuestionChange(index, 'questionType', e.target.value)}
+                                  className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                  <option value="빈칸 채우기">빈칸 채우기</option>
+                                  <option value="주관식 단답형">주관식 단답형</option>
+                                  <option value="어절 순서 맞추기">어절 순서 맞추기</option>
+                                  <option value="OX문제">OX문제</option>
+                                  <option value="유의어 고르기">유의어 고르기</option>
+                                  <option value="반의어 고르기">반의어 고르기</option>
+                                  <option value="문단 요약">문단 요약</option>
+                                </select>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  {question.questionType}
+                                </span>
+                              </div>
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">관련 문단 번호</label>
@@ -1451,19 +1498,45 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                              <select
-                                value={question.correctAnswer}
-                                onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              >
-                                {question.options.map((option, optIndex) => (
-                                  <option key={optIndex} value={(optIndex + 1).toString()}>
-                                    {optIndex + 1}번: {option.length > 20 ? option.substring(0, 20) + '...' : option}
-                                  </option>
-                                ))}
-                              </select>
+                              {question.questionType === '주관식 단답형' ? (
+                                <textarea
+                                  value={question.correctAnswer}
+                                  onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
+                                  rows={2}
+                                  placeholder="단답형 정답을 입력하세요"
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              ) : (
+                                <select
+                                  value={question.correctAnswer}
+                                  onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                  {question.options.map((option, optIndex) => (
+                                    <option key={optIndex} value={(optIndex + 1).toString()}>
+                                      {optIndex + 1}번: {option.length > 20 ? option.substring(0, 20) + '...' : option}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
                             </div>
                           </div>
+                          
+                          {/* 초성 힌트 (단답형 문제만) */}
+                          {question.questionType === '주관식 단답형' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                초성 힌트 <span className="text-gray-500 text-xs">(예: ㄱㄴㄷ)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={question.answerInitials || ''}
+                                onChange={(e) => handleParagraphQuestionChange(index, 'answerInitials', e.target.value)}
+                                placeholder="정답의 초성을 입력하세요 (예: ㄱㄴㄷ)"
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                          )}
                           
                           {/* 관련 문단 텍스트 */}
                           <div>
@@ -1487,30 +1560,32 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                             />
                           </div>
                           
-                          {/* 선택지 */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
-                            <div className="space-y-2">
-                              {question.options.map((option, optionIndex) => (
-                                <div key={optionIndex} className="flex items-center space-x-2">
-                                  <span className="w-8 text-sm font-medium text-gray-600">{optionIndex + 1}.</span>
-                                  <input
-                                    type="text"
-                                    value={option}
-                                    onChange={(e) => {
-                                      const newOptions = [...question.options];
-                                      newOptions[optionIndex] = e.target.value;
-                                      handleParagraphQuestionChange(index, 'options', newOptions);
-                                    }}
-                                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  />
-                                  {(optionIndex + 1).toString() === question.correctAnswer && (
-                                    <span className="text-green-600 font-medium text-sm">✓ 정답</span>
-                                  )}
-                                </div>
-                              ))}
+                          {/* 선택지 (객관식 문제만) */}
+                          {question.questionType !== '주관식 단답형' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
+                              <div className="space-y-2">
+                                {question.options.map((option, optionIndex) => (
+                                  <div key={optionIndex} className="flex items-center space-x-2">
+                                    <span className="w-8 text-sm font-medium text-gray-600">{optionIndex + 1}.</span>
+                                    <input
+                                      type="text"
+                                      value={option}
+                                      onChange={(e) => {
+                                        const newOptions = [...question.options];
+                                        newOptions[optionIndex] = e.target.value;
+                                        handleParagraphQuestionChange(index, 'options', newOptions);
+                                      }}
+                                      className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                    {(optionIndex + 1).toString() === question.correctAnswer && (
+                                      <span className="text-green-600 font-medium text-sm">✓ 정답</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          )}
                           
                           {/* 해설 */}
                           <div>
@@ -1683,22 +1758,41 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                                         >
                                           <option value="">정답을 선택하세요</option>
                                           {question.options.map((option, optIndex) => (
-                                            <option key={optIndex} value={option}>
-                                              {optIndex + 1}. {option}
+                                            <option key={optIndex} value={(optIndex + 1).toString()}>
+                                              {optIndex + 1}번: {option.length > 20 ? option.substring(0, 20) + '...' : option}
                                             </option>
                                           ))}
                                         </select>
                                       </div>
                                     </div>
                                   ) : (
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                                      <textarea
-                                        value={question.correctAnswer || question.answer}
-                                        onChange={(e) => handleComprehensiveChange(globalIndex, 'correctAnswer', e.target.value)}
-                                        rows={2}
-                                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                      />
+                                    <div className="space-y-4">
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
+                                        <textarea
+                                          value={question.correctAnswer || question.answer}
+                                          onChange={(e) => handleComprehensiveChange(globalIndex, 'correctAnswer', e.target.value)}
+                                          rows={2}
+                                          placeholder="단답형 정답을 입력하세요"
+                                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                      </div>
+                                      
+                                      {/* 초성 힌트 (단답형 문제만) */}
+                                      {question.questionType === '단답형' && (
+                                        <div>
+                                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            초성 힌트 <span className="text-gray-500 text-xs">(예: ㄱㄴㄷ)</span>
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={question.answerInitials || ''}
+                                            onChange={(e) => handleComprehensiveChange(globalIndex, 'answerInitials', e.target.value)}
+                                            placeholder="정답의 초성을 입력하세요 (예: ㄱㄴㄷ)"
+                                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                          />
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   
@@ -1726,6 +1820,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                                           questionFormat: question.questionFormat || 'short_answer',
                                           options: question.options ? [...question.options] : undefined,
                                           correctAnswer: '',
+                                          answerInitials: '', // 초성 힌트 기본값
                                           explanation: '해설을 입력하세요.',
                                           isSupplementary: true,
                                           originalQuestionId: question.questionId,

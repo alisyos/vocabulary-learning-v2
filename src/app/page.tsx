@@ -187,6 +187,18 @@ export default function Home() {
 
   // 7단계: 종합 문제 생성 완료 후 8단계로 이동
   const handleComprehensiveGenerated = (questions: ComprehensiveQuestion[], usedPrompt?: string) => {
+    // 디버깅 로그
+    console.log('handleComprehensiveGenerated called:', {
+      questionsLength: questions.length,
+      basicQuestions: questions.filter(q => !q.isSupplementary).length,
+      supplementaryQuestions: questions.filter(q => q.isSupplementary).length,
+      firstQuestion: questions[0] ? {
+        id: questions[0].id,
+        type: questions[0].type,
+        isSupplementary: questions[0].isSupplementary
+      } : null
+    });
+    
     // 사용된 프롬프트 저장
     if (usedPrompt) {
       setLastUsedPrompts(prev => ({

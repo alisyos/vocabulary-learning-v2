@@ -527,27 +527,154 @@ ${division}
    - 용어의 핵심 개념을 강화하는 내용 포함`;
 }
 
-// 종합 문제 유형별 프롬프트
+// 종합 문제 유형별 프롬프트 (JSON 출력 형식 포함)
 const comprehensiveQuestionPrompts = {
-  '단답형': `단답형: 지문의 핵심 내용을 한 단어 또는 짧은 문장으로 답할 수 있는 주관식 문제를 생성합니다. 
-- 명확하고 객관적인 정답이 있는 사실적 내용을 묻습니다.
-- 답안은 1-3개 단어 또는 한 문장 이내로 답할 수 있어야 합니다.
-- 지문에 직접적으로 언급된 내용이나 추론 가능한 내용을 묻습니다.`,
+  '단답형': `단답형: 지문의 핵심 내용에 대해 간단한 답을 요구하는 주관식 문제입니다. 1-3단어 또는 한 문장 이내로 답할 수 있는 문제를 출제합니다.
 
-  '문단별 순서 맞추기': `문단별 순서 맞추기: 지문의 단락들을 섞어서 제시하고 올바른 순서를 찾는 객관식 문제를 생성합니다.
-- 지문의 논리적 전개나 시간적 순서, 인과관계를 이해했는지 평가합니다.
-- 3-4개의 단락을 무작위로 섞어서 제시하고 올바른 순서를 5지선다로 출제합니다.
-- 각 단락의 핵심 내용을 요약하여 제시합니다.`,
+생성 지침:
+1. 지문에 직접 언급된 내용 기반 문제
+2. 명확하고 구체적인 정답 필요
+3. 초성 힌트 필수 제공
+4. 지문의 핵심 개념, 용어, 현상을 묻는 문제
 
-  '핵심 내용 요약': `핵심 내용 요약: 지문의 주요 내용을 올바르게 요약한 것을 찾는 객관식 문제를 생성합니다.
-- 지문의 전체적인 흐름과 핵심 메시지를 이해했는지 평가합니다.
-- 주제, 주요 내용, 결론을 포함한 적절한 요약문을 정답으로 제시합니다.
-- 오답은 부분적으로만 맞거나, 과장되거나, 핵심을 놓친 요약문으로 구성합니다.`,
+출력 형식:
+{
+  "type": "단답형",
+  "questionFormat": "주관식",
+  "question": "지문에서 [구체적인 개념/현상/용어]는 무엇입니까?",
+  "answer": "정답 (구체적인 용어나 개념)",
+  "answerInitials": "초성 힌트 (예: ㅈㄹㅎㅁ)",
+  "explanation": "정답 근거와 지문 해당 부분 인용"
+}
 
-  '핵심어/핵심문장 찾기': `핵심어/핵심문장 찾기: 지문에서 가장 중요한 단어나 문장을 찾는 객관식 문제를 생성합니다.
-- 지문의 주제나 핵심 개념을 나타내는 중요한 어휘나 문장을 파악했는지 평가합니다.
-- 지문에서 실제로 사용된 표현들을 선택지로 제시합니다.
-- 정답은 지문의 주제나 결론과 직접적으로 연관된 핵심어/핵심문장이어야 합니다.`
+주의사항:
+- 정답은 지문에 명시된 내용이어야 함
+- 모호하거나 해석 여지가 있는 문제 지양
+- 학년 수준에 맞는 어휘와 개념 활용`,
+
+  '핵심 내용 요약': `핵심 내용 요약: 전체 지문의 중심 내용을 파악하여 요약한 것을 고르는 문제입니다. 주제문이나 결론을 정확히 이해하고 있는지 평가합니다.
+
+생성 지침:
+1. 지문의 전체적인 흐름과 핵심 메시지 파악
+2. 주제문, 결론, 핵심 아이디어를 중심으로 요약
+3. 5개의 선택지 중 1개만이 정확한 요약이 되도록 구성
+4. 오답은 부분적 내용, 과도한 일반화, 잘못된 해석 등으로 구성
+
+출력 형식:
+{
+  "type": "핵심 내용 요약",
+  "questionFormat": "객관식",
+  "question": "다음 글의 핵심 내용을 가장 잘 요약한 것은?",
+  "options": [
+    "정답: 지문의 주제와 핵심 내용을 정확히 반영한 요약문",
+    "오답1: 부분적 내용만 포함한 요약문",
+    "오답2: 과도하게 일반화된 요약문",
+    "오답3: 핵심을 놓친 요약문",
+    "오답4: 잘못 해석된 요약문"
+  ],
+  "answer": "1",
+  "explanation": "정답 선택지가 지문의 어느 부분을 반영하는지 구체적으로 설명"
+}
+
+주의사항:
+- 각 선택지는 150-200자 내외로 구성
+- 정답은 지문의 핵심을 모두 포함해야 함
+- 오답들은 그럴듯하지만 명확한 차이점이 있어야 함`,
+
+  '핵심문장 찾기': `핵심문장 찾기: 지문에서 가장 중요한 문장을 찾는 문제입니다. 글의 주제나 핵심 메시지를 담고 있는 문장을 파악합니다.
+
+생성 지침:
+1. 지문에서 실제로 사용된 문장들을 선택지로 활용
+2. 주제문, 결론문, 핵심 아이디어를 담은 문장 위주로 구성
+3. 정답은 글의 중심 내용을 가장 잘 드러내는 문장
+4. 오답은 부차적 내용, 예시, 세부 사항을 담은 문장들
+
+출력 형식:
+{
+  "type": "핵심문장 찾기",
+  "questionFormat": "객관식",
+  "question": "다음 글에서 핵심 내용을 가장 잘 드러낸 문장은?",
+  "options": [
+    "정답: 글의 주제나 결론을 가장 명확히 보여주는 문장",
+    "오답1: 부차적 내용을 담은 문장",
+    "오답2: 예시나 부연 설명 문장",
+    "오답3: 세부 사항을 다룬 문장",
+    "오답4: 도입부의 배경 설명 문장"
+  ],
+  "answer": "1",
+  "explanation": "해당 문장이 왜 핵심문장인지, 글에서 어떤 역할을 하는지 설명"
+}
+
+주의사항:
+- 모든 선택지는 지문에서 실제로 발췌한 문장이어야 함
+- 문장의 길이는 적절히 조절 (너무 길거나 짧지 않게)
+- 정답 문장은 글의 논리적 구조에서 핵심 역할을 해야 함`,
+
+  'OX문제': `OX문제: 지문의 내용에 대해 참(○) 또는 거짓(×)을 판단하는 문제입니다. 지문에 직접 언급된 사실이나 논리적으로 추론 가능한 내용을 바탕으로 합니다.
+
+생성 지침:
+1. 지문에 명시적으로 언급된 내용 기반
+2. 명확히 참/거짓 판단이 가능한 진술문 작성
+3. 애매하거나 주관적 해석이 필요한 내용 지양
+4. 선택지는 "○ (참)" / "× (거짓)" 2개만 제공
+
+출력 형식:
+{
+  "type": "OX문제",
+  "questionFormat": "객관식",
+  "question": "다음 내용이 지문의 설명과 일치하면 ○, 일치하지 않으면 ×를 고르세요.\\n\\n[지문 내용에 대한 명확한 진술문]",
+  "options": [
+    "○ (참)",
+    "× (거짓)"
+  ],
+  "answer": "1 또는 2",
+  "explanation": "지문의 해당 부분을 인용하며 참/거짓 근거를 명확히 제시"
+}
+
+예시 진술문:
+- "지문에 따르면, [특정 현상]은 [특정 원인] 때문에 발생한다."
+- "[특정 개념]의 특징은 [구체적 특징]이다."
+- "[특정 사실]은 [특정 시기/조건]에 나타난다."
+
+주의사항:
+- 진술문은 지문에서 확인 가능한 명확한 사실이어야 함
+- 추측이나 해석이 필요한 내용은 피할것
+- 학생이 혼동할 수 있는 미묘한 차이는 지양`,
+
+  '자료분석하기': `자료분석하기: 지문에 제시된 자료(표, 그래프, 수치 등)를 분석하거나 해석하는 문제입니다. 자료에서 드러나는 경향, 특징, 비교 등을 올바르게 파악했는지 평가합니다.
+
+생성 지침:
+1. 지문에 포함된 구체적인 수치, 데이터, 비교 내용 활용
+2. 데이터의 경향, 변화, 비교, 특징 등을 묻는 문제 구성
+3. 정확한 수치 해석이나 논리적 분석력을 평가
+4. 자료가 없는 경우, 지문의 비교/대조 내용을 분석 대상으로 활용
+
+출력 형식:
+{
+  "type": "자료분석하기",
+  "questionFormat": "객관식",
+  "question": "지문의 자료(또는 내용)를 분석한 결과로 옳은 것은?",
+  "options": [
+    "정답: 지문의 자료를 정확히 분석한 내용",
+    "오답1: 수치를 잘못 해석한 내용",
+    "오답2: 경향을 반대로 분석한 내용",
+    "오답3: 일부 데이터만 고려한 내용",
+    "오답4: 지문에 없는 추론을 포함한 내용"
+  ],
+  "answer": "1",
+  "explanation": "자료의 어느 부분을 근거로 해당 분석이 맞는지 구체적 수치와 함께 설명"
+}
+
+분석 유형 예시:
+- 수치 비교: "A가 B보다 [구체적 수치]만큼 높다/낮다"
+- 경향 분석: "[특정 기간] 동안 [지속적 증가/감소/변화없음] 경향을 보인다"
+- 비율 분석: "전체에서 [특정 부분]이 [구체적 비율]을 차지한다"
+- 변화 분석: "[이전 대비] [구체적 변화량/변화율]의 변화가 있다"
+
+주의사항:
+- 지문에 명시되지 않은 추론은 지양
+- 구체적 수치나 사실 기반 분석 우선
+- 정답은 지문의 자료에서 직접 확인 가능해야 함`
 };
 
 // 종합 문제 출력 형식
@@ -559,13 +686,15 @@ const comprehensiveOutputFormats = {
       "type": "단답형",
       "question": "질문 내용",
       "answer": "정답",
+      "answerInitials": "초성 힌트 (예: ㅈㄹㅎㅁ)",
       "explanation": "해설"
     },
     {
       "id": "comp_short_2", 
       "type": "단답형",
       "question": "질문 내용",
-      "answer": "정답", 
+      "answer": "정답",
+      "answerInitials": "초성 힌트 (예: ㅈㄹㅎㅁ)", 
       "explanation": "해설"
     },
     {
@@ -573,41 +702,7 @@ const comprehensiveOutputFormats = {
       "type": "단답형", 
       "question": "질문 내용",
       "answer": "정답",
-      "explanation": "해설"
-    }
-  ]
-}`,
-
-  '문단별 순서 맞추기': `{
-  "questions": [
-    {
-      "id": "comp_order_1",
-      "type": "문단별 순서 맞추기",
-      "question": "다음 단락들을 올바른 순서로 배열한 것은?",
-      "options": [
-        "A-B-C-D",
-        "B-A-D-C", 
-        "C-A-B-D",
-        "D-C-A-B",
-        "A-C-B-D"
-      ],
-      "answer": "A-B-C-D",
-      "explanation": "해설"
-    },
-    {
-      "id": "comp_order_2",
-      "type": "문단별 순서 맞추기", 
-      "question": "질문 내용",
-      "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
-      "answer": "정답",
-      "explanation": "해설"
-    },
-    {
-      "id": "comp_order_3",
-      "type": "문단별 순서 맞추기",
-      "question": "질문 내용", 
-      "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
-      "answer": "정답",
+      "answerInitials": "초성 힌트 (예: ㅈㄹㅎㅁ)",
       "explanation": "해설"
     }
   ]
@@ -648,11 +743,11 @@ const comprehensiveOutputFormats = {
   ]
 }`,
 
-  '핵심어/핵심문장 찾기': `{
+  '핵심문장 찾기': `{
   "questions": [
     {
       "id": "comp_keyword_1",
-      "type": "핵심어/핵심문장 찾기",
+      "type": "핵심문장 찾기",
       "question": "다음 중 지문의 핵심을 가장 잘 나타내는 문장은?",
       "options": [
         "핵심 문장",
@@ -666,7 +761,7 @@ const comprehensiveOutputFormats = {
     },
     {
       "id": "comp_keyword_2",
-      "type": "핵심어/핵심문장 찾기", 
+      "type": "핵심문장 찾기", 
       "question": "질문 내용",
       "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
       "answer": "정답",
@@ -674,9 +769,67 @@ const comprehensiveOutputFormats = {
     },
     {
       "id": "comp_keyword_3",
-      "type": "핵심어/핵심문장 찾기",
+      "type": "핵심문장 찾기",
       "question": "질문 내용",
       "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"], 
+      "answer": "정답",
+      "explanation": "해설"
+    }
+  ]
+}`,
+
+  'OX문제': `{
+  "questions": [
+    {
+      "id": "comp_ox_1",
+      "type": "OX문제",
+      "question": "OX 문제 내용",
+      "options": ["○ (맞다)", "X (틀리다)"],
+      "answer": "○ (맞다)",
+      "explanation": "해설 내용"
+    },
+    {
+      "id": "comp_ox_2",
+      "type": "OX문제",
+      "question": "질문 내용",
+      "options": ["○ (맞다)", "X (틀리다)"],
+      "answer": "X (틀리다)",
+      "explanation": "해설"
+    },
+    {
+      "id": "comp_ox_3",
+      "type": "OX문제",
+      "question": "질문 내용",
+      "options": ["○ (맞다)", "X (틀리다)"],
+      "answer": "○ (맞다)",
+      "explanation": "해설"
+    }
+  ]
+}`,
+
+  '자료분석하기': `{
+  "questions": [
+    {
+      "id": "comp_data_1",
+      "type": "자료분석하기",
+      "question": "자료 분석 문제 내용",
+      "options": ["분석 결과 1", "분석 결과 2", "분석 결과 3", "분석 결과 4", "분석 결과 5"],
+      "answer": "분석 결과 1",
+      "explanation": "해설 내용"
+    },
+    {
+      "id": "comp_data_2",
+      "type": "자료분석하기",
+      "question": "질문 내용",
+      "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
+      "answer": "정답",
+      "explanation": "해설"
+    },
+    {
+      "id": "comp_data_3",
+      "type": "자료분석하기",
+      "question": "질문 내용",
+      "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
       "answer": "정답",
       "explanation": "해설"
     }
@@ -1187,9 +1340,10 @@ function getDefaultTextTypePrompt(textType: string): string {
 export function getComprehensiveTypeKey(typeName: string): string {
   const typeKeyMap: { [key: string]: string } = {
     '단답형': 'type_short',
-    '문단별 순서 맞추기': 'type_sequence', 
     '핵심 내용 요약': 'type_summary',
-    '핵심어/핵심문장 찾기': 'type_keyword'
+    '핵심문장 찾기': 'type_keyword',
+    'OX문제': 'type_ox',
+    '자료분석하기': 'type_data'
   };
   return typeKeyMap[typeName] || typeName;
 }
@@ -1560,17 +1714,16 @@ export async function generateComprehensivePromptFromDB(
   questionCount: number = 3
 ): Promise<string> {
   try {
-    // 서버에서 전체 시스템 프롬프트, 문제 유형별 프롬프트, 출력 형식, 구분 프롬프트 조회
+    // 서버에서 전체 시스템 프롬프트, 문제 유형별 프롬프트, 구분 프롬프트 조회
+    // 출력 형식은 typePrompt에 이미 포함되어 있음
     const systemPrompt = await getPromptFromDB('comprehensive', 'comprehensiveSystem', 'system_base');
     const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', getComprehensiveTypeKey(questionType));
-    const outputPrompt = await getPromptFromDB('comprehensive', 'outputFormat', questionType);
     const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(division), getDivisionKey(division));
     
     console.log('Comprehensive prompt generation:', {
       questionType,
       systemPrompt: systemPrompt ? 'FROM DB (' + systemPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
       typePrompt: typePrompt ? 'FROM DB (' + typePrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
-      outputPrompt: outputPrompt ? 'FROM DB (' + outputPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
       divisionPrompt: divisionPrompt ? 'FROM DB (' + divisionPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'
     });
 
@@ -1583,8 +1736,7 @@ export async function generateComprehensivePromptFromDB(
         .replace('{questionCount}', questionCount.toString())
         .replace('{passage}', passage)
         .replace('{divisionPrompt}', divisionPrompt || '난이도 정보가 없습니다.')
-        .replace('{typePrompt}', typePrompt || '문제 유형 가이드라인이 없습니다.')
-        .replace('{outputPrompt}', outputPrompt || '출력 형식이 없습니다.');
+        .replace('{typePrompt}', typePrompt || '문제 유형 가이드라인이 없습니다.');
       
       console.log('✅ Comprehensive template substitution completed');
       return finalPrompt;

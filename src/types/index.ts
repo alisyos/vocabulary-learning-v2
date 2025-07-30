@@ -150,11 +150,12 @@ export interface ParagraphQuestionWorkflow {
 
 // 종합 문제 유형
 export type ComprehensiveQuestionType = 
-  | 'Random'                    // 랜덤 (4가지 유형 3개씩)
+  | 'Random'                    // 랜덤 (5가지 유형)
   | '단답형'                    // 주관식 단답형
-  | '문단별 순서 맞추기'         // 객관식 문단별 순서 맞추기
   | '핵심 내용 요약'            // 객관식 핵심 내용 요약
-  | '핵심어/핵심문장 찾기';      // 객관식 핵심어/핵심문장 찾기
+  | '핵심문장 찾기'             // 객관식 핵심문장 찾기
+  | 'OX문제'                   // 객관식 OX문제
+  | '자료분석하기';             // 객관식 자료분석하기
 
 // 종합 문제 개별 문제 (워크플로우용)
 export interface ComprehensiveQuestionWorkflow {
@@ -163,10 +164,14 @@ export interface ComprehensiveQuestionWorkflow {
   question: string;
   options?: string[];   // 객관식인 경우만
   answer: string;
+  answerInitials?: string; // 단답형인 경우 초성 힌트 (예: 'ㅈㄹㅎㅁ')
   explanation: string;
   isSupplementary?: boolean; // 보완 문제 여부
   originalQuestionId?: string; // 보완 문제의 경우 원본 문제 ID
 }
+
+// 워크플로우에서 사용하는 ComprehensiveQuestion 타입 별칭
+export type ComprehensiveQuestion = ComprehensiveQuestionWorkflow;
 
 // 워크플로우 전체 데이터
 export interface WorkflowData {
@@ -326,7 +331,7 @@ export interface ComprehensiveQuestionDB {
   id?: string; // UUID
   content_set_id: string; // UUID
   question_number: number;
-  question_type: '단답형' | '문단별 순서 맞추기' | '핵심 내용 요약' | '핵심어/핵심문장 찾기';
+  question_type: '단답형' | '핵심 내용 요약' | '핵심문장 찾기' | 'OX문제' | '자료분석하기';
   question_format: '객관식' | '주관식';
   difficulty: '일반' | '보완';
   question_text: string;
@@ -336,6 +341,7 @@ export interface ComprehensiveQuestionDB {
   option_4?: string;
   option_5?: string;
   correct_answer: string;
+  answer_initials?: string; // 단답형인 경우 초성 힌트
   explanation: string;
   is_supplementary: boolean;
   original_question_id?: string;
