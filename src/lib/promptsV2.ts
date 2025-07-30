@@ -474,30 +474,25 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
 
 ### 문제 유형별 상세 가이드라인
 
-**어절 순서 맞추기**:
-- 문단에서 의미 있는 문장을 선택하여 어절들을 원형 번호로 제시
-- 어절들을 올바른 순서로 배열했을 때의 번호 순서를 선택하는 문제
-- 어절 배열과 문장 구성 능력을 평가
-
 **빈칸 채우기**:
 - 문단에서 핵심 어휘나 중요한 단어를 빈칸으로 처리
 - 문맥에 맞는 적절한 단어를 선택하도록 하는 문제
 - 어휘의 의미와 문맥 적절성을 평가
 
-**유의어 고르기**:
-- 문단에서 특정 단어를 제시하고, 유사한 의미의 단어를 찾는 문제
-- 제시된 단어와 비슷한 의미를 가진 선택지 제공
-- 어휘 확장 및 의미군 이해를 평가
+**주관식 단답형**:
+- 문단의 내용을 바탕으로 간단한 답을 쓰는 문제
+- 정답과 함께 반드시 초성 힌트를 제공 (예: 장래희망 → ㅈㄹㅎㅁ)
+- 문단 이해도와 핵심 내용 파악 능력을 평가
 
-**반의어 고르기**:
-- 문단에서 특정 단어를 제시하고, 반대 의미의 단어를 찾는 문제
-- 제시된 단어와 반대 의미를 가진 선택지 제공
-- 어휘 관계 이해를 평가
+**어절 순서 맞추기**:
+- 문단에서 의미 있는 문장을 선택하여 어절들을 원형 번호로 제시
+- 어절들을 올바른 순서로 배열했을 때의 번호 순서를 선택하는 문제
+- 어절 배열과 문장 구성 능력을 평가
 
-**문단 요약**:
-- 문단의 핵심 내용을 가장 잘 요약한 문장을 선택하는 문제
-- 문단의 주요 정보와 핵심 메시지를 파악하는 능력 평가
-- 독해력과 요약 능력을 평가
+**OX문제**:
+- 문단의 내용이 맞는지 틀린지 판단하는 문제
+- 명확한 사실 확인이 가능한 내용으로 출제
+- 문단 내용의 정확한 이해도를 평가
 
 ###출력 형식 (반드시 JSON 형식으로)
 
@@ -513,35 +508,7 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
     version: 1,
   },
 
-  // 문제 유형별 프롬프트 (순서: 어절 순서 맞추기, 빈칸 채우기, 유의어 고르기, 반의어 고르기, 문단 요약)
-  {
-    promptId: 'paragraph-type-order',
-    category: 'paragraph',
-    subCategory: 'paragraphType',
-    name: '어절 순서 맞추기',
-    key: 'type_order',
-    promptText: `어절 순서 맞추기: 문단의 핵심 문장을 어절 단위로 섞어 놓고, 올바른 순서로 배열하는 문제입니다. 문법적으로 자연스럽고 의미가 통하는 순서를 찾도록 합니다.
-
-출력 형식:
-{
-  "type": "어절 순서 맞추기",
-  "question": "다음 어절들을 올바른 문장 순서로 배열했을 때, 알맞은 번호 순서를 고르세요.\\n① 어절1\\n② 어절2\\n③ 어절3\\n④ 어절4\\n⑤ 어절5",
-  "options": [
-    "첫 번째 배열 순서",
-    "두 번째 배열 순서",
-    "세 번째 배열 순서",
-    "네 번째 배열 순서",
-    "다섯 번째 배열 순서"
-  ],
-  "answer": "정답 번호",
-  "explanation": "정답 해설 (정해진 문장도 함께 제시)"
-}`,
-    description: '어절 순서 맞추기 문제 형식',
-    isActive: true,
-    isDefault: false,
-    version: 1,
-  },
-
+  // 문제 유형별 프롬프트 (순서: 빈칸 채우기, 주관식 단답형, 어절 순서 맞추기, OX문제)
   {
     promptId: 'paragraph-type-blank',
     category: 'paragraph',
@@ -571,84 +538,75 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
   },
 
   {
-    promptId: 'paragraph-type-synonym',
+    promptId: 'paragraph-type-short-answer',
     category: 'paragraph',
     subCategory: 'paragraphType',
-    name: '유의어 고르기',
-    key: 'type_synonym',
-    promptText: `유의어 고르기: 문단에 나온 특정 단어와 비슷한 의미를 가진 단어를 고르는 문제입니다. 문맥상 치환 가능한 유의어를 찾도록 합니다.
+    name: '주관식 단답형',
+    key: 'type_short_answer',
+    promptText: `주관식 단답형: 문단의 내용을 바탕으로 간단한 답을 쓰는 문제입니다. 정답과 함께 초성 힌트를 제공합니다.
 
 출력 형식:
 {
-  "type": "유의어 고르기",
-  "question": "밑줄 친 '[단어]'와 의미가 가장 비슷한 것은?\\n\\n[해당 단어가 포함된 문장]",
-  "options": [
-    "첫 번째 선택지",
-    "두 번째 선택지",
-    "세 번째 선택지",
-    "네 번째 선택지",
-    "다섯 번째 선택지"
-  ],
-  "answer": "정답 번호",
-  "explanation": "유의어 관계 설명"
+  "type": "주관식 단답형",
+  "question": "문단 내용을 바탕으로 질문에 답하세요.",
+  "answer": "정답 (예: 장래희망)",
+  "answerInitials": "초성 힌트 (예: ㅈㄹㅎㅁ)",
+  "explanation": "정답 해설과 근거"
 }`,
-    description: '유의어 고르기 문제 형식',
+    description: '주관식 단답형 문제 형식 (초성 힌트 포함)',
     isActive: true,
     isDefault: false,
     version: 1,
   },
 
   {
-    promptId: 'paragraph-type-antonym',
+    promptId: 'paragraph-type-order',
     category: 'paragraph',
     subCategory: 'paragraphType',
-    name: '반의어 고르기',
-    key: 'type_antonym',
-    promptText: `반의어 고르기: 문단에 나온 특정 단어와 반대되는 의미를 가진 단어를 고르는 문제입니다. 문맥을 고려하여 적절한 반의어를 찾도록 합니다.
+    name: '어절 순서 맞추기',
+    key: 'type_order',
+    promptText: `어절 순서 맞추기: 문단의 핵심 문장을 어절 단위로 섞어 놓고, 올바른 순서로 배열하는 문제입니다. 문법적으로 자연스럽고 의미가 통하는 순서를 찾도록 합니다.
 
 출력 형식:
 {
-  "type": "반의어 고르기",
-  "question": "밑줄 친 '[단어]'와 반대되는 의미를 가진 것은?\\n\\n[해당 단어가 포함된 문장]",
+  "type": "어절 순서 맞추기",
+  "question": "다음 어절들을 올바른 문장 순서로 배열했을 때, 알맞은 번호 순서를 고르세요.\\n① 어절1\\n② 어절2\\n③ 어절3\\n④ 어절4\\n⑤ 어절5",
   "options": [
-    "첫 번째 선택지",
-    "두 번째 선택지",
-    "세 번째 선택지",
-    "네 번째 선택지",
-    "다섯 번째 선택지"
+    "첫 번째 배열 순서",
+    "두 번째 배열 순서",
+    "세 번째 배열 순서",
+    "네 번째 배열 순서",
+    "다섯 번째 배열 순서"
   ],
   "answer": "정답 번호",
-  "explanation": "반의어 관계 설명"
+  "explanation": "정답 해설 (정해진 문장도 함께 제시)"
 }`,
-    description: '반의어 고르기 문제 형식',
+    description: '어절 순서 맞추기 문제 형식',
     isActive: true,
     isDefault: false,
     version: 1,
   },
 
   {
-    promptId: 'paragraph-type-summary',
+    promptId: 'paragraph-type-ox',
     category: 'paragraph',
     subCategory: 'paragraphType',
-    name: '문단 요약',
-    key: 'type_summary',
-    promptText: `문단 요약: 문단의 핵심 내용을 한 문장으로 요약한 것을 고르는 문제입니다. 중심 내용을 정확히 파악하고 있는지 확인합니다.
+    name: 'OX문제',
+    key: 'type_ox',
+    promptText: `OX문제: 문단의 내용이 맞는지 틀린지 판단하는 문제입니다. 명확한 사실 확인이 가능한 내용으로 출제합니다.
 
 출력 형식:
 {
-  "type": "문단 요약",
-  "question": "이 문단의 내용을 가장 잘 요약한 것은?",
+  "type": "OX문제",
+  "question": "다음 내용이 문단의 설명과 일치하면 O, 일치하지 않으면 X를 고르세요.\\n\\n[판단할 내용]",
   "options": [
-    "첫 번째 요약문",
-    "두 번째 요약문",
-    "세 번째 요약문",
-    "네 번째 요약문",
-    "다섯 번째 요약문"
+    "O (맞다)",
+    "X (틀리다)"
   ],
-  "answer": "정답 번호",
-  "explanation": "핵심 내용과 요약의 적절성 설명"
+  "answer": "정답 번호 (1 또는 2)",
+  "explanation": "정답 근거와 문단에서의 해당 내용"
 }`,
-    description: '문단 요약 문제 형식',
+    description: 'OX문제 형식',
     isActive: true,
     isDefault: false,
     version: 1,

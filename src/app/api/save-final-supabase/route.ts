@@ -180,20 +180,21 @@ export async function POST(request: NextRequest) {
         
         // 데이터 검증 및 기본값 설정
         const safeQ = {
-          type: q.type || q.question_type || '문단 요약',
+          type: q.type || q.question_type || '빈칸 채우기',
           paragraphNumber: q.paragraphNumber || q.paragraph_number || 1,
           paragraphText: q.paragraphText || q.paragraph_text || '',
           question: q.question || q.question_text || '',
           options: Array.isArray(q.options) ? q.options : ['선택지 1', '선택지 2', '선택지 3', '선택지 4'],
           answer: q.answer || q.correct_answer || '1',
+          answerInitials: q.answerInitials || q.answer_initials || null, // 초성 힌트 필드 추가
           explanation: q.explanation || ''
         };
         
-        // 문제 유형 검증
-        const validTypes = ['어절 순서 맞추기', '빈칸 채우기', '유의어 고르기', '반의어 고르기', '문단 요약'];
+        // 문제 유형 검증 - 새로운 4가지 유형으로 업데이트
+        const validTypes = ['빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제'];
         if (!validTypes.includes(safeQ.type)) {
           console.warn(`⚠️ 유효하지 않은 문제 유형: ${safeQ.type}, 기본값으로 변경`);
-          safeQ.type = '문단 요약';
+          safeQ.type = '빈칸 채우기';
         }
         
         const result = {
@@ -202,12 +203,13 @@ export async function POST(request: NextRequest) {
           paragraph_number: Math.max(1, Math.min(10, safeQ.paragraphNumber)),
           paragraph_text: String(safeQ.paragraphText).substring(0, 5000), // 길이 제한
           question_text: String(safeQ.question),
-          option_1: String(safeQ.options[0] || '선택지 1'),
-          option_2: String(safeQ.options[1] || '선택지 2'),
-          option_3: String(safeQ.options[2] || '선택지 3'),
-          option_4: String(safeQ.options[3] || '선택지 4'),
-          option_5: safeQ.options[4] ? String(safeQ.options[4]) : null,
-          correct_answer: String(safeQ.answer).charAt(0), // 첫 번째 문자만
+          option_1: safeQ.type === '주관식 단답형' ? null : String(safeQ.options[0] || '선택지 1'),
+          option_2: safeQ.type === '주관식 단답형' ? null : String(safeQ.options[1] || '선택지 2'),
+          option_3: safeQ.type === '주관식 단답형' ? null : String(safeQ.options[2] || '선택지 3'),
+          option_4: safeQ.type === '주관식 단답형' ? null : String(safeQ.options[3] || '선택지 4'),
+          option_5: safeQ.type === '주관식 단답형' || !safeQ.options[4] ? null : String(safeQ.options[4]),
+          correct_answer: safeQ.type === '주관식 단답형' ? String(safeQ.answer) : String(safeQ.answer).charAt(0), // 주관식은 전체 답안, 객관식은 번호만
+          answer_initials: safeQ.type === '주관식 단답형' ? safeQ.answerInitials : null, // 주관식 단답형인 경우만 초성 힌트
           explanation: String(safeQ.explanation)
         };
         
@@ -292,8 +294,16 @@ export async function POST(request: NextRequest) {
     console.log('🧠 ComprehensiveQuestions 데이터 변환 완료:', transformedComprehensiveQuestions.length, '개');
 
     console.log('💾 Supabase 저장 시작...');
+    console.log('📊 저장할 데이터 요약:');
+    console.log('  - ContentSet:', !!contentSetData);
+    console.log('  - Passages:', passagesData.length);
+    console.log('  - Vocabulary Terms:', vocabularyTerms.length);  
+    console.log('  - Vocabulary Questions:', transformedVocabularyQuestions.length);
+    console.log('  - Paragraph Questions:', transformedParagraphQuestions.length);
+    console.log('  - Comprehensive Questions:', transformedComprehensiveQuestions.length);
 
     // Save to Supabase
+    console.log('🔄 db.saveCompleteContentSet 호출 중...');
     const savedContentSet = await db.saveCompleteContentSet(
       contentSetData,
       passagesData,
@@ -316,19 +326,35 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Supabase save error:', error);
-    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    console.error('❌ Error details:', {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : String(error),
-      cause: error instanceof Error ? error.cause : undefined
-    });
+    console.error('❌ Error type:', typeof error);
+    console.error('❌ Error string:', String(error));
+    console.error('❌ Error JSON:', JSON.stringify(error, null, 2));
+    
+    if (error instanceof Error) {
+      console.error('❌ Error is instance of Error');
+      console.error('❌ Error name:', error.name);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+    } else {
+      console.error('❌ Error is not instance of Error');
+      console.error('❌ Error properties:', Object.keys(error || {}));
+      if (error && typeof error === 'object') {
+        for (const [key, value] of Object.entries(error)) {
+          console.error(`❌ Error.${key}:`, value);
+        }
+      }
+    }
+    
+    const errorMessage = error instanceof Error ? error.message : 
+                        (error && typeof error === 'object' && 'message' in error) ? String(error.message) :
+                        String(error);
     
     return NextResponse.json({
       success: false,
       message: 'Failed to save to Supabase',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      details: error instanceof Error ? error.stack : undefined,
-      errorName: error instanceof Error ? error.name : 'Unknown',
+      error: errorMessage,
+      details: error instanceof Error ? error.stack : JSON.stringify(error, null, 2),
+      errorName: error instanceof Error ? error.name : typeof error,
       timestamp: new Date().toISOString()
     }, { status: 500 });
   }

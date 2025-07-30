@@ -14,8 +14,9 @@ interface ParagraphGenerationRequest {
 
 interface GeneratedParagraphQuestionData {
   question: string;
-  options: string[];
+  options?: string[];  // 객관식인 경우만
   answer: string;
+  answerInitials?: string;  // 주관식 단답형인 경우 초성
   explanation: string;
 }
 
@@ -51,17 +52,17 @@ export async function POST(request: NextRequest) {
     const paragraphQuestions: ParagraphQuestionWorkflow[] = [];
     let lastUsedPrompt = '';
     
-    // Random인 경우 각 문단별로 5가지 유형 1개씩 생성
+    // Random인 경우 각 문단별로 4가지 유형 1개씩 생성
     if (body.questionType === 'Random') {
       const questionTypes: Exclude<ParagraphQuestionType, 'Random'>[] = [
-        '어절 순서 맞추기', '빈칸 채우기', '유의어 고르기', '반의어 고르기', '문단 요약'
+        '빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제'
       ];
       
       // 각 선택된 문단에 대해
       for (const paragraphNumber of body.selectedParagraphs) {
         const paragraphText = body.paragraphs[paragraphNumber - 1];
         
-        // 5가지 유형의 문제를 각각 생성
+        // 4가지 유형의 문제를 각각 생성
         for (let typeIndex = 0; typeIndex < questionTypes.length; typeIndex++) {
           const questionType = questionTypes[typeIndex];
           try {
@@ -87,12 +88,12 @@ export async function POST(request: NextRequest) {
         }
       }
     } else {
-      // 특정 유형인 경우 각 문단별로 해당 유형 5개씩 생성
+      // 특정 유형인 경우 각 문단별로 해당 유형 4개씩 생성
       for (const paragraphNumber of body.selectedParagraphs) {
         const paragraphText = body.paragraphs[paragraphNumber - 1];
         
-        // 각 문단에 대해 해당 유형의 문제를 5개 생성
-        for (let questionIndex = 1; questionIndex <= 5; questionIndex++) {
+        // 각 문단에 대해 해당 유형의 문제를 4개 생성
+        for (let questionIndex = 1; questionIndex <= 4; questionIndex++) {
           try {
             const { question, usedPrompt } = await generateSingleParagraphQuestion(
               paragraphText,
@@ -100,10 +101,10 @@ export async function POST(request: NextRequest) {
               body.questionType as Exclude<ParagraphQuestionType, 'Random'>,
               body.division,
               body.title,
-              questionIndex  // 같은 유형의 몇 번째 문제인지 전달
+              questionIndex
             );
             
-            // 첫 번째 문단의 첫 번째 문제의 프롬프트를 저장 (대표 프롬프트로 사용)
+            // 첫 번째 문단의 첫 번째 문제의 프롬프트를 저장
             if (paragraphNumber === body.selectedParagraphs[0] && questionIndex === 1) {
               lastUsedPrompt = usedPrompt;
             }
@@ -191,8 +192,9 @@ async function generateSingleParagraphQuestion(
           paragraphNumber,
           paragraphText,
           question: questionData.question || '',
-          options: questionData.options || [],
+          options: questionData.options || undefined,
           answer: questionData.answer || '',
+          answerInitials: questionData.answerInitials || undefined,
           explanation: questionData.explanation || ''
         },
         usedPrompt: prompt
@@ -213,8 +215,9 @@ async function generateSingleParagraphQuestion(
         paragraphNumber,
         paragraphText,
         question: `다음 문단에 대한 ${questionType} 문제입니다. (${questionIndex}번째)`,
-        options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
+        options: questionType === '주관식 단답형' ? undefined : ['선택지 1', '선택지 2', '선택지 3', '선택지 4'],
         answer: '1',
+        answerInitials: questionType === '주관식 단답형' ? 'ㄱㄴㄷㄹ' : undefined,
         explanation: '문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.'
       },
       usedPrompt: prompt
@@ -238,11 +241,10 @@ async function generateParagraphPrompt(
     
     // 2. 문제 유형별 프롬프트 가져오기
     const typeKeyMap: Record<string, string> = {
-      '어절 순서 맞추기': 'type_order',
       '빈칸 채우기': 'type_blank',
-      '유의어 고르기': 'type_synonym',
-      '반의어 고르기': 'type_antonym',
-      '문단 요약': 'type_summary'
+      '주관식 단답형': 'type_short_answer',
+      '어절 순서 맞추기': 'type_order',
+      'OX문제': 'type_ox'
     };
     
     const typeKey = typeKeyMap[questionType];
@@ -325,20 +327,17 @@ ${questionIndexNote}
   let specificPrompt = '';
   if (questionIndex > 1) {
     switch (questionType) {
-      case '어절 순서 맞추기':
-        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 문장을 선택하여 문제를 만들어 주세요`;
-        break;
       case '빈칸 채우기':
-        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어나 위치를 빈칸으로 처리해 주세요`;
+        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어나 위치를 빈칸으로 처리해 주세요. (총 4개 문제)`;
         break;
-      case '유의어 고르기':
-        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어를 선택하여 유의어를 찾는 문제를 만들어 주세요`;
+      case '주관식 단답형':
+        specificPrompt = `- ${questionIndex}번째 문제이므로 문단의 다른 내용에 대한 질문을 만들어 주세요. 정답과 함께 초성 힌트를 제공하세요. (총 4개 문제)`;
         break;
-      case '반의어 고르기':
-        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 단어를 선택하여 반의어를 찾는 문제를 만들어 주세요`;
+      case '어절 순서 맞추기':
+        specificPrompt = `- ${questionIndex}번째 문제이므로 이전 문제와 다른 문장을 선택하여 문제를 만들어 주세요. (총 4개 문제)`;
         break;
-      case '문단 요약':
-        specificPrompt = `- ${questionIndex}번째 문제이므로 문단의 다른 측면이나 다른 관점에서 요약하는 문제를 만들어 주세요`;
+      case 'OX문제':
+        specificPrompt = `- ${questionIndex}번째 문제이므로 문단의 다른 내용에 대한 참/거짓을 판단하는 문제를 만들어 주세요. (총 4개 문제)`;
         break;
     }
   }
@@ -354,37 +353,41 @@ ${questionIndexNote}
 
 ### 문제 유형별 상세 가이드라인
 
-**어절 순서 맞추기**:
-- 문단에서 의미 있는 문장을 선택하여 어절들을 원형 번호로 제시
-- 어절들을 올바른 순서로 배열했을 때의 번호 순서를 선택하는 문제
-- 어절 배열과 문장 구성 능력을 평가
-
 **빈칸 채우기**:
 - 문단에서 핵심 어휘나 중요한 단어를 빈칸으로 처리
 - 문맥에 맞는 적절한 단어를 선택하도록 하는 문제
 - 어휘의 의미와 문맥 적절성을 평가
 
-**유의어 고르기**:
-- 문단에서 특정 단어를 제시하고, 유사한 의미의 단어를 찾는 문제
-- 제시된 단어와 비슷한 의미를 가진 선택지 제공
-- 어휘 확장 및 의미군 이해를 평가
+**주관식 단답형**:
+- 문단의 내용을 바탕으로 간단한 답을 쓰는 문제
+- 정답과 함께 반드시 초성 힌트를 제공 (예: 장래희망 → ㅈㄹㅎㅁ)
+- 문단 이해도와 핵심 내용 파악 능력을 평가
 
-**반의어 고르기**:
-- 문단에서 특정 단어를 제시하고, 반대 의미의 단어를 찾는 문제
-- 제시된 단어와 반대 의미를 가진 선택지 제공
-- 어휘 관계 이해를 평가
+**어절 순서 맞추기**:
+- 문단에서 의미 있는 문장을 선택하여 어절들을 원형 번호로 제시
+- 어절들을 올바른 순서로 배열했을 때의 번호 순서를 선택하는 문제
+- 어절 배열과 문장 구성 능력을 평가
 
-**문단 요약**:
-- 문단의 핵심 내용을 가장 잘 요약한 문장을 선택하는 문제
-- 문단의 주요 정보와 핵심 메시지를 파악하는 능력 평가
-- 독해력과 요약 능력을 평가
+**OX문제**:
+- 문단의 내용이 맞는지 틀린지 판단하는 문제
+- 명확한 사실 확인이 가능한 내용으로 출제
+- 문단 내용의 정확한 이해도를 평가
 
 ###출력 형식 (반드시 JSON 형식으로)
 
+객관식 문제인 경우:
 {
   "question": "문제 내용",
   "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
   "answer": "1",
+  "explanation": "정답 해설"
+}
+
+주관식 단답형인 경우:
+{
+  "question": "문제 내용",
+  "answer": "정답 (예: 장래희망)",
+  "answerInitials": "초성 힌트 (예: ㅈㄹㅎㅁ)",
   "explanation": "정답 해설"
 }
 `;

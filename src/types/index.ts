@@ -129,12 +129,11 @@ export interface VocabularyQuestionWorkflow {
 
 // 문단 문제 유형
 export type ParagraphQuestionType = 
-  | 'Random'          // 랜덤 (5가지 유형 1개씩)
-  | '어절 순서 맞추기'   // 객관식 - 어절 순서 맞추기
+  | 'Random'           // 랜덤 (4가지 유형 1개씩)
   | '빈칸 채우기'       // 객관식 - 빈칸 채우기
-  | '유의어 고르기'     // 객관식 - 유의어 고르기
-  | '반의어 고르기'     // 객관식 - 반의어 고르기
-  | '문단 요약';       // 객관식 - 문단 요약
+  | '주관식 단답형'     // 주관식 - 단답형 (초성 포함)
+  | '어절 순서 맞추기'   // 객관식 - 어절 순서 맞추기
+  | 'OX문제';          // 객관식 - OX문제
 
 // 문단 문제 개별 문제 (워크플로우용)
 export interface ParagraphQuestionWorkflow {
@@ -143,8 +142,9 @@ export interface ParagraphQuestionWorkflow {
   paragraphNumber: number;   // 문단 번호 (1~10)
   paragraphText: string;     // 해당 문단 내용
   question: string;          // 문제
-  options: string[];         // 객관식 보기 (4개 또는 5개)
+  options?: string[];        // 객관식인 경우만 보기 (4개 또는 5개)
   answer: string;            // 정답
+  answerInitials?: string;   // 주관식 단답형인 경우 초성 (예: 'ㅈㄹㅎㅁ')
   explanation: string;       // 해설
 }
 
@@ -306,16 +306,17 @@ export interface ParagraphQuestionDB {
   id?: string; // UUID
   content_set_id: string; // UUID
   question_number: number;
-  question_type: '어절 순서 맞추기' | '빈칸 채우기' | '유의어 고르기' | '반의어 고르기' | '문단 요약';
+  question_type: '빈칸 채우기' | '주관식 단답형' | '어절 순서 맞추기' | 'OX문제';
   paragraph_number: number; // 문단 번호 (1~10)
   paragraph_text: string;   // 해당 문단 내용
   question_text: string;
-  option_1: string;
-  option_2: string;
-  option_3: string;
-  option_4: string;
+  option_1?: string;        // 객관식인 경우만
+  option_2?: string;        // 객관식인 경우만
+  option_3?: string;        // 객관식인 경우만
+  option_4?: string;        // 객관식인 경우만
   option_5?: string;        // 5번째 선택지는 선택사항
-  correct_answer: string;   // '1', '2', '3', '4', '5'
+  correct_answer: string;   // 객관식: '1','2','3','4','5' | 주관식: 실제 답
+  answer_initials?: string; // 주관식 단답형인 경우 초성 (예: 'ㅈㄹㅎㅁ')
   explanation: string;
   created_at?: string;
 }

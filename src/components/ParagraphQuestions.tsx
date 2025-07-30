@@ -123,17 +123,15 @@ export default function ParagraphQuestions({
   const getQuestionTypeDescription = (type: ParagraphQuestionType) => {
     switch (type) {
       case 'Random':
-        return '5가지 유형의 문제를 1개씩 생성합니다.';
-      case '어절 순서 맞추기':
-        return '문장의 어절들을 올바른 순서로 배열하는 문제입니다.';
+        return '4가지 유형의 문제를 1개씩 생성합니다.';
       case '빈칸 채우기':
         return '문맥에 맞는 적절한 단어를 선택하는 문제입니다.';
-      case '유의어 고르기':
-        return '제시된 단어와 비슷한 의미의 단어를 찾는 문제입니다.';
-      case '반의어 고르기':
-        return '제시된 단어와 반대 의미의 단어를 찾는 문제입니다.';
-      case '문단 요약':
-        return '문단의 핵심 내용을 가장 잘 요약한 문장을 선택하는 문제입니다.';
+      case '주관식 단답형':
+        return '문단의 내용을 바탕으로 간단한 답을 쓰는 문제입니다. (초성 힌트 제공)';
+      case '어절 순서 맞추기':
+        return '문장의 어절들을 올바른 순서로 배열하는 문제입니다.';
+      case 'OX문제':
+        return '문단의 내용이 맞는지 틀린지 판단하는 문제입니다.';
       default:
         return '';
     }
@@ -232,7 +230,7 @@ export default function ParagraphQuestions({
                 onChange={(e) => setSelectedQuestionType(e.target.value as ParagraphQuestionType)}
                 className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
-                {(['Random', '어절 순서 맞추기', '빈칸 채우기', '유의어 고르기', '반의어 고르기', '문단 요약'] as ParagraphQuestionType[]).map((type) => (
+                {(['Random', '빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제'] as ParagraphQuestionType[]).map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>
@@ -241,10 +239,11 @@ export default function ParagraphQuestions({
               
               <div className="mt-3 text-sm text-gray-600">
                 <p><strong>선택된 유형:</strong> {selectedQuestionType}</p>
+                <p>• {getQuestionTypeDescription(selectedQuestionType)}</p>
                 {selectedQuestionType === 'Random' ? (
-                  <p>• 선택된 문단 별로 5가지 유형을 1개씩 5개 문제가 생성됩니다.</p>
+                  <p>• 선택된 문단 별로 4가지 유형을 1개씩 4개 문제가 생성됩니다.</p>
                 ) : (
-                  <p>• 선택된 문단 별로 {selectedQuestionType} 유형의 5개 문제가 생성됩니다.</p>
+                  <p>• 선택된 문단 별로 {selectedQuestionType} 유형의 문제를 4개 생성됩니다.</p>
                 )}
               </div>
             </div>
@@ -360,47 +359,75 @@ export default function ParagraphQuestions({
                 />
               </div>
 
-              {/* 선택지 */}
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  선택지
-                </label>
-                <div className="space-y-2">
-                  {question.options.map((option, oIndex) => (
-                    <div key={oIndex} className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500 min-w-[20px]">
-                        {oIndex + 1}.
-                      </span>
-                      <input
-                        type="text"
-                        value={option}
-                        onChange={(e) => handleOptionUpdate(question.id, oIndex, e.target.value)}
-                        className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                        placeholder={`선택지 ${oIndex + 1}`}
-                      />
-                    </div>
-                  ))}
+              {/* 선택지 (객관식인 경우만) */}
+              {question.type !== '주관식 단답형' && (
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    선택지
+                  </label>
+                  <div className="space-y-2">
+                    {question.options?.map((option, oIndex) => (
+                      <div key={oIndex} className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500 min-w-[20px]">
+                          {oIndex + 1}.
+                        </span>
+                        <input
+                          type="text"
+                          value={option}
+                          onChange={(e) => handleOptionUpdate(question.id, oIndex, e.target.value)}
+                          className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                          placeholder={`선택지 ${oIndex + 1}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* 정답 및 해설 */}
+              {/* 정답 및 초성 */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     정답
                   </label>
-                  <select
-                    value={question.answer}
-                    onChange={(e) => handleQuestionUpdate(question.id, 'answer', e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                  >
-                    {question.options.map((_, optionIndex) => (
-                      <option key={optionIndex} value={(optionIndex + 1).toString()}>
-                        {optionIndex + 1}번
-                      </option>
-                    ))}
-                  </select>
+                  {question.type === '주관식 단답형' ? (
+                    <input
+                      type="text"
+                      value={question.answer}
+                      onChange={(e) => handleQuestionUpdate(question.id, 'answer', e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                      placeholder="정답을 입력하세요 (예: 장래희망)"
+                    />
+                  ) : (
+                    <select
+                      value={question.answer}
+                      onChange={(e) => handleQuestionUpdate(question.id, 'answer', e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                    >
+                      {question.options?.map((_, optionIndex) => (
+                        <option key={optionIndex} value={(optionIndex + 1).toString()}>
+                          {optionIndex + 1}번
+                        </option>
+                      )) || []}
+                    </select>
+                  )}
                 </div>
+                
+                {/* 초성 필드 (주관식 단답형인 경우만) */}
+                {question.type === '주관식 단답형' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      초성 힌트
+                    </label>
+                    <input
+                      type="text"
+                      value={question.answerInitials || ''}
+                      onChange={(e) => handleQuestionUpdate(question.id, 'answerInitials', e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                      placeholder="초성을 입력하세요 (예: ㅈㄹㅎㅁ)"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* 해설 */}

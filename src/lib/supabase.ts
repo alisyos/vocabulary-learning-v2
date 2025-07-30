@@ -730,10 +730,19 @@ export const db = {
             throw new Error(`문단문제 ${index + 1}: 필수 필드가 누락되었습니다`);
           }
           
-          // correct_answer 검증 (1-5 범위)
-          if (!['1', '2', '3', '4', '5'].includes(q.correct_answer)) {
-            console.warn(`⚠️ 문단문제 ${index + 1} 정답 값 수정: ${q.correct_answer} -> 1`);
-            q.correct_answer = '1';
+          // correct_answer 검증 (문제 유형에 따라 다름)
+          if (q.question_type === '주관식 단답형') {
+            // 주관식 단답형의 경우 실제 답안 텍스트가 들어감
+            if (!q.correct_answer || q.correct_answer.trim() === '') {
+              console.warn(`⚠️ 문단문제 ${index + 1} 주관식 답안이 비어있음`);
+              q.correct_answer = '답안';
+            }
+          } else {
+            // 객관식의 경우 1-5 범위
+            if (!['1', '2', '3', '4', '5'].includes(q.correct_answer)) {
+              console.warn(`⚠️ 문단문제 ${index + 1} 정답 값 수정: ${q.correct_answer} -> 1`);
+              q.correct_answer = '1';
+            }
           }
           
           return q;

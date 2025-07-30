@@ -94,11 +94,10 @@ export default function FinalSave({
     paragraphQuestionCount: paragraphQuestions?.length || 0,
     comprehensiveCount: comprehensiveQuestions?.length || 0,
     paragraphTypeDistribution: paragraphQuestions && paragraphQuestions.length > 0 ? {
-      '어절 순서 맞추기': paragraphQuestions.filter(q => q.type === '어절 순서 맞추기').length,
       '빈칸 채우기': paragraphQuestions.filter(q => q.type === '빈칸 채우기').length,
-      '유의어 고르기': paragraphQuestions.filter(q => q.type === '유의어 고르기').length,
-      '반의어 고르기': paragraphQuestions.filter(q => q.type === '반의어 고르기').length,
-      '문단 요약': paragraphQuestions.filter(q => q.type === '문단 요약').length
+      '주관식 단답형': paragraphQuestions.filter(q => q.type === '주관식 단답형').length,
+      '어절 순서 맞추기': paragraphQuestions.filter(q => q.type === '어절 순서 맞추기').length,
+      'OX문제': paragraphQuestions.filter(q => q.type === 'OX문제').length
     } : null,
     typeDistribution: comprehensiveQuestions && comprehensiveQuestions.length > 0 ? {
       '단답형': comprehensiveQuestions.filter(q => q.type === '단답형').length,
@@ -322,38 +321,52 @@ export default function FinalSave({
                 </span>
               </div>
               
-              {saveResult.savedData && (
-                <div className="bg-gray-50 p-4 rounded-lg mb-6 text-left">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">저장된 데이터 요약</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p><strong>세트 ID:</strong> {saveResult.savedData.setId || 'N/A'}</p>
-                      <p><strong>저장 시간:</strong> {saveResult.savedData.timestamp ? new Date(saveResult.savedData.timestamp).toLocaleString('ko-KR') : 'N/A'}</p>
-                      <p><strong>지문 제목:</strong> {saveResult.savedData.passageTitle || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p><strong>어휘 문제:</strong> {saveResult.savedData.vocabularyCount || 0}개</p>
-                      <p><strong>문단 문제:</strong> {saveResult.savedData.paragraphQuestionCount || 0}개</p>
-                      <p><strong>종합 문제:</strong> {saveResult.savedData.comprehensiveCount || 0}개</p>
-                      <p><strong>총 문제 수:</strong> {(saveResult.savedData.vocabularyCount || 0) + (saveResult.savedData.paragraphQuestionCount || 0) + (saveResult.savedData.comprehensiveCount || 0)}개</p>
+              <div className="bg-gray-50 p-4 rounded-lg mb-6 text-left">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">저장된 데이터 요약</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p><strong>세트 ID:</strong> {saveResult.data?.contentSetId || 'N/A'}</p>
+                    <p><strong>저장 시간:</strong> {new Date().toLocaleString('ko-KR')}</p>
+                    <p><strong>지문 제목:</strong> {summary.passageTitle || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p><strong>어휘 문제:</strong> {summary.vocabularyCount}개</p>
+                    <p><strong>문단 문제:</strong> {summary.paragraphQuestionCount}개</p>
+                    <p><strong>종합 문제:</strong> {summary.comprehensiveCount}개</p>
+                    <p><strong>총 문제 수:</strong> {summary.vocabularyCount + summary.paragraphQuestionCount + summary.comprehensiveCount}개</p>
+                  </div>
+                </div>
+                
+                {/* 문단 문제 유형별 분포 */}
+                {summary.paragraphTypeDistribution && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-gray-800 mb-2">문단 문제 유형별 분포</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                      {Object.entries(summary.paragraphTypeDistribution).map(([type, count]) => (
+                        <div key={type} className="bg-yellow-100 p-2 rounded text-center">
+                          <div className="font-medium">{type}</div>
+                          <div className="text-gray-600">{count}개</div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  
-                  {saveResult.savedData.typeDistribution && (
-                    <div className="mt-4">
-                      <h4 className="font-medium text-gray-800 mb-2">종합 문제 유형별 분포</h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                        {Object.entries(saveResult.savedData.typeDistribution).map(([type, count]) => (
-                          <div key={type} className="bg-white p-2 rounded text-center">
-                            <div className="font-medium">{type}</div>
-                            <div className="text-gray-600">{count}개</div>
-                          </div>
-                        ))}
-                      </div>
+                )}
+                
+                {/* 종합 문제 유형별 분포 */}
+                {summary.typeDistribution && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-gray-800 mb-2">종합 문제 유형별 분포</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                      {Object.entries(summary.typeDistribution).map(([type, count]) => (
+                        <div key={type} className="bg-orange-100 p-2 rounded text-center">
+                          <div className="font-medium">{type}</div>
+                          <div className="text-gray-600">{count}개</div>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <>
@@ -453,11 +466,10 @@ export default function FinalSave({
           </div>
 
           {/* 문단 문제 */}
-          <div className="bg-orange-50 p-4 rounded-lg">
+          <div className="bg-yellow-50 p-4 rounded-lg">
             <h4 className="font-medium text-gray-800 mb-3">문단 문제</h4>
             <div className="space-y-2 text-sm">
               <p><strong>총 문제 수:</strong> {summary.paragraphQuestionCount}개</p>
-              <p><strong>문제 형태:</strong> 객관식 (4-5지선다)</p>
               {summary.paragraphTypeDistribution && (
                 <div>
                   <p><strong>유형별 분포:</strong></p>
