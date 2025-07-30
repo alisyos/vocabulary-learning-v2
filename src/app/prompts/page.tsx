@@ -102,6 +102,12 @@ export default function PromptsPage() {
         changeReason: editing.changeReason || undefined
       };
 
+      console.log('🔧 프롬프트 업데이트 요청 시작:', {
+        promptId: editing.promptId,
+        promptTextLength: editing.promptText.length,
+        changeReason: editing.changeReason
+      });
+
       const response = await fetch('/api/prompts', {
         method: 'PUT',
         headers: {
@@ -110,11 +116,29 @@ export default function PromptsPage() {
         body: JSON.stringify(updateRequest),
       });
 
-      if (!response.ok) {
-        throw new Error('프롬프트 업데이트에 실패했습니다.');
+      console.log('📡 API 응답 상태:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
+      const responseText = await response.text();
+      console.log('📄 원본 응답 텍스트:', responseText);
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON 파싱 실패:', parseError);
+        throw new Error(`서버 응답을 파싱할 수 없습니다: ${responseText.substring(0, 200)}`);
       }
 
-      const result = await response.json();
+      console.log('📋 파싱된 응답:', result);
+
+      if (!response.ok) {
+        const errorMessage = result.error || result.message || `HTTP ${response.status}: 프롬프트 업데이트에 실패했습니다.`;
+        throw new Error(errorMessage);
+      }
       
       if (result.success) {
         setEditing(null);
@@ -122,15 +146,15 @@ export default function PromptsPage() {
         
         // 성공 메시지 표시
         setError(null);
-        console.log('프롬프트 저장 성공:', result.message);
+        console.log('✅ 프롬프트 저장 성공:', result.message);
       } else {
         const errorMessage = result.error || result.message || '업데이트에 실패했습니다.';
-        console.error('프롬프트 업데이트 실패:', errorMessage);
-        console.error('API 응답:', result);
-        setError(errorMessage);
+        console.error('❌ 프롬프트 업데이트 실패:', errorMessage);
+        console.error('📋 전체 API 응답:', result);
+        setError(`${errorMessage}${result.hint ? ` (힌트: ${result.hint})` : ''}`);
       }
     } catch (err) {
-      console.error('프롬프트 저장 실패:', err);
+      console.error('💥 프롬프트 저장 중 예외 발생:', err);
       setError(err instanceof Error ? err.message : '프롬프트 저장에 실패했습니다.');
     } finally {
       setSaving(false);

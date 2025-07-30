@@ -187,6 +187,13 @@ export async function PUT(request: NextRequest) {
       // system_prompts_v3 테이블에 직접 저장
       const { supabase } = await import('@/lib/supabase');
       
+      console.log('🔧 프롬프트 업데이트 시도:', {
+        promptId,
+        category: originalPrompt.category,
+        subCategory: originalPrompt.subCategory,
+        key: originalPrompt.key
+      });
+      
       const updateData = {
         prompt_id: promptId,
         category: originalPrompt.category,
@@ -201,6 +208,31 @@ export async function PUT(request: NextRequest) {
         created_by: 'user',
         updated_by: 'user'
       };
+
+      console.log('📝 업데이트 데이터:', updateData);
+
+      // 먼저 테이블이 존재하는지 확인
+      const { data: tableCheck, error: tableError } = await supabase
+        .from('system_prompts_v3')
+        .select('prompt_id')
+        .limit(1);
+
+      if (tableError) {
+        console.error('테이블 확인 실패:', tableError);
+        
+        // 테이블이 없는 경우 생성 시도
+        if (tableError.code === '42P01') {
+          console.log('📊 system_prompts_v3 테이블이 없습니다. 테이블을 생성합니다.');
+          
+          // 테이블 생성은 일반적으로 migration을 통해 해야 하므로 여기서는 에러만 반환
+          return NextResponse.json({
+            success: false,
+            error: 'system_prompts_v3 테이블이 존재하지 않습니다.',
+            message: '데이터베이스 마이그레이션이 필요합니다.',
+            hint: '/api/setup-supabase-schema 엔드포인트를 호출하여 테이블을 생성하세요.'
+          }, { status: 500 });
+        }
+      }
 
       // UPSERT로 저장
       const { data, error } = await supabase
@@ -223,7 +255,9 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({
           success: false,
           error: '프롬프트 저장에 실패했습니다.',
-          message: error.message
+          message: error.message,
+          errorCode: error.code,
+          hint: error.hint
         }, { status: 500 });
       } else {
         console.log(`✅ 프롬프트 DB 저장 성공: ${promptId} (카테고리: ${originalPrompt.category})`);
