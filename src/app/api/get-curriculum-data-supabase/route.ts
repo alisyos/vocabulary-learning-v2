@@ -40,6 +40,10 @@ export async function GET(request: NextRequest) {
               mainTopic: setDetails.main_topic,
               subTopic: setDetails.sub_topic,
               keywords: setDetails.keywords,
+              passage_length: setDetails.passage_length, // DB 필드명 그대로
+              passageLength: setDetails.passage_length, // camelCase 별칭
+              text_type: setDetails.text_type, // DB 필드명 그대로
+              textType: setDetails.text_type, // camelCase 별칭
               total_passages: setDetails.total_passages,
               total_vocabulary_terms: setDetails.total_vocabulary_terms,
               total_vocabulary_questions: setDetails.total_vocabulary_questions,
@@ -178,6 +182,8 @@ export async function GET(request: NextRequest) {
       mainTopic: item.main_topic,
       subTopic: item.sub_topic,
       passageTitle: item.title,
+      passageLength: item.passage_length, // DB 필드를 camelCase로 매핑
+      textType: item.text_type, // DB 필드를 camelCase로 매핑
       vocabularyQuestionCount: item.total_vocabulary_questions,
       comprehensiveQuestionCount: item.total_comprehensive_questions,
       paragraphCount: item.total_passages,
