@@ -143,6 +143,7 @@ export interface ParagraphQuestionWorkflow {
   paragraphText: string;     // 해당 문단 내용
   question: string;          // 문제
   options?: string[];        // 객관식인 경우만 보기 (4개 또는 5개)
+  wordSegments?: string[];   // 어절 순서 맞추기인 경우 개별 어절들
   answer: string;            // 정답
   answerInitials?: string;   // 주관식 단답형인 경우 초성 (예: 'ㅈㄹㅎㅁ')
   explanation: string;       // 해설
@@ -320,6 +321,7 @@ export interface ParagraphQuestionDB {
   option_3?: string;        // 객관식인 경우만
   option_4?: string;        // 객관식인 경우만
   option_5?: string;        // 5번째 선택지는 선택사항
+  word_segments?: string[]; // 어절 순서 맞추기인 경우 개별 어절들
   correct_answer: string;   // 객관식: '1','2','3','4','5' | 주관식: 실제 답
   answer_initials?: string; // 주관식 단답형인 경우 초성 (예: 'ㅈㄹㅎㅁ')
   explanation: string;

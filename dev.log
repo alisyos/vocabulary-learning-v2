@@ -6,30 +6,11 @@
    Consider removing the lockfiles at:
    * /mnt/d/test/vocabulary_learning2/vocabulary-learning-app/package-lock.json
 
- ⚠ Port 3000 is in use by an unknown process, using available port 3001 instead.
    ▲ Next.js 15.4.1
-   - Local:        http://localhost:3001
-   - Network:      http://172.27.165.220:3001
+   - Local:        http://localhost:3000
+   - Network:      http://172.27.165.220:3000
    - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 25s
- ○ Compiling / ...
- ✓ Compiled / in 13.7s (658 modules)
- GET / 200 in 15267ms
- ○ Compiling /api/save-final-supabase ...
- ✓ Compiled /api/save-final-supabase in 4.1s (445 modules)
-🚀 save-final-supabase API 시작
-📥 받은 데이터: {
-  "test": "data"
-}
-❌ 필수 데이터 누락: { input: false, editablePassage: false }
- POST /api/save-final-supabase 400 in 4716ms
- ✓ Compiled in 1584ms (251 modules)
- ✓ Compiled in 1524ms (251 modules)
- ✓ Compiled in 1054ms (251 modules)
- ○ Compiling /_not-found ...
- ✓ Compiled /_not-found in 803ms (680 modules)
- POST /api/save-final-supabase 404 in 1471ms
- ✓ Compiled in 1978ms (251 modules)
- ✓ Compiled in 1405ms (251 modules)
+ ✓ Ready in 21.6s
+[?25h

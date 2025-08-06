@@ -15,6 +15,7 @@ interface ParagraphGenerationRequest {
 interface GeneratedParagraphQuestionData {
   question: string;
   options?: string[];  // 객관식인 경우만
+  wordSegments?: string[];  // 어절 순서 맞추기인 경우 어절들
   answer: string;
   answerInitials?: string;  // 주관식 단답형인 경우 초성
   explanation: string;
@@ -193,6 +194,7 @@ async function generateSingleParagraphQuestion(
           paragraphText,
           question: questionData.question || '',
           options: questionData.options || undefined,
+          wordSegments: questionData.wordSegments || undefined,
           answer: questionData.answer || '',
           answerInitials: questionData.answerInitials || undefined,
           explanation: questionData.explanation || ''
@@ -215,8 +217,9 @@ async function generateSingleParagraphQuestion(
         paragraphNumber,
         paragraphText,
         question: `다음 문단에 대한 ${questionType} 문제입니다. (${questionIndex}번째)`,
-        options: questionType === '주관식 단답형' ? undefined : ['선택지 1', '선택지 2', '선택지 3', '선택지 4'],
-        answer: '1',
+        options: questionType === '주관식 단답형' || questionType === '어절 순서 맞추기' ? undefined : ['선택지 1', '선택지 2', '선택지 3', '선택지 4'],
+        wordSegments: questionType === '어절 순서 맞추기' ? ['어절1', '어절2', '어절3', '어절4'] : undefined,
+        answer: questionType === '어절 순서 맞추기' ? '어절1 어절2 어절3 어절4' : '1',
         answerInitials: questionType === '주관식 단답형' ? 'ㄱㄴㄷㄹ' : undefined,
         explanation: '문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.'
       },

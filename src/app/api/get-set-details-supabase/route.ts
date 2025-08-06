@@ -74,6 +74,49 @@ export async function GET(request: NextRequest) {
         answer: q.correct_answer,
         explanation: q.explanation
       })) || [],
+      paragraphQuestions: contentSetDetails.paragraph_questions?.map(q => {
+        const isWordOrderQuestion = q.question_type === '어절 순서 맞추기';
+        
+        // 기존 데이터 호환성: word_segments가 null이고 어절 순서 맞추기 문제인 경우
+        // 문제 텍스트에서 어절들을 추출하거나 첫 번째 옵션에서 추출
+        let wordSegments = q.word_segments || [];
+        if (isWordOrderQuestion && (!wordSegments || wordSegments.length === 0)) {
+          // 문제 텍스트에서 '/' 구분자로 추출 (예: "1) 잘게 / 음식이 / 부서지고...")
+          if (q.question_text && q.question_text.includes('/')) {
+            const lines = q.question_text.split('\n');
+            for (const line of lines) {
+              if (line.includes('/') && (line.includes('1)') || line.includes('2)') || line.includes('3)'))) {
+                const parts = line.split(')');
+                if (parts.length > 1) {
+                  wordSegments = parts[1].split('/').map(w => w.trim().replace(/\.$/, '')).filter(w => w.length > 0);
+                  break;
+                }
+              }
+            }
+          }
+          
+          // 그래도 없으면 옵션 1에서 어절들을 추출 (기존 정답에서)
+          if (wordSegments.length === 0 && q.option_1) {
+            wordSegments = q.option_1.split(/\s+/).filter(w => w.trim() !== '');
+          }
+        }
+        
+        return {
+          id: q.id,
+          questionId: q.id,
+          questionNumber: q.question_number,
+          questionType: q.question_type,
+          paragraphNumber: q.paragraph_number,
+          paragraphText: q.paragraph_text,
+          question: q.question_text,
+          options: isWordOrderQuestion ? [] : [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(o => o && o.trim() !== ''),
+          correctAnswer: isWordOrderQuestion ? (q.option_1 || q.correct_answer) : q.correct_answer, // 어절 순서 맞추기는 정답 문장을 표시
+          answerInitials: q.answer_initials,
+          explanation: q.explanation,
+          wordSegments: wordSegments, // 어절 순서 맞추기용 어절 배열
+          createdAt: q.created_at
+        };
+      }) || [],
       comprehensiveQuestions: contentSetDetails.comprehensive_questions?.map(q => ({
         id: q.id,
         questionId: q.id,

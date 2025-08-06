@@ -359,8 +359,32 @@ export default function ParagraphQuestions({
                 />
               </div>
 
-              {/* 선택지 (객관식인 경우만) */}
-              {question.type !== '주관식 단답형' && (
+              {/* 어절 순서 맞추기인 경우 - 어절들 표시 */}
+              {question.type === '어절 순서 맞추기' && (
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    어절들 (무작위 순서)
+                  </label>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    {question.wordSegments && question.wordSegments.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {question.wordSegments.map((segment, idx) => (
+                          <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                            {segment}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 italic">
+                        어절 정보가 없습니다. 문제를 다시 생성해 주세요.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 선택지 (객관식인 경우만 - 어절 순서 맞추기 제외) */}
+              {question.type !== '주관식 단답형' && question.type !== '어절 순서 맞추기' && (
                 <div className="mb-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     선택지
@@ -390,13 +414,16 @@ export default function ParagraphQuestions({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     정답
                   </label>
-                  {question.type === '주관식 단답형' ? (
+                  {(question.type === '주관식 단답형' || question.type === '어절 순서 맞추기') ? (
                     <input
                       type="text"
                       value={question.answer}
                       onChange={(e) => handleQuestionUpdate(question.id, 'answer', e.target.value)}
                       className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                      placeholder="정답을 입력하세요 (예: 장래희망)"
+                      placeholder={question.type === '어절 순서 맞추기' 
+                        ? "올바른 순서로 배열된 문장을 입력하세요" 
+                        : "정답을 입력하세요 (예: 장래희망)"
+                      }
                     />
                   ) : (
                     <select

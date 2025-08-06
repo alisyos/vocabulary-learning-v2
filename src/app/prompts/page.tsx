@@ -442,14 +442,57 @@ export default function PromptsPage() {
                                   <div className="flex items-center space-x-2">
                                     <button
                                       onClick={async () => {
-                                        const { getDefaultPromptById } = await import('@/lib/prompts');
-                                        const defaultPromptText = getDefaultPromptById(prompt.promptId);
-                                        if (defaultPromptText && confirm('이 프롬프트를 하드코딩된 기본값으로 초기화하시겠습니까?')) {
-                                          setEditing({
-                                            promptId: prompt.promptId,
-                                            promptText: defaultPromptText,
-                                            changeReason: '하드코딩된 기본값으로 초기화'
-                                          });
+                                        let defaultPromptText: string | null = null;
+                                        
+                                        // 어절 순서 맞추기의 경우 직접 새로운 주관식 버전 제공
+                                        if (prompt.promptId === 'paragraph-type-order') {
+                                          defaultPromptText = `어절 순서 맞추기: 문단의 핵심 문장을 어절 단위로 섞어 놓고, 올바른 순서로 배열하는 문제입니다. 문법적으로 자연스럽고 의미가 통하는 순서를 찾도록 합니다.
+
+중요: 
+- 어절들을 개별적으로 배열로 제공하세요
+- 정답은 완전한 문장으로 제공하세요
+
+출력 형식:
+{
+  "type": "어절 순서 맞추기",
+  "question": "다음 어절들을 올바른 순서로 배열하여 문장을 완성하세요.",
+  "wordSegments": ["어절1", "어절2", "어절3", "어절4", "어절5"],
+  "answer": "올바르게 배열된 완전한 문장",
+  "explanation": "정답 해설 (왜 이 순서가 맞는지 설명)"
+}`;
+                                          console.log('🔧 어절 순서 맞추기 프롬프트를 직접 설정했습니다');
+                                        } else {
+                                          // 다른 프롬프트들은 기존 방식 사용
+                                          const { getDefaultPromptById } = await import('@/lib/prompts');
+                                          defaultPromptText = getDefaultPromptById(prompt.promptId);
+                                        }
+                                        
+                                        console.log('🔍 초기화 시도:', {
+                                          promptId: prompt.promptId,
+                                          promptName: prompt.name,
+                                          isDirectSet: prompt.promptId === 'paragraph-type-order',
+                                          defaultPromptText: defaultPromptText?.substring(0, 200) + '...'
+                                        });
+                                        if (defaultPromptText && confirm('이 프롬프트를 하드코딩된 기본값으로 초기화하시겠습니까?\n\nDB에 저장된 수정 내용이 삭제되고, 하드코딩된 기본값이 사용됩니다.')) {
+                                          try {
+                                            // 모든 프롬프트에 대해 DB에서 삭제하여 하드코딩된 버전 사용
+                                            const response = await fetch('/api/prompts/reset', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ promptId: prompt.promptId })
+                                            });
+                                            
+                                            const result = await response.json();
+                                            if (result.success) {
+                                              alert(result.message + '\n이제 하드코딩된 기본값이 사용됩니다.');
+                                              await loadPrompts(); // 프롬프트 목록 다시 로드
+                                            } else {
+                                              alert(`초기화 실패: ${result.error || result.message}`);
+                                            }
+                                          } catch (error) {
+                                            console.error('초기화 중 오류:', error);
+                                            alert('프롬프트 초기화 중 오류가 발생했습니다.');
+                                          }
                                         } else if (!defaultPromptText) {
                                           alert('이 프롬프트에 대한 하드코딩된 기본값이 없습니다.');
                                         }

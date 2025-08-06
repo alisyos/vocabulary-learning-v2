@@ -88,6 +88,7 @@ interface ParagraphQuestion {
   correctAnswer: string;
   answerInitials?: string; // 단답형 문제의 초성 힌트
   explanation: string;
+  wordSegments?: string[]; // 어절 순서 맞추기 문제용 어절 배열
 }
 
 interface VocabularyTerm {
@@ -671,7 +672,14 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                       </div>
                       
                       <div class="question-text">${question.question}</div>
-                      ${question.questionType === '주관식 단답형' ? `
+                      ${question.questionType === '어절 순서 맞추기' ? `
+                        <div style="margin: 15px 0; padding: 10px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+                          <strong>어절 목록:</strong> ${(question.wordSegments || []).join(', ')}
+                        </div>
+                        <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8;">
+                          <strong>정답:</strong> ${question.correctAnswer}
+                        </div>
+                      ` : question.questionType === '주관식 단답형' ? `
                         <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px;">
                           <strong>정답:</strong> ${question.correctAnswer}
                         </div>
@@ -789,6 +797,30 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     
     // 문제 유형별로 그룹화 (같은 유형의 기본문제 + 보완문제들을 1세트로)
     const typeGroups: { [key: string]: typeof editableComprehensive } = {};
+    
+    // 어휘 용어 추출을 위한 함수
+    const extractTermFromVocab = (vocab: string) => {
+      let term = '';
+      
+      // "용어: 정의" 형식
+      const simpleMatch = vocab.match(/^([^:]+):\s*(.+)$/);
+      if (simpleMatch) {
+        term = simpleMatch[1].trim();
+      }
+      
+      // "용어(한자): 정의" 형식  
+      const hanjaMatch = vocab.match(/^([^(]+)(\([^)]+\))?:\s*(.+)$/);
+      if (hanjaMatch && !term) {
+        term = hanjaMatch[1].trim();
+      }
+      
+      // VocabularyTerm 객체 형식
+      if (typeof vocab === 'object' && vocab.term) {
+        term = vocab.term;
+      }
+      
+      return term;
+    };
     
     editableComprehensive.forEach(question => {
       const questionType = question.questionType || question.question_type || question.type || '기타';
@@ -1286,12 +1318,49 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       <div class="passage-section">
         <h2 class="passage-title">${editablePassage.title}</h2>
         ${editablePassage.paragraphs
-          .map((paragraph, index) => paragraph.trim() ? `
-            <div class="paragraph">
-              <span class="paragraph-number">[${index + 1}]</span>
-              ${paragraph}
-            </div>
-          ` : '')
+          .map((paragraph, index) => {
+            if (!paragraph.trim()) return '';
+            
+            // 어휘 용어들 추출 및 하이라이트 처리
+            let highlightedParagraph = paragraph;
+            
+            // 디버깅: 어휘 데이터 확인
+            console.log('HTML ver.2 어휘 데이터:', editableVocabulary);
+            console.log('문단 텍스트:', paragraph.substring(0, 100));
+            
+            // 어휘 용어들을 추출하고 길이순으로 정렬 (긴 것부터)
+            const vocabTerms = editableVocabulary
+              .map((vocab, vocabIndex) => ({
+                vocab: vocab,
+                term: extractTermFromVocab(vocab),
+                index: vocabIndex
+              }))
+              .filter(item => item.term && item.term.length > 1)
+              .sort((a, b) => b.term.length - a.term.length); // 길이 내림차순 정렬
+            
+            console.log('길이순 정렬된 어휘 용어들:', vocabTerms.map(item => item.term));
+            
+            // 길이가 긴 용어부터 하이라이트 적용
+            vocabTerms.forEach((vocabItem) => {
+              const term = vocabItem.term;
+              console.log('어휘 ' + (vocabItem.index + 1) + ': "' + vocabItem.vocab + '" -> 용어: "' + term + '" (길이: ' + term.length + ')');
+              
+              // 정규식을 사용하여 용어를 찾고 스타일 적용 (대소문자 구분 없이)
+              const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp('(' + escapedTerm + ')', 'gi');
+              const beforeReplace = highlightedParagraph;
+              highlightedParagraph = highlightedParagraph.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+              
+              if (beforeReplace !== highlightedParagraph) {
+                console.log('"' + term + '" 용어가 문단에서 발견되어 하이라이트됨');
+              }
+            });
+            
+            return '<div class="paragraph">' +
+              '<span class="paragraph-number">[' + (index + 1) + ']</span>' +
+              highlightedParagraph +
+              '</div>';
+          })
           .join('')}
       </div>
     </div>
@@ -1324,13 +1393,19 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
               }
             }
             
-            return `
-              <div class="vocabulary-card">
-                <div class="vocabulary-term">[어휘 ${index + 1}] - ${term}</div>
-                <div class="vocabulary-definition">${mainDefinition}</div>
-                ${example ? `<div class="vocabulary-example" style="margin-top: 8px; font-style: italic; color: #6c757d;">(${example})</div>` : ''}
-              </div>
-            `;
+            // 예시 문구에서 해당 어휘 용어를 하이라이트 처리
+            let highlightedExample = example;
+            if (example && term && term.length > 1) {
+              const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp('(' + escapedTerm + ')', 'gi');
+              highlightedExample = example.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+            }
+            
+            return '<div class="vocabulary-card">' +
+              '<div class="vocabulary-term">[어휘 ' + (index + 1) + '] - ' + term + '</div>' +
+              '<div class="vocabulary-definition">' + mainDefinition + '</div>' +
+              (example ? '<div class="vocabulary-example" style="margin-top: 8px; font-style: italic; color: #6c757d;">(' + highlightedExample + ')</div>' : '') +
+              '</div>';
           }
           // 매칭되지 않으면 전체 텍스트를 표시
           return `
@@ -1394,35 +1469,52 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                 <span class="question-number">문단 문제 ${q.question_number || q.questionNumber}</span>
                 <span class="question-type">${q.question_type || q.questionType}</span>
               </div>
-              <div class="question-text">${q.question}</div>
-              ${(q.question_type || q.questionType) === '주관식 단답형' ? `
-                <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8;">
-                  <strong>정답:</strong> ${q.correct_answer || q.correctAnswer}
+              
+              <!-- 관련 문단 번호 -->
+              <div style="margin: 10px 0; padding: 8px 12px; background-color: #f8f9fa; border-left: 3px solid #6c757d; font-weight: bold;">
+                📖 관련 문단: ${q.paragraph_number || q.paragraphNumber}번
+              </div>
+              
+              <!-- 문제 텍스트 -->
+              <div class="question-text" style="margin: 15px 0; font-weight: bold;">${q.question}</div>
+              
+              <!-- 문제 유형별 추가 정보 (어절들, 선택지) -->
+              ${(q.question_type || q.questionType) === '어절 순서 맞추기' ? `
+                <div style="margin: 15px 0; padding: 10px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+                  <strong>어절 목록:</strong> ${(q.wordSegments || q.word_segments || []).join(', ')}
                 </div>
-              ` : q.options && q.options.length > 0 ? (
+              ` : ''}
+              
+              ${q.options && q.options.length > 0 && (q.question_type || q.questionType) !== '어절 순서 맞추기' ? (
                 (q.question_type || q.questionType) === 'OX문제' ? `
-                  <div class="options">
+                  <div class="options" style="margin: 15px 0;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">선택지:</div>
                     ${q.options.slice(0, 2).map((option, optIndex) => `
-                      <div class="option ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
-                        ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? ' ✓' : ''}
+                      <div class="option" style="margin-bottom: 8px; padding: 8px 12px; background-color: white; border: 1px solid #dee2e6; border-radius: 4px;">
+                        ${optIndex + 1}. ${option}
                       </div>
                     `).join('')}
                   </div>
                 ` : `
-                  <div class="options">
+                  <div class="options" style="margin: 15px 0;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">선택지:</div>
                     ${q.options.map((option, optIndex) => `
-                      <div class="option ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
-                        ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? ' ✓' : ''}
+                      <div class="option" style="margin-bottom: 8px; padding: 8px 12px; background-color: white; border: 1px solid #dee2e6; border-radius: 4px;">
+                        ${optIndex + 1}. ${option}
                       </div>
                     `).join('')}
                   </div>
                 `
-              ) : `
-                <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8;">
-                  <strong>정답:</strong> ${q.correct_answer || q.correctAnswer}
-                </div>
-              `}
-              <div class="answer-section">
+              ) : ''}
+              
+              <!-- 정답 -->
+              <div class="correct-answer" style="margin: 15px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8; border-left: 4px solid #28a745;">
+                <strong>정답:</strong> ${q.correct_answer || q.correctAnswer}
+              </div>
+              
+              <!-- 해설 -->
+              <div class="answer-section" style="margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 6px;">
+                <div style="font-weight: bold; margin-bottom: 8px;">해설:</div>
                 <div class="explanation">${q.explanation}</div>
               </div>
             </div>
@@ -2342,28 +2434,23 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                         </div>
                         
                         <div className="space-y-4">
-                          {/* 문제 기본 정보 */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* 1. 문제 유형과 관련 문단 번호 */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">문제 유형</label>
-                              <div className="flex items-center space-x-3">
-                                <select
-                                  value={question.questionType}
-                                  onChange={(e) => handleParagraphQuestionChange(index, 'questionType', e.target.value)}
-                                  className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                >
-                                  <option value="빈칸 채우기">빈칸 채우기</option>
-                                  <option value="주관식 단답형">주관식 단답형</option>
-                                  <option value="어절 순서 맞추기">어절 순서 맞추기</option>
-                                  <option value="OX문제">OX문제</option>
-                                  <option value="유의어 고르기">유의어 고르기</option>
-                                  <option value="반의어 고르기">반의어 고르기</option>
-                                  <option value="문단 요약">문단 요약</option>
-                                </select>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                  {question.questionType}
-                                </span>
-                              </div>
+                              <select
+                                value={question.questionType}
+                                onChange={(e) => handleParagraphQuestionChange(index, 'questionType', e.target.value)}
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                <option value="빈칸 채우기">빈칸 채우기</option>
+                                <option value="주관식 단답형">주관식 단답형</option>
+                                <option value="어절 순서 맞추기">어절 순서 맞추기</option>
+                                <option value="OX문제">OX문제</option>
+                                <option value="유의어 고르기">유의어 고르기</option>
+                                <option value="반의어 고르기">반의어 고르기</option>
+                                <option value="문단 요약">문단 요약</option>
+                              </select>
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">관련 문단 번호</label>
@@ -2376,49 +2463,9 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               />
                             </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                              {question.questionType === '주관식 단답형' ? (
-                                <textarea
-                                  value={question.correctAnswer}
-                                  onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
-                                  rows={2}
-                                  placeholder="단답형 정답을 입력하세요"
-                                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                              ) : (
-                                <select
-                                  value={question.correctAnswer}
-                                  onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
-                                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                >
-                                  {question.options.map((option, optIndex) => (
-                                    <option key={optIndex} value={(optIndex + 1).toString()}>
-                                      {optIndex + 1}번: {option.length > 20 ? option.substring(0, 20) + '...' : option}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
-                            </div>
                           </div>
                           
-                          {/* 초성 힌트 (단답형 문제만) */}
-                          {question.questionType === '주관식 단답형' && (
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                초성 힌트 <span className="text-gray-500 text-xs">(예: ㄱㄴㄷ)</span>
-                              </label>
-                              <input
-                                type="text"
-                                value={question.answerInitials || ''}
-                                onChange={(e) => handleParagraphQuestionChange(index, 'answerInitials', e.target.value)}
-                                placeholder="정답의 초성을 입력하세요 (예: ㄱㄴㄷ)"
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              />
-                            </div>
-                          )}
-                          
-                          {/* 관련 문단 텍스트 */}
+                          {/* 2. 관련 문단 내용 */}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">관련 문단 내용</label>
                             <textarea
@@ -2429,7 +2476,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                             />
                           </div>
                           
-                          {/* 문제 텍스트 */}
+                          {/* 3. 문제 텍스트 */}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">문제</label>
                             <textarea
@@ -2439,9 +2486,28 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                           </div>
+
+                          {/* 4. 어절들 (어절 순서 맞추기 문제만) */}
+                          {question.questionType === '어절 순서 맞추기' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                어절 목록 <span className="text-gray-500 text-xs">(쉼표로 구분)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={(question.wordSegments || []).join(', ')}
+                                onChange={(e) => {
+                                  const segments = e.target.value.split(',').map(s => s.trim()).filter(s => s);
+                                  handleParagraphQuestionChange(index, 'wordSegments', segments);
+                                }}
+                                placeholder="어절들을 쉼표로 구분하여 입력하세요 (예: 사랑하는, 우리, 가족)"
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                          )}
                           
-                          {/* 선택지 (객관식 문제만) */}
-                          {question.questionType !== '주관식 단답형' && (
+                          {/* 5. 선택지 (객관식 문제만, 어절 순서 맞추기 제외) */}
+                          {question.questionType !== '주관식 단답형' && question.questionType !== '어절 순서 맞추기' && (
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
                               <div className="space-y-2">
@@ -2466,8 +2532,50 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                               </div>
                             </div>
                           )}
+
+                          {/* 6. 정답 */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
+                            {(question.questionType === '주관식 단답형' || question.questionType === '어절 순서 맞추기') ? (
+                              <textarea
+                                value={question.correctAnswer}
+                                onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
+                                rows={2}
+                                placeholder={question.questionType === '어절 순서 맞추기' ? "올바른 어절 순서를 입력하세요" : "단답형 정답을 입력하세요"}
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            ) : (
+                              <select
+                                value={question.correctAnswer}
+                                onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                {question.options.map((option, optIndex) => (
+                                  <option key={optIndex} value={(optIndex + 1).toString()}>
+                                    {optIndex + 1}번: {option.length > 20 ? option.substring(0, 20) + '...' : option}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
                           
-                          {/* 해설 */}
+                          {/* 초성 힌트 (단답형 문제만) */}
+                          {question.questionType === '주관식 단답형' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                초성 힌트 <span className="text-gray-500 text-xs">(예: ㄱㄴㄷ)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={question.answerInitials || ''}
+                                onChange={(e) => handleParagraphQuestionChange(index, 'answerInitials', e.target.value)}
+                                placeholder="정답의 초성을 입력하세요 (예: ㄱㄴㄷ)"
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                          )}
+                          
+                          {/* 7. 해설 */}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">해설</label>
                             <textarea

@@ -185,10 +185,25 @@ export async function POST(request: NextRequest) {
           paragraphText: q.paragraphText || q.paragraph_text || '',
           question: q.question || q.question_text || '',
           options: Array.isArray(q.options) ? q.options : ['선택지 1', '선택지 2', '선택지 3', '선택지 4'],
-          answer: q.answer || q.correct_answer || '1',
+          wordSegments: Array.isArray(q.wordSegments) ? q.wordSegments : null, // 어절 순서 맞추기용
+          answer: q.answer || q.correct_answer || q.correctAnswer || '1',
           answerInitials: q.answerInitials || q.answer_initials || null, // 초성 힌트 필드 추가
           explanation: q.explanation || ''
         };
+        
+        // 디버깅을 위한 상세 로그 출력
+        console.log(`📋 문단문제 ${index + 1} 원본 데이터:`, {
+          type: q.type,
+          answer: q.answer,
+          correct_answer: q.correct_answer,
+          correctAnswer: q.correctAnswer,
+          wordSegments: q.wordSegments
+        });
+        console.log(`📋 문단문제 ${index + 1} 변환된 safeQ:`, {
+          type: safeQ.type,
+          answer: safeQ.answer,
+          wordSegments: safeQ.wordSegments
+        });
         
         // 문제 유형 검증 - 새로운 4가지 유형으로 업데이트
         const validTypes = ['빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제'];
@@ -203,12 +218,13 @@ export async function POST(request: NextRequest) {
           paragraph_number: Math.max(1, Math.min(10, safeQ.paragraphNumber)),
           paragraph_text: String(safeQ.paragraphText).substring(0, 5000), // 길이 제한
           question_text: String(safeQ.question),
-          option_1: safeQ.type === '주관식 단답형' ? null : String(safeQ.options[0] || '선택지 1'),
-          option_2: safeQ.type === '주관식 단답형' ? null : String(safeQ.options[1] || '선택지 2'),
-          option_3: safeQ.type === '주관식 단답형' ? null : String(safeQ.options[2] || '선택지 3'),
-          option_4: safeQ.type === '주관식 단답형' ? null : String(safeQ.options[3] || '선택지 4'),
-          option_5: safeQ.type === '주관식 단답형' || !safeQ.options[4] ? null : String(safeQ.options[4]),
-          correct_answer: safeQ.type === '주관식 단답형' ? String(safeQ.answer) : String(safeQ.answer).charAt(0), // 주관식은 전체 답안, 객관식은 번호만
+          option_1: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기') ? null : String(safeQ.options[0] || '선택지 1'),
+          option_2: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기') ? null : String(safeQ.options[1] || '선택지 2'),
+          option_3: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기') ? null : String(safeQ.options[2] || '선택지 3'),
+          option_4: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기') ? null : String(safeQ.options[3] || '선택지 4'),
+          option_5: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기' || !safeQ.options[4]) ? null : String(safeQ.options[4]),
+          word_segments: safeQ.type === '어절 순서 맞추기' ? safeQ.wordSegments : null, // 어절 순서 맞추기용 배열
+          correct_answer: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기') ? String(safeQ.answer) : String(safeQ.answer).charAt(0), // 주관식은 전체 답안, 객관식은 번호만
           answer_initials: safeQ.type === '주관식 단답형' ? safeQ.answerInitials : null, // 주관식 단답형인 경우만 초성 힌트
           explanation: String(safeQ.explanation)
         };

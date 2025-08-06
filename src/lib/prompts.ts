@@ -1,4 +1,5 @@
 import { DivisionType, GradeType, SubjectType, AreaType, PassageLengthType, QuestionType, TextType } from '@/types';
+import { DEFAULT_PROMPTS_V2 } from './promptsV2';
 
 // 구분별 프롬프트 (기존 학년)
 const divisionPrompts = {
@@ -876,13 +877,43 @@ ${comprehensiveOutputFormats[questionType as keyof typeof comprehensiveOutputFor
 
 export function getDefaultPrompts() {
   // promptsV2의 DEFAULT_PROMPTS_V2를 반환
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { DEFAULT_PROMPTS_V2 } = require('./promptsV2');
-    return DEFAULT_PROMPTS_V2;
-  } catch (error) {
-    console.error('promptsV2 로드 실패:', error);
+  console.log('🔍 getDefaultPrompts called');
+  
+  // 어절 순서 맞추기 프롬프트를 직접 수정된 버전으로 강제 교체
+  const prompts = [...DEFAULT_PROMPTS_V2];
+  const orderPromptIndex = prompts.findIndex(p => p.promptId === 'paragraph-type-order');
+  
+  if (orderPromptIndex !== -1) {
+    // 기존 프롬프트를 새로운 주관식 버전으로 교체
+    prompts[orderPromptIndex] = {
+      ...prompts[orderPromptIndex],
+      promptText: `어절 순서 맞추기: 문단의 핵심 문장을 어절 단위로 섞어 놓고, 올바른 순서로 배열하는 문제입니다. 문법적으로 자연스럽고 의미가 통하는 순서를 찾도록 합니다.
+
+중요: 
+- 어절들을 개별적으로 배열로 제공하세요
+- 정답은 완전한 문장으로 제공하세요
+
+출력 형식:
+{
+  "type": "어절 순서 맞추기",
+  "question": "다음 어절들을 올바른 순서로 배열하여 문장을 완성하세요.",
+  "wordSegments": ["어절1", "어절2", "어절3", "어절4", "어절5"],
+  "answer": "올바르게 배열된 완전한 문장",
+  "explanation": "정답 해설 (왜 이 순서가 맞는지 설명)"
+}`
+    };
+    console.log('✅ 어절 순서 맞추기 프롬프트를 주관식 버전으로 강제 교체했습니다');
   }
+  
+  const orderPrompt = prompts.find(p => p.promptId === 'paragraph-type-order');
+  console.log('🔍 교체된 어절 순서 맞추기 프롬프트 확인:', {
+    found: !!orderPrompt,
+    promptId: orderPrompt?.promptId,
+    name: orderPrompt?.name,
+    textPreview: orderPrompt?.promptText?.substring(0, 100) + '...'
+  });
+  
+  return prompts;
   
   // 폴백: 기존 하드코딩된 프롬프트 생성
   const defaultPrompts = [];
@@ -1392,6 +1423,12 @@ export function updatePromptCache(category: string, subCategory: string, key: st
   promptCache.set(cacheKey, { text, timestamp: Date.now() });
 }
 
+// 프롬프트 캐시 삭제 함수
+export function clearPromptCache(category: string, subCategory: string, key: string) {
+  const cacheKey = `${category}/${subCategory}/${key}`;
+  promptCache.delete(cacheKey);
+}
+
 // 기본값에서 프롬프트를 찾는 헬퍼 함수
 function getDefaultPromptByKey(category: string, subCategory: string, key: string): string {
   // 기존 하드코딩된 객체들에서 찾기
@@ -1778,7 +1815,9 @@ ${outputPrompt || '출력 형식이 없습니다.'}
 // 특정 프롬프트 ID로 기본 프롬프트 가져오기
 // ============================================================================
 export function getDefaultPromptById(promptId: string): string | null {
+  console.log('getDefaultPromptById called with:', promptId);
   const defaultPrompts = getDefaultPrompts();
   const prompt = defaultPrompts.find(p => p.promptId === promptId);
+  console.log('Found prompt:', prompt);
   return prompt ? prompt.promptText : null;
 }

@@ -731,11 +731,11 @@ export const db = {
           }
           
           // correct_answer 검증 (문제 유형에 따라 다름)
-          if (q.question_type === '주관식 단답형') {
-            // 주관식 단답형의 경우 실제 답안 텍스트가 들어감
+          if (q.question_type === '주관식 단답형' || q.question_type === '어절 순서 맞추기') {
+            // 주관식 단답형 및 어절 순서 맞추기의 경우 실제 답안 텍스트가 들어감
             if (!q.correct_answer || q.correct_answer.trim() === '') {
-              console.warn(`⚠️ 문단문제 ${index + 1} 주관식 답안이 비어있음`);
-              q.correct_answer = '답안';
+              console.warn(`⚠️ 문단문제 ${index + 1} ${q.question_type} 답안이 비어있음`);
+              q.correct_answer = q.question_type === '어절 순서 맞추기' ? '올바른 문장' : '답안';
             }
           } else {
             // 객관식의 경우 1-5 범위
