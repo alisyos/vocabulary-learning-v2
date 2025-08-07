@@ -811,6 +811,9 @@ ${contentSet.mainTopic || contentSet.maintopic || 'N/A'} > ${contentSet.subTopic
 핵심개념어
 ${contentSet.keywords || contentSet.keyword || 'N/A'}
 
+지문 유형
+${contentSet.text_type || contentSet.textType || 'N/A'}
+
 지문
 ${editablePassage.title || '제목 없음'}
 ${editablePassage.paragraphs
