@@ -786,6 +786,53 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     URL.revokeObjectURL(url);
   };
 
+  // TXT 다운로드 함수
+  const handleTxtDownload = () => {
+    if (!data) return;
+
+    const { contentSet } = data.data;
+    
+    // TXT 내용 생성
+    const txtContent = `콘텐츠 세트 ID
+${String(contentSet.setId || contentSet.id || 'N/A')}
+
+과목
+${contentSet.subject || 'N/A'}
+
+학년
+${contentSet.grade || 'N/A'}
+
+영역
+${contentSet.area || 'N/A'}
+
+주제
+${contentSet.mainTopic || contentSet.maintopic || 'N/A'} > ${contentSet.subTopic || contentSet.subtopic || 'N/A'}
+
+핵심개념어
+${contentSet.keywords || contentSet.keyword || 'N/A'}
+
+지문
+${editablePassage.title || '제목 없음'}
+${editablePassage.paragraphs
+  .map((paragraph, index) => {
+    if (!paragraph.trim()) return '';
+    return paragraph.trim();
+  })
+  .filter(p => p)
+  .join(' ')}`;
+
+    // TXT 파일 다운로드
+    const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${String(contentSet.setId || contentSet.id || 'content')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // HTML ver.2 다운로드 함수 (탭 형식)
   const handleHtmlDownloadV2 = () => {
     if (!data) return;
@@ -1983,25 +2030,28 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
             <div className="flex items-center space-x-3">
               <button
                 onClick={handleHtmlDownload}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
               >
-                <span>📄</span>
-                <span>HTML ver.1</span>
+                html v1
               </button>
               <button
                 onClick={handleHtmlDownloadV2}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
               >
-                <span>📄</span>
-                <span>HTML ver.2</span>
+                html v2
+              </button>
+              <button
+                onClick={handleTxtDownload}
+                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+              >
+                txt
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                <span>💾</span>
-                <span>{saving ? '저장 중...' : '수정사항 저장'}</span>
+                {saving ? '저장 중...' : '수정 저장'}
               </button>
             </div>
           </div>

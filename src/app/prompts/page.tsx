@@ -22,6 +22,7 @@ export default function PromptsPage() {
   const [showFullPrompt, setShowFullPrompt] = useState(false);
   const [fullPromptContent, setFullPromptContent] = useState('');
   const [fullPromptLoading, setFullPromptLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // 프롬프트 데이터 로드
   const loadPrompts = async () => {
@@ -164,6 +165,50 @@ export default function PromptsPage() {
   // 수정 취소
   const cancelEditing = () => {
     setEditing(null);
+  };
+
+  // 프롬프트 전체 다운로드 함수
+  const downloadAllPrompts = async () => {
+    try {
+      setDownloading(true);
+      
+      const response = await fetch('/api/prompts/download');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '다운로드에 실패했습니다.');
+      }
+      
+      // 파일 다운로드
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Content-Disposition 헤더에서 파일명 추출 시도
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'system_prompts_v3.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setError(null);
+      
+    } catch (err) {
+      console.error('프롬프트 다운로드 실패:', err);
+      setError(err instanceof Error ? err.message : '프롬프트 다운로드에 실패했습니다.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   // 전체 시스템 프롬프트 생성 및 표시
@@ -341,6 +386,24 @@ export default function PromptsPage() {
 
         {isInitialized && promptGroups.length > 0 && (
           <div className="space-y-6">
+            {/* 프롬프트 전체 다운로드 버튼 */}
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold text-gray-900">시스템 프롬프트 관리</h1>
+              <button
+                onClick={downloadAllPrompts}
+                disabled={downloading}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {downloading && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                )}
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                {downloading ? '다운로드 중...' : '프롬프트 전체 다운로드'}
+              </button>
+            </div>
+
             {/* 탭 네비게이션 */}
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">

@@ -119,6 +119,15 @@ export default function ParagraphQuestions({
     onUpdate(updatedQuestions);
   };
 
+  // 문제 삭제
+  const handleQuestionDelete = (questionId: string) => {
+    if (confirm('이 문제를 삭제하시겠습니까?')) {
+      const updatedQuestions = localQuestions.filter(q => q.id !== questionId);
+      setLocalQuestions(updatedQuestions);
+      onUpdate(updatedQuestions);
+    }
+  };
+
   // 문제 유형별 설명
   const getQuestionTypeDescription = (type: ParagraphQuestionType) => {
     switch (type) {
@@ -338,6 +347,14 @@ export default function ParagraphQuestions({
                   <h4 className="text-md font-medium text-gray-800">문제 {qIndex + 1} - {question.type}</h4>
                   <p className="text-sm text-gray-600">문단 {question.paragraphNumber}</p>
                 </div>
+                <button
+                  onClick={() => handleQuestionDelete(question.id)}
+                  className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded-md text-sm font-medium transition-colors flex items-center space-x-1"
+                  title="문제 삭제"
+                >
+                  <span>🗑️</span>
+                  <span>삭제</span>
+                </button>
               </div>
 
               {/* 해당 문단 내용 */}

@@ -547,11 +547,28 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           >
             <option value="">유형을 선택해주세요 (선택사항)</option>
-            {textTypeOptions.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
+            {textTypeOptions.map((type) => {
+              const getDisplayText = (type: string) => {
+                switch (type) {
+                  case '생활문': return '생활문(3학년 한정)';
+                  case '편지글': return '편지글(3학년 한정)';
+                  case '기행문': return '기행문';
+                  case '논설문': return '논설문';
+                  case '설명문': return '설명문';
+                  case '기사문': return '기사문';
+                  case '과학탐구보고서': return '과학탐구보고서(과학 한정)';
+                  case '실험보고서': return '실험보고서(과학 한정)';
+                  case '사회현상보고서': return '사회현상보고서(사회 한정)';
+                  default: return type;
+                }
+              };
+              
+              return (
+                <option key={type} value={type}>
+                  {getDisplayText(type)}
+                </option>
+              );
+            })}
           </select>
         </div>
 

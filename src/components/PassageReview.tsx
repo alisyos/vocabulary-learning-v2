@@ -135,7 +135,7 @@ export default function PassageReview({
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium text-gray-700">
-            본문 ({localPassage.paragraphs.length}개 단락)
+            본문 ({localPassage.paragraphs.length}개 단락) (총 {localPassage.paragraphs.join('').length}자)
           </label>
           <button
             onClick={addParagraph}
