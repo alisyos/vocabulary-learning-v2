@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generatePassage } from '@/lib/openai';
+import { generatePassage, ModelType } from '@/lib/openai';
 import { generatePassagePrompt } from '@/lib/prompts';
 import { PassageInput, AreaType } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
-    const body: PassageInput = await request.json();
+    const body: PassageInput & { model?: ModelType } = await request.json();
+    const model = body.model || 'gpt-4.1'; // 기본값 gpt-4.1
     
     // 입력값 검증
     if (!body.division || !body.length || !body.subject || !body.grade || !body.area || !body.maintopic || !body.subtopic || !body.keyword) {
@@ -30,17 +31,19 @@ export async function POST(request: NextRequest) {
     );
 
     console.log('Generated prompt:', prompt);
+    console.log(`🎯 선택된 모델: ${model}`);
 
-    // GPT API 호출
-    const result = await generatePassage(prompt);
+    // GPT API 호출 (모델 파라미터 포함)
+    const result = await generatePassage(prompt, model);
 
     console.log('GPT response:', result);
 
-    // 결과에 사용된 프롬프트도 함께 반환
+    // 결과에 사용된 프롬프트와 모델 정보도 함께 반환
     return NextResponse.json({
       ...result,
       _metadata: {
         usedPrompt: prompt,
+        usedModel: model,
         generatedAt: new Date().toISOString()
       }
     });

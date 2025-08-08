@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateQuestion } from '@/lib/openai';
+import { generateQuestion, ModelType } from '@/lib/openai';
 import { generateComprehensivePrompt } from '@/lib/prompts';
 import { ComprehensiveQuestion, ComprehensiveQuestionType } from '@/types';
 
@@ -9,6 +9,7 @@ interface ComprehensiveGenerationRequest {
   questionType: ComprehensiveQuestionType; // 문제 유형
   questionCount?: number; // 생성할 문제 개수 (기본값: 12)
   includeSupplementary?: boolean; // 보완 문제 포함 여부
+  model?: ModelType; // GPT 모델 선택
 }
 
 interface GeneratedQuestionSet {
@@ -99,8 +100,9 @@ export async function POST(request: NextRequest) {
 
         console.log(`Generating ${count} ${currentType} questions`);
 
-        // GPT API 호출
-        const result = await generateQuestion(prompt);
+        // GPT API 호출 (모델 파라미터 포함)
+        const model = body.model || 'gpt-4.1';
+        const result = await generateQuestion(prompt, model);
         console.log(`API Response for ${currentType}:`, JSON.stringify(result, null, 2));
 
         // 결과 파싱 및 ComprehensiveQuestion 형태로 변환
@@ -192,6 +194,7 @@ export async function POST(request: NextRequest) {
     if (body.includeSupplementary) {
       console.log('Generating supplementary questions...');
       const supplementaryQuestions: ComprehensiveQuestion[] = [];
+      const supplementaryModel = body.model || 'gpt-4.1'; // 보완 문제용 모델 설정
       
       // 각 기본 문제당 2개의 보완 문제 생성
       for (const originalQuestion of comprehensiveQuestions) {
@@ -249,8 +252,9 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
 - 원본 문제와 중복되지 않는 새로운 관점의 문제를 생성하십시오`;
             
             console.log(`✅ Using enhanced supplementary prompt for question ${supIndex}`);
+            console.log(`🔧 보완 문제 생성 - 모델: ${supplementaryModel}`);
 
-            const supplementaryResult = await generateQuestion(supplementaryPrompt);
+            const supplementaryResult = await generateQuestion(supplementaryPrompt, supplementaryModel);
             
             // 보완 문제 결과 파싱
             let supplementaryQuestion = null;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateQuestion } from '@/lib/openai';
+import { generateQuestion, ModelType } from '@/lib/openai';
 import { generateVocabularyPrompt } from '@/lib/prompts';
 import { VocabularyQuestion } from '@/types';
 
@@ -7,6 +7,7 @@ interface VocabularyGenerationRequest {
   terms: string[];  // 용어 목록 (footnote에서 추출)
   passage: string;  // 지문 내용 (맥락 제공용)
   division: string; // 구분 (난이도 조절용)
+  model?: ModelType; // GPT 모델 선택
 }
 
 interface GeneratedQuestionData {
@@ -66,8 +67,9 @@ export async function POST(request: NextRequest) {
           lastUsedPrompt = prompt;
         }
 
-        // GPT API 호출
-        const result = await generateQuestion(prompt);
+        // GPT API 호출 (모델 파라미터 포함)
+        const model = body.model || 'gpt-4.1';
+        const result = await generateQuestion(prompt, model);
 
         console.log(`🤖 GPT API response for term "${termName}":`, {
           resultType: typeof result,

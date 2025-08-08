@@ -69,6 +69,9 @@ export default function ComprehensiveQuestions({
     setGeneratingComp(true);
     
     try {
+      // 로컬 스토리지에서 선택된 모델 가져오기
+      const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
+      
       const response = await fetch('/api/generate-comprehensive', {
         method: 'POST',
         headers: {
@@ -79,7 +82,8 @@ export default function ComprehensiveQuestions({
           division: division,
           questionType: selectedQuestionType,
           questionCount: questionCount,
-          includeSupplementary: includeSupplementary
+          includeSupplementary: includeSupplementary,
+          model: selectedModel
         }),
       });
 

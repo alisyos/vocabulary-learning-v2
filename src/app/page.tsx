@@ -55,7 +55,7 @@ export default function Home() {
   }>({});
 
   // 1단계: 지문 생성
-  const handlePassageGeneration = async (input: PassageInput) => {
+  const handlePassageGeneration = async (input: PassageInput & { model?: any }) => {
     setWorkflowData(prev => ({ ...prev, loading: true, input }));
 
     try {

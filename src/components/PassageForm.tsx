@@ -2,14 +2,24 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { PassageInput, DivisionType, SubjectType, AreaType, PassageLengthType, TextType, FieldData, CurriculumData } from '@/types';
+import { ModelType } from '@/lib/openai';
 
 interface PassageFormProps {
-  onSubmit: (input: PassageInput) => void;
+  onSubmit: (input: PassageInput & { model: ModelType }) => void;
   loading: boolean;
   initialData?: PassageInput;
 }
 
 export default function PassageForm({ onSubmit, loading, initialData }: PassageFormProps) {
+  const [selectedModel, setSelectedModel] = useState<ModelType>(() => {
+    // 로컬 스토리지에서 저장된 모델 불러오기
+    if (typeof window !== 'undefined') {
+      const savedModel = localStorage.getItem('selectedGPTModel');
+      return (savedModel as ModelType) || 'gpt-4.1';
+    }
+    return 'gpt-4.1';
+  });
+  
   const [formData, setFormData] = useState<PassageInput>(() => {
     const defaultData = {
       division: '초등학교 중학년(3-4학년)' as DivisionType,
@@ -280,7 +290,15 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
       return;
     }
     
-    onSubmit(formData);
+    onSubmit({ ...formData, model: selectedModel });
+  };
+  
+  // 모델 변경 시 로컬 스토리지에 저장
+  const handleModelChange = (model: ModelType) => {
+    setSelectedModel(model);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedGPTModel', model);
+    }
   };
 
   const handleDivisionChange = (division: DivisionType) => {
@@ -346,8 +364,9 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <h2 className="text-xl font-bold text-gray-800">학습 지문 생성</h2>
+        {/* 연결 상태 */}
         <div className="flex items-center space-x-2" title={fieldDataError || "Supabase 연결 상태"}>
           {connectionStatus.icon}
           <span className={`text-xs font-medium ${connectionStatus.color}`}>
@@ -364,6 +383,24 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
               재시도
             </button>
           )}
+        </div>
+      </div>
+      
+      {/* AI 모델 선택 - 제목 바로 아래 */}
+      <div className="mb-4 pb-4 border-b border-gray-200">
+        <div className="flex items-center space-x-3">
+          <label className="text-sm font-medium text-gray-700">AI 모델:</label>
+          <select
+            value={selectedModel}
+            onChange={(e) => handleModelChange(e.target.value as ModelType)}
+            className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="gpt-4.1">GPT-4.1</option>
+            <option value="gpt-5">GPT-5 🆕</option>
+          </select>
+          <span className="text-xs text-gray-500">
+            모든 콘텐츠 생성에 사용
+          </span>
         </div>
       </div>
        

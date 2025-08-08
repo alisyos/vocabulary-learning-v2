@@ -111,6 +111,9 @@ export default function VocabularyQuestions({
     setGeneratingVocab(true);
     
     try {
+      // 로컬 스토리지에서 선택된 모델 가져오기
+      const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
+      
       const response = await fetch('/api/generate-vocabulary', {
         method: 'POST',
         headers: {
@@ -119,7 +122,8 @@ export default function VocabularyQuestions({
         body: JSON.stringify({
           terms: selectedTermsList,
           passage: `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`,
-          division: division
+          division: division,
+          model: selectedModel
         }),
       });
 

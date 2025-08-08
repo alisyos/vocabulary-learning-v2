@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateQuestion } from '@/lib/openai';
+import { generateQuestion, ModelType } from '@/lib/openai';
 import { ParagraphQuestionWorkflow, ParagraphQuestionType } from '@/types';
 import { db } from '@/lib/supabase';
 import { getDivisionKey, getDivisionSubCategory } from '@/lib/prompts';
@@ -10,6 +10,7 @@ interface ParagraphGenerationRequest {
   questionType: ParagraphQuestionType;  // 문제 유형
   division: string; // 구분 (난이도 조절용)
   title: string;    // 지문 제목 (맥락 제공용)
+  model?: ModelType; // GPT 모델 선택
 }
 
 interface GeneratedParagraphQuestionData {
@@ -72,7 +73,9 @@ export async function POST(request: NextRequest) {
               paragraphNumber,
               questionType,
               body.division,
-              body.title
+              body.title,
+              1,
+              body.model || 'gpt-4.1'
             );
             
             // 첫 번째 문제의 프롬프트를 저장 (대표 프롬프트로 사용)
@@ -102,7 +105,8 @@ export async function POST(request: NextRequest) {
               body.questionType as Exclude<ParagraphQuestionType, 'Random'>,
               body.division,
               body.title,
-              questionIndex
+              questionIndex,
+              body.model || 'gpt-4.1'
             );
             
             // 첫 번째 문단의 첫 번째 문제의 프롬프트를 저장
@@ -166,7 +170,8 @@ async function generateSingleParagraphQuestion(
   questionType: Exclude<ParagraphQuestionType, 'Random'>,
   division: string,
   title: string,
-  questionIndex: number = 1
+  questionIndex: number = 1,
+  model: ModelType = 'gpt-4.1'
 ): Promise<{ question: ParagraphQuestionWorkflow | null; usedPrompt: string }> {
   try {
     const prompt = await generateParagraphPrompt(
@@ -179,8 +184,8 @@ async function generateSingleParagraphQuestion(
 
     console.log(`Generating ${questionType} question for paragraph ${paragraphNumber}`);
 
-    // GPT API 호출
-    const result = await generateQuestion(prompt);
+    // GPT API 호출 (모델 파라미터 포함)
+    const result = await generateQuestion(prompt, model);
 
     // 결과 파싱 및 ParagraphQuestionWorkflow 형태로 변환
     if (result && typeof result === 'object' && 'question' in result) {

@@ -64,6 +64,9 @@ export default function ParagraphQuestions({
     setGeneratingParagraph(true);
 
     try {
+      // 로컬 스토리지에서 선택된 모델 가져오기
+      const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
+      
       const response = await fetch('/api/generate-paragraph', {
         method: 'POST',
         headers: {
@@ -74,7 +77,8 @@ export default function ParagraphQuestions({
           selectedParagraphs: selectedParagraphs.map(p => parseInt(p)),
           questionType: selectedQuestionType,
           division,
-          title: editablePassage.title
+          title: editablePassage.title,
+          model: selectedModel
         }),
       });
 
