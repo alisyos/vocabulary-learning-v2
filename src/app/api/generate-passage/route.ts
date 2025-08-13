@@ -8,6 +8,10 @@ export async function POST(request: NextRequest) {
     const body: PassageInput & { model?: ModelType } = await request.json();
     const model = body.model || 'gpt-4.1'; // 기본값 gpt-4.1
     
+    console.log('📝 Received body:', JSON.stringify(body, null, 2));
+    console.log('🎨 textType value:', body.textType);
+    console.log('🎨 textType type:', typeof body.textType);
+    
     // 입력값 검증
     if (!body.division || !body.length || !body.subject || !body.grade || !body.area || !body.maintopic || !body.subtopic || !body.keyword) {
       return NextResponse.json(

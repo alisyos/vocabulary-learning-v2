@@ -224,7 +224,7 @@ export default function PromptsPage() {
         const { generatePassagePromptFromDB } = await import('@/lib/prompts');
         promptContent = await generatePassagePromptFromDB(
           '초등학교 중학년(3-4학년)', // 예시 값
-          '4-5문장으로 구성한 5-6개 단락', // 예시 값
+          '2개의 지문 생성. 지문당 300자 내외 - 총 600자', // 예시 값
           '사회', // 예시 값
           '3학년', // 예시 값
           '일반사회', // 예시 값

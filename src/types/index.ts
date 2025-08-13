@@ -17,11 +17,9 @@ export type AreaType =
 
 // 지문 길이 타입
 export type PassageLengthType = 
-  | '4-5문장으로 구성한 5-6개 단락'
-  | '5-6문장으로 구성한 6개 단락'
-  | '1-2문장으로 구성한 10개 단락'
-  | '10문장 이하로 구성한 5개 단락'
-  | '1-2문장으로 구성한 12개 단락';
+  | '2개의 지문 생성. 지문당 300자 내외 - 총 600자'
+  | '2개의 지문 생성. 지문당 400자 내외 - 총 800자'
+  | '2개의 지문 생성. 지문당 500자 내외 - 총 1,000자';
 
 // 지문 유형 타입
 export type TextType = 
@@ -110,11 +108,17 @@ export type WorkflowStep =
   | 'comprehensive-review'  // 8. 종합 문제 검토&수정
   | 'final-save';          // 9. 저장
 
-// 편집 가능한 지문 (사용자가 수정 가능)
+// 편집 가능한 지문 (사용자가 수정 가능) - 2개 지문 지원
 export interface EditablePassage {
   title: string;
   paragraphs: string[];
   footnote: string[];
+  // 2개 지문 지원 필드 (새 형식)
+  passages?: {
+    title: string;
+    paragraphs: string[];
+    footnote: string[];
+  }[];
 }
 
 // 어휘 문제 (각 용어당 1개씩) - 워크플로우용

@@ -23,14 +23,14 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
   const [formData, setFormData] = useState<PassageInput>(() => {
     const defaultData = {
       division: '초등학교 중학년(3-4학년)' as DivisionType,
-      length: '4-5문장으로 구성한 5-6개 단락' as PassageLengthType,
+      length: '2개의 지문 생성. 지문당 300자 내외 - 총 600자' as PassageLengthType,
       subject: '사회' as SubjectType,
       grade: '',
       area: '',
       maintopic: '',
       subtopic: '',
       keyword: '',
-      textType: undefined,
+      textType: '설명문' as TextType,
     };
     
     if (initialData && initialData.division) {
@@ -54,15 +54,9 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
   });
 
   const lengthOptions: { [key in DivisionType]: PassageLengthType[] } = {
-    '초등학교 중학년(3-4학년)': ['4-5문장으로 구성한 5-6개 단락'],
-    '초등학교 고학년(5-6학년)': [
-      '5-6문장으로 구성한 6개 단락',
-      '1-2문장으로 구성한 10개 단락',
-    ],
-    '중학생(1-3학년)': [
-      '10문장 이하로 구성한 5개 단락',
-      '1-2문장으로 구성한 12개 단락',
-    ],
+    '초등학교 중학년(3-4학년)': ['2개의 지문 생성. 지문당 300자 내외 - 총 600자'],
+    '초등학교 고학년(5-6학년)': ['2개의 지문 생성. 지문당 400자 내외 - 총 800자'],
+    '중학생(1-3학년)': ['2개의 지문 생성. 지문당 500자 내외 - 총 1,000자'],
   };
 
   const textTypeOptions: TextType[] = [
@@ -75,17 +69,23 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
     if (initialData && initialData.division) {
       const defaultData = {
         division: '초등학교 중학년(3-4학년)' as DivisionType,
-        length: '4-5문장으로 구성한 5-6개 단락' as PassageLengthType,
+        length: '2개의 지문 생성. 지문당 300자 내외 - 총 600자' as PassageLengthType,
         subject: '사회' as SubjectType,
         grade: '',
         area: '',
         maintopic: '',
         subtopic: '',
         keyword: '',
-        textType: undefined,
+        textType: '설명문' as TextType,
       };
       
-      setFormData({ ...defaultData, ...initialData });
+      // textType이 undefined인 경우 기본값 유지
+      const mergedData = { ...defaultData, ...initialData };
+      if (initialData.textType === undefined) {
+        mergedData.textType = '설명문' as TextType;
+      }
+      
+      setFormData(mergedData);
     }
   }, [initialData]);
 
@@ -579,11 +579,10 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
             유형 (선택사항)
           </label>
           <select
-            value={formData.textType || ''}
-            onChange={(e) => setFormData({ ...formData, textType: e.target.value as TextType || undefined })}
+            value={formData.textType || '설명문'}
+            onChange={(e) => setFormData({ ...formData, textType: e.target.value as TextType })}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           >
-            <option value="">유형을 선택해주세요 (선택사항)</option>
             {textTypeOptions.map((type) => {
               const getDisplayText = (type: string) => {
                 switch (type) {

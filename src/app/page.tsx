@@ -24,14 +24,14 @@ import {
 // 기본 입력값 상수
 const DEFAULT_INPUT: PassageInput = {
   division: '초등학교 중학년(3-4학년)',
-  length: '4-5문장으로 구성한 5-6개 단락',
+  length: '2개의 지문 생성. 지문당 300자 내외 - 총 600자',
   subject: '사회',
   grade: '',
   area: '',
   maintopic: '',
   subtopic: '',
   keyword: '',
-  textType: undefined,
+  textType: '설명문',
 };
 
 export default function Home() {
@@ -82,11 +82,59 @@ export default function Home() {
       }
       
       // 생성된 지문을 편집 가능한 형태로 변환
-      const editablePassage: EditablePassage = {
-        title: result.passages[0]?.title || '',
-        paragraphs: result.passages[0]?.paragraphs || [],
-        footnote: result.passages[0]?.footnote || []
-      };
+      console.log('🔍 GPT 응답 변환 시작:', result);
+      console.log('📊 result.passages 길이:', result.passages?.length);
+      console.log('📝 GPT 응답 전체 구조:', JSON.stringify(result, null, 2));
+      
+      const editablePassage: EditablePassage = (() => {
+        // GPT 응답 형식 감지 및 정규화
+        if (result.passages && result.passages.length === 2) {
+          console.log('✅ 2개 지문 형식으로 변환');
+          
+          // GPT 응답의 실제 구조에 맞게 변환
+          const convertedPassages = result.passages.map((passage: any, index: number) => {
+            console.log(`📋 지문 ${index + 1} 변환 중:`, passage);
+            
+            // 각 지문에서 제목과 용어를 직접 추출
+            const title = passage.title || `지문 ${index + 1}`;
+            const paragraphs = passage.content ? [passage.content] : (passage.paragraphs || []);
+            const footnote = passage.footnote || [];
+            
+            console.log(`✅ 변환 결과 - 제목: "${title}", 단락: ${paragraphs.length}개, 용어: ${footnote.length}개`);
+            
+            return {
+              title,
+              paragraphs,
+              footnote
+            };
+          });
+          
+          const converted = {
+            title: '', // 2개 지문 형식에서는 개별 제목 사용
+            paragraphs: [], // 2개 지문 형식에서는 개별 단락 사용
+            footnote: [], // 2개 지문 형식에서는 개별 용어 사용
+            passages: convertedPassages
+          };
+          console.log('🎯 변환된 editablePassage:', converted);
+          return converted;
+        } else if (result.passages && result.passages.length === 1) {
+          // 단일 지문 형식: 기존 구조 사용 (하위 호환성)
+          console.log('⚠️ 단일 지문 형식으로 변환');
+          return {
+            title: result.passages[0]?.title || result.title || '',
+            paragraphs: result.passages[0]?.content ? [result.passages[0].content] : (result.passages[0]?.paragraphs || []),
+            footnote: result.passages[0]?.footnote || result.footnote || []
+          };
+        } else {
+          // 예외 처리: 빈 구조 반환
+          console.log('❌ 예외 처리: 빈 구조 반환');
+          return {
+            title: '',
+            paragraphs: [],
+            footnote: []
+          };
+        }
+      })();
 
       setWorkflowData(prev => ({
         ...prev,

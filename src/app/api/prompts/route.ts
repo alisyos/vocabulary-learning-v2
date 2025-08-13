@@ -55,7 +55,8 @@ export async function GET(request: NextRequest) {
     const subCategoryNames: { [key: string]: string } = {
       // 지문 생성
       'system': '전체 시스템 프롬프트',
-      'length': '지문 길이별 프롬프트',
+      'lengthGuideline': '지문 길이별 프롬프트',
+      'length': '지문 길이별 프롬프트 (구버전)',
       'textType': '유형별 프롬프트',
       // 어휘 문제 생성
       'vocabularySystem': '전체 시스템 프롬프트',
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
 
       // 서브카테고리 배열로 변환 (순서 유지)
       const subCategoryOrder: Record<string, string[]> = {
-        'passage': ['system', 'length', 'textType'],
+        'passage': ['system', 'lengthGuideline', 'textType'],
         'vocabulary': ['vocabularySystem'],
         'paragraph': ['paragraphSystem', 'paragraphType'],
         'comprehensive': ['comprehensiveSystem', 'comprehensiveType'],
