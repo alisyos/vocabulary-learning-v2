@@ -155,12 +155,11 @@ export interface ParagraphQuestionWorkflow {
 
 // 종합 문제 유형
 export type ComprehensiveQuestionType = 
-  | 'Random'                    // 랜덤 (5가지 유형)
-  | '단답형'                    // 주관식 단답형
-  | '핵심 내용 요약'            // 객관식 핵심 내용 요약
-  | '핵심문장 찾기'             // 객관식 핵심문장 찾기
-  | 'OX문제'                   // 객관식 OX문제
-  | '자료분석하기';             // 객관식 자료분석하기
+  | 'Random'                    // 랜덤 (4가지 유형)
+  | '정보 확인'                 // 지문의 세부 정보 확인
+  | '주제 파악'                 // 글의 중심 주제 파악
+  | '자료해석'                  // 도표, 그래프, 자료 해석
+  | '추론';                     // 내용 추론 및 적용
 
 // 종합 문제 개별 문제 (워크플로우용)
 export interface ComprehensiveQuestionWorkflow {

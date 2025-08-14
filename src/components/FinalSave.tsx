@@ -85,11 +85,15 @@ export default function FinalSave({
     data?: any;
   } | null>(null);
 
-  // 데이터 요약 계산 (안전한 처리)
+  // 데이터 요약 계산 (2개 지문 형식 지원)
   const summary = {
-    passageTitle: editablePassage?.title || '',
-    paragraphCount: editablePassage?.paragraphs?.length || 0,
-    footnoteCount: editablePassage?.footnote?.length || 0,
+    passageTitle: editablePassage?.passages?.[0]?.title || editablePassage?.title || '',
+    paragraphCount: editablePassage?.passages?.length > 0 
+      ? editablePassage.passages.reduce((total, p) => total + (p.paragraphs?.length || 0), 0)
+      : (editablePassage?.paragraphs?.length || 0),
+    footnoteCount: editablePassage?.passages?.length > 0
+      ? editablePassage.passages.reduce((total, p) => total + (p.footnote?.length || 0), 0)
+      : (editablePassage?.footnote?.length || 0),
     vocabularyCount: vocabularyQuestions?.length || 0,
     paragraphQuestionCount: paragraphQuestions?.length || 0,
     comprehensiveCount: comprehensiveQuestions?.length || 0,

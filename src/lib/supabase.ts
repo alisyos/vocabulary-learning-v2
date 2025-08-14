@@ -769,9 +769,42 @@ export const db = {
       
       if (comprehensiveQuestionsWithId.length > 0) {
         console.log('🧠 ComprehensiveQuestions 삽입 시작:', comprehensiveQuestionsWithId.length, '개');
-        const { error: compError } = await supabase.from('comprehensive_questions').insert(comprehensiveQuestionsWithId)
+        
+        // 새로운 4가지 유형을 기존 제약조건에 맞는 값으로 매핑
+        const mappedQuestions = comprehensiveQuestionsWithId.map(q => {
+          let mappedQuestionType = q.question_type;
+          
+          // 새로운 4가지 유형을 기존 제약조건 허용 값으로 매핑
+          switch (q.question_type) {
+            case '정보 확인':
+              mappedQuestionType = '단답형';
+              break;
+            case '주제 파악':
+              mappedQuestionType = '핵심 내용 요약';
+              break;
+            case '자료해석':
+              mappedQuestionType = '자료분석하기';
+              break;
+            case '추론':
+              mappedQuestionType = 'OX문제';
+              break;
+            default:
+              // 이미 기존 유형인 경우 그대로 유지
+              mappedQuestionType = q.question_type;
+          }
+          
+          console.log(`📝 질문 유형 매핑: "${q.question_type}" -> "${mappedQuestionType}"`);
+          
+          return {
+            ...q,
+            question_type: mappedQuestionType
+          };
+        });
+        
+        const { error: compError } = await supabase.from('comprehensive_questions').insert(mappedQuestions)
         if (compError) {
           console.error('❌ ComprehensiveQuestions 삽입 오류:', compError);
+          console.error('❌ 삽입 시도 데이터:', JSON.stringify(mappedQuestions, null, 2));
           throw compError;
         }
         results.push('comprehensive_questions')

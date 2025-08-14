@@ -42,7 +42,7 @@ export default function ComprehensiveQuestions({
   const [selectedQuestionType, setSelectedQuestionType] = useState<ComprehensiveQuestionType>('Random');
   const [generatingComp, setGeneratingComp] = useState(false);
   const [includeSupplementary, setIncludeSupplementary] = useState(true);
-  const [questionCount, setQuestionCount] = useState<number>(5);
+  const [questionCount, setQuestionCount] = useState<number>(4);
 
   // props가 변경될 때 localQuestions 업데이트
   useEffect(() => {
@@ -55,14 +55,13 @@ export default function ComprehensiveQuestions({
 
   const questionTypeOptions: ComprehensiveQuestionType[] = [
     'Random',
-    '단답형',
-    '핵심 내용 요약',
-    '핵심문장 찾기',
-    'OX문제',
-    '자료분석하기'
+    '정보 확인',
+    '주제 파악',
+    '자료해석',
+    '추론'
   ];
 
-  const questionCountOptions = [5, 10, 15];
+  const questionCountOptions = [4, 8, 12];
 
   // 종합 문제 생성
   const handleGenerateComprehensive = async () => {
@@ -72,13 +71,29 @@ export default function ComprehensiveQuestions({
       // 로컬 스토리지에서 선택된 모델 가져오기
       const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
       
+      // 2개 지문 형식과 단일 지문 형식 모두 처리
+      let passageText = '';
+      if (editablePassage.passages && editablePassage.passages.length > 0) {
+        // 2개 지문 형식: 모든 지문 통합
+        editablePassage.passages.forEach((passage, index) => {
+          passageText += `${passage.title}\n\n`;
+          passageText += passage.paragraphs.join('\n\n');
+          if (index < editablePassage.passages.length - 1) {
+            passageText += '\n\n---\n\n'; // 지문 구분선
+          }
+        });
+      } else {
+        // 단일 지문 형식
+        passageText = `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`;
+      }
+      
       const response = await fetch('/api/generate-comprehensive', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          passage: `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`,
+          passage: passageText,
           division: division,
           questionType: selectedQuestionType,
           questionCount: questionCount,
@@ -130,9 +145,10 @@ export default function ComprehensiveQuestions({
   const addQuestion = () => {
     const newQuestion: ComprehensiveQuestion = {
       id: `comp_new_${Date.now()}`,
-      type: '단답형',
+      type: '정보 확인',
       question: '질문을 입력하세요',
-      answer: '정답을 입력하세요',
+      options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
+      answer: '선택지 1',
       explanation: '해설을 입력하세요'
     };
     
@@ -230,7 +246,7 @@ export default function ComprehensiveQuestions({
               <div className="mt-3 text-sm text-gray-600">
                 <p><strong>선택된 유형:</strong> {selectedQuestionType}</p>
                 {selectedQuestionType === 'Random' ? (
-                  <p>• 5가지 유형을 {questionCount / 5}개씩 총 {questionCount}개 문제가 생성됩니다.</p>
+                  <p>• 4가지 유형을 각 {questionCount / 4}개씩 총 {questionCount}개 문제가 생성됩니다.</p>
                 ) : (
                   <p>• {selectedQuestionType} 유형으로 {questionCount}개 문제가 생성됩니다.</p>
                 )}
@@ -381,8 +397,8 @@ export default function ComprehensiveQuestions({
         {/* 문제 유형별 분류 표시 */}
         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
           <h4 className="text-sm font-medium text-gray-700 mb-2">문제 유형별 분포</h4>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs mb-3">
-            {['단답형', '핵심 내용 요약', '핵심문장 찾기', 'OX문제', '자료분석하기'].map(type => {
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-3">
+            {['정보 확인', '주제 파악', '자료해석', '추론'].map(type => {
               const count = localQuestions.filter(q => q.type === type).length;
               const supplementaryCount = localQuestions.filter(q => q.type === type && q.isSupplementary).length;
               const mainCount = count - supplementaryCount;
@@ -508,11 +524,10 @@ export default function ComprehensiveQuestions({
                   }}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
                 >
-                  <option value="단답형">단답형</option>
-                  <option value="핵심 내용 요약">핵심 내용 요약</option>
-                  <option value="핵심문장 찾기">핵심문장 찾기</option>
-                  <option value="OX문제">OX문제</option>
-                  <option value="자료분석하기">자료분석하기</option>
+                  <option value="정보 확인">정보 확인</option>
+                  <option value="주제 파악">주제 파악</option>
+                  <option value="자료해석">자료해석</option>
+                  <option value="추론">추론</option>
                 </select>
               </div>
 
@@ -534,9 +549,8 @@ export default function ComprehensiveQuestions({
                 />
               </div>
 
-              {/* 선택지 (단답형이 아닌 경우) */}
-              {question.type !== '단답형' && (
-                <div className="mb-3">
+              {/* 선택지 (새로운 유형들은 모두 객관식) */}
+              <div className="mb-3">
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-sm font-medium text-gray-700">
                       선택지
@@ -602,63 +616,28 @@ export default function ComprehensiveQuestions({
                     )}
                   </div>
                 </div>
-              )}
 
               {/* 정답 */}
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   정답
                 </label>
-                {question.type === '단답형' ? (
-                  <>
-                    <input
-                      type="text"
-                      value={question.answer}
-                      onChange={(e) => {
-                        const actualIndex = localQuestions.findIndex(q => q.id === question.id);
-                        if (actualIndex !== -1) {
-                          handleQuestionUpdate(actualIndex, 'answer', e.target.value);
-                        }
-                      }}
-                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                      placeholder="정답을 입력하세요"
-                    />
-                    <div className="mt-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        초성 힌트
-                      </label>
-                      <input
-                        type="text"
-                        value={question.answerInitials || ''}
-                        onChange={(e) => {
-                          const actualIndex = localQuestions.findIndex(q => q.id === question.id);
-                          if (actualIndex !== -1) {
-                            handleQuestionUpdate(actualIndex, 'answerInitials', e.target.value);
-                          }
-                        }}
-                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                        placeholder="초성 힌트를 입력하세요 (예: ㅈㄹㅎㅁ)"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <select
-                    value={question.answer}
-                    onChange={(e) => {
-                      const actualIndex = localQuestions.findIndex(q => q.id === question.id);
-                      if (actualIndex !== -1) {
-                        handleQuestionUpdate(actualIndex, 'answer', e.target.value);
-                      }
-                    }}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                  >
-                    {question.options?.map((option, index) => (
-                      <option key={index} value={option}>
-                        {index + 1}. {option}
-                      </option>
-                    )) || <option value="">선택지를 먼저 추가해주세요</option>}
-                  </select>
-                )}
+                <select
+                  value={question.answer}
+                  onChange={(e) => {
+                    const actualIndex = localQuestions.findIndex(q => q.id === question.id);
+                    if (actualIndex !== -1) {
+                      handleQuestionUpdate(actualIndex, 'answer', e.target.value);
+                    }
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                >
+                  {question.options?.map((option, index) => (
+                    <option key={index} value={option}>
+                      {index + 1}. {option}
+                    </option>
+                  )) || <option value="">선택지를 먼저 추가해주세요</option>}
+                </select>
               </div>
 
               {/* 해설 */}

@@ -36,12 +36,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 기본값 설정
-    const questionCount = body.questionCount || 5;
+    const questionCount = body.questionCount || 4;
     
-    // 문제 개수 검증 (5, 10, 15만 허용)
-    if (![5, 10, 15].includes(questionCount)) {
+    // 문제 개수 검증 (4, 8, 12만 허용)
+    if (![4, 8, 12].includes(questionCount)) {
       return NextResponse.json(
-        { error: '문제 개수는 5, 10, 15 중 하나여야 합니다.' },
+        { error: '문제 개수는 4, 8, 12 중 하나여야 합니다.' },
         { status: 400 }
       );
     }
@@ -55,12 +55,14 @@ export async function POST(request: NextRequest) {
     let typesToGenerate: string[] = [];
     
     if (body.questionType === 'Random') {
-      // Random 선택 시: 5가지 유형을 고르게 분배
-      const questionsPerType = questionCount / 5; // 5개→1개씩, 10개→2개씩, 15개→3개씩
-      const questionTypes = ['단답형', '핵심 내용 요약', '핵심문장 찾기', 'OX문제', '자료분석하기'];
+      // Random 선택 시: 4가지 유형을 고르게 분배
+      const baseQuestionsPerType = Math.floor(questionCount / 4);
+      const remainder = questionCount % 4;
+      const questionTypes = ['정보 확인', '주제 파악', '자료해석', '추론'];
       
-      questionTypes.forEach(type => {
-        for (let i = 0; i < questionsPerType; i++) {
+      questionTypes.forEach((type, index) => {
+        const count = baseQuestionsPerType + (index < remainder ? 1 : 0);
+        for (let i = 0; i < count; i++) {
           typesToGenerate.push(type);
         }
       });
@@ -180,9 +182,9 @@ export async function POST(request: NextRequest) {
             id: `comp_fallback_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${j + 1}_${Date.now()}`,
             type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
             question: `${currentType} 문제 ${j + 1}`,
-            options: currentType !== '단답형' ? ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'] : undefined,
-            answer: currentType !== '단답형' ? '선택지 1' : '기본 답안',
-            answerInitials: currentType === '단답형' ? 'ㄱㅂㄷㅇ' : undefined, // 단답형일 때만 기본 초성 힌트
+            options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
+            answer: '선택지 1',
+            answerInitials: undefined, // 새로운 유형은 모두 객관식
             explanation: '문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.',
             isSupplementary: false // 기본 문제임을 명시
           });
@@ -296,9 +298,9 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
               id: `comp_sup_fallback_${originalQuestion.id}_${supIndex}_${Date.now()}`,
               type: originalQuestion.type,
               question: `${originalQuestion.type} 보완 문제 ${supIndex}`,
-              options: originalQuestion.type !== '단답형' ? ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'] : undefined,
-              answer: originalQuestion.type !== '단답형' ? '선택지 1' : '기본 답안',
-              answerInitials: originalQuestion.type === '단답형' ? 'ㄱㅂㄷㅇ' : undefined, // 단답형일 때만 기본 초성 힌트
+              options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
+              answer: '선택지 1',
+              answerInitials: undefined, // 새로운 유형은 모두 객관식
               explanation: '보완 문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.',
               isSupplementary: true,
               originalQuestionId: originalQuestion.id // 원본 문제 ID 참조
@@ -333,11 +335,10 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
       includeSupplementary: body.includeSupplementary,
       typeDistribution: body.questionType === 'Random' 
         ? { 
-            '단답형': questionCount / 5, 
-            '핵심 내용 요약': questionCount / 5, 
-            '핵심문장 찾기': questionCount / 5, 
-            'OX문제': questionCount / 5,
-            '자료분석하기': questionCount / 5
+            '정보 확인': questionCount / 4, 
+            '주제 파악': questionCount / 4, 
+            '자료해석': questionCount / 4, 
+            '추론': questionCount / 4
           }
         : { [body.questionType]: questionCount },
       basicCount: comprehensiveQuestions.filter(q => !q.isSupplementary).length,

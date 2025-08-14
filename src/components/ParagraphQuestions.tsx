@@ -29,9 +29,27 @@ export default function ParagraphQuestions({
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [generatingParagraph, setGeneratingParagraph] = useState(false);
   
+  // 2개 지문 형식에서 모든 paragraphs 통합하여 가져오기
+  const getAllParagraphs = () => {
+    // 2개 지문 형식인 경우
+    if (editablePassage.passages && editablePassage.passages.length > 0) {
+      const allParagraphs: string[] = [];
+      editablePassage.passages.forEach((passage) => {
+        if (passage.paragraphs && Array.isArray(passage.paragraphs)) {
+          allParagraphs.push(...passage.paragraphs);
+        }
+      });
+      console.log('📚 2개 지문 형식 - 통합된 paragraphs:', allParagraphs);
+      return allParagraphs;
+    }
+    // 단일 지문 형식인 경우
+    console.log('📄 단일 지문 형식 - paragraphs:', editablePassage.paragraphs);
+    return editablePassage.paragraphs || [];
+  };
+  
   // 문단 선택 관리 (기본적으로 모든 문단 선택)
   const [selectedParagraphs, setSelectedParagraphs] = useState<string[]>(
-    editablePassage.paragraphs.map((_, index) => (index + 1).toString())
+    getAllParagraphs().map((_, index) => (index + 1).toString())
   );
   
   // 문제 유형 선택 (기본값: Random)
@@ -48,7 +66,7 @@ export default function ParagraphQuestions({
 
   // 전체 선택/해제
   const handleSelectAll = () => {
-    const allParagraphIndices = editablePassage.paragraphs.map((_, index) => (index + 1).toString());
+    const allParagraphIndices = getAllParagraphs().map((_, index) => (index + 1).toString());
     setSelectedParagraphs(prev => 
       prev.length === allParagraphIndices.length ? [] : allParagraphIndices
     );
@@ -67,17 +85,22 @@ export default function ParagraphQuestions({
       // 로컬 스토리지에서 선택된 모델 가져오기
       const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
       
+      const allParagraphs = getAllParagraphs();
+      const title = editablePassage.passages && editablePassage.passages.length > 0 
+        ? editablePassage.passages[0].title 
+        : editablePassage.title;
+      
       const response = await fetch('/api/generate-paragraph', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          paragraphs: editablePassage.paragraphs,
+          paragraphs: allParagraphs,
           selectedParagraphs: selectedParagraphs.map(p => parseInt(p)),
           questionType: selectedQuestionType,
           division,
-          title: editablePassage.title,
+          title: title,
           model: selectedModel
         }),
       });
@@ -180,23 +203,23 @@ export default function ParagraphQuestions({
               <h3 className="text-lg font-semibold text-gray-800">문단 선택</h3>
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-600">
-                  {selectedParagraphs.length}/{editablePassage.paragraphs.length}개 선택됨
+                  {selectedParagraphs.length}/{getAllParagraphs().length}개 선택됨
                 </span>
                 <button
                   onClick={handleSelectAll}
                   className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded transition-colors"
                 >
-                  {selectedParagraphs.length === editablePassage.paragraphs.length ? '전체 해제' : '전체 선택'}
+                  {selectedParagraphs.length === getAllParagraphs().length ? '전체 해제' : '전체 선택'}
                 </button>
               </div>
             </div>
             
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-3">
-                문제로 만들 문단을 선택하세요 (총 {editablePassage.paragraphs.length}개):
+                문제로 만들 문단을 선택하세요 (총 {getAllParagraphs().length}개):
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto">
-                {editablePassage.paragraphs.map((paragraph, index) => {
+                {getAllParagraphs().map((paragraph, index) => {
                   const paragraphNumber = (index + 1).toString();
                   const isSelected = selectedParagraphs.includes(paragraphNumber);
                   

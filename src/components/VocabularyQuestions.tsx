@@ -31,11 +31,31 @@ export default function VocabularyQuestions({
   const [generatingVocab, setGeneratingVocab] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
   
+  // 2개 지문 형식에서 모든 footnote 통합하여 가져오기
+  const getAllFootnotes = () => {
+    // 2개 지문 형식인 경우
+    if (editablePassage.passages && editablePassage.passages.length > 0) {
+      const allFootnotes: string[] = [];
+      editablePassage.passages.forEach((passage) => {
+        if (passage.footnote && Array.isArray(passage.footnote)) {
+          allFootnotes.push(...passage.footnote);
+        }
+      });
+      console.log('📚 2개 지문 형식 - 통합된 footnotes:', allFootnotes);
+      return allFootnotes;
+    }
+    // 단일 지문 형식인 경우
+    console.log('📄 단일 지문 형식 - footnotes:', editablePassage.footnote);
+    return editablePassage.footnote || [];
+  };
+
   // 핵심 개념어와 매칭되는 용어들 찾기
   const getMatchedTerms = () => {
     console.log('=== 핵심 개념어 매칭 디버깅 ===');
     console.log('keywords:', keywords);
-    console.log('editablePassage.footnote:', editablePassage.footnote);
+    
+    const allFootnotes = getAllFootnotes();
+    console.log('allFootnotes:', allFootnotes);
     
     if (!keywords || keywords.trim() === '') {
       console.log('keywords가 없어서 빈 배열 반환');
@@ -51,7 +71,7 @@ export default function VocabularyQuestions({
       return [];
     }
     
-    const matchedIndices = editablePassage.footnote
+    const matchedIndices = allFootnotes
       .map((footnote, index) => {
         const termName = footnote.split(':')[0]?.trim().toLowerCase() || footnote.toLowerCase();
         console.log(`용어 ${index}: "${footnote}" -> termName: "${termName}"`);
@@ -86,7 +106,8 @@ export default function VocabularyQuestions({
 
   // 전체 선택/해제
   const handleSelectAll = () => {
-    const allTermIndices = editablePassage.footnote.map((_, index) => index.toString());
+    const allFootnotes = getAllFootnotes();
+    const allTermIndices = allFootnotes.map((_, index) => index.toString());
     setSelectedTerms(prev => 
       prev.length === allTermIndices.length ? [] : allTermIndices
     );
@@ -94,8 +115,9 @@ export default function VocabularyQuestions({
 
   // 선택된 용어들 가져오기
   const getSelectedTerms = () => {
+    const allFootnotes = getAllFootnotes();
     return selectedTerms
-      .map(index => editablePassage.footnote[parseInt(index)])
+      .map(index => allFootnotes[parseInt(index)])
       .filter(Boolean);
   };
 
@@ -219,23 +241,23 @@ export default function VocabularyQuestions({
             <h3 className="text-lg font-semibold text-gray-800">추출된 용어 목록</h3>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
-                {selectedTerms.length}/{editablePassage.footnote.length}개 선택됨
+                {selectedTerms.length}/{getAllFootnotes().length}개 선택됨
               </span>
               <button
                 onClick={handleSelectAll}
                 className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded transition-colors"
               >
-                {selectedTerms.length === editablePassage.footnote.length ? '전체 해제' : '전체 선택'}
+                {selectedTerms.length === getAllFootnotes().length ? '전체 해제' : '전체 선택'}
               </button>
             </div>
           </div>
           
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-gray-600 mb-3">
-              문제로 만들 용어를 선택하세요 (총 {editablePassage.footnote.length}개):
+              문제로 만들 용어를 선택하세요 (총 {getAllFootnotes().length}개):
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {editablePassage.footnote.map((footnote, index) => {
+              {getAllFootnotes().map((footnote, index) => {
                 const termIndex = index.toString();
                 const isSelected = selectedTerms.includes(termIndex);
                 const termName = footnote.split(':')[0]?.trim() || footnote;

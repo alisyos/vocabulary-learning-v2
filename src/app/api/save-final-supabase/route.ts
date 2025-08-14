@@ -38,18 +38,60 @@ export async function POST(request: NextRequest) {
       paragraphs: editablePassage?.paragraphs,
       paragraphsType: typeof editablePassage?.paragraphs,
       paragraphsLength: editablePassage?.paragraphs?.length,
-      footnote: editablePassage?.footnote?.length
+      footnote: editablePassage?.footnote?.length,
+      // 새로운 2개 지문 형식 확인
+      passages: editablePassage?.passages,
+      passagesType: typeof editablePassage?.passages,
+      passagesLength: editablePassage?.passages?.length
     });
 
-    // 안전한 문단 수 계산
+    // 2개 지문 형식인지 확인하고 데이터 처리
     let actualParagraphCount = 0;
-    if (editablePassage?.paragraphs && Array.isArray(editablePassage.paragraphs)) {
+    let totalFootnoteCount = 0;
+    let passageTitle = '';
+    
+    if (editablePassage?.passages && Array.isArray(editablePassage.passages) && editablePassage.passages.length > 0) {
+      // 새로운 2개 지문 형식
+      console.log('🔄 새로운 2개 지문 형식 감지됨');
+      
+      editablePassage.passages.forEach((passage, index) => {
+        console.log(`📖 지문 ${index + 1}:`, {
+          title: passage.title,
+          paragraphCount: passage.paragraphs?.length || 0,
+          footnoteCount: passage.footnote?.length || 0
+        });
+        
+        if (passage.paragraphs && Array.isArray(passage.paragraphs)) {
+          actualParagraphCount += passage.paragraphs.filter((p: string) => {
+            return p && typeof p === 'string' && p.trim() !== '';
+          }).length;
+        }
+        
+        if (passage.footnote && Array.isArray(passage.footnote)) {
+          totalFootnoteCount += passage.footnote.length;
+        }
+      });
+      
+      // 첫 번째 지문의 제목을 사용하거나 공통 제목
+      passageTitle = editablePassage.passages[0]?.title || editablePassage.title || '';
+      
+    } else if (editablePassage?.paragraphs && Array.isArray(editablePassage.paragraphs)) {
+      // 기존 단일 지문 형식 
+      console.log('📄 기존 단일 지문 형식 감지됨');
+      
       actualParagraphCount = editablePassage.paragraphs.filter((p: string) => {
         return p && typeof p === 'string' && p.trim() !== '';
       }).length;
+      
+      totalFootnoteCount = editablePassage.footnote?.length || 0;
+      passageTitle = editablePassage.title || '';
     }
     
-    console.log('📊 계산된 문단 수:', actualParagraphCount);
+    console.log('📊 계산된 데이터:', {
+      actualParagraphCount,
+      totalFootnoteCount,
+      passageTitle
+    });
 
     // Transform input data to ContentSet format
     const contentSetData: Omit<ContentSet, 'id' | 'created_at' | 'updated_at'> = {
@@ -61,9 +103,9 @@ export async function POST(request: NextRequest) {
       main_topic: input.maintopic || input.mainTopic || '',
       sub_topic: input.subtopic || input.subTopic || '',
       keywords: input.keyword || input.keywords || '',
-      title: editablePassage.title,
+      title: passageTitle,
       total_passages: actualParagraphCount, // 안전하게 계산된 문단 수
-      total_vocabulary_terms: editablePassage.footnote?.length || 0,
+      total_vocabulary_terms: totalFootnoteCount,
       total_vocabulary_questions: vocabularyQuestions?.length || 0,
       total_paragraph_questions: paragraphQuestions?.length || 0,
       total_comprehensive_questions: comprehensiveQuestions?.length || 0,
@@ -75,28 +117,80 @@ export async function POST(request: NextRequest) {
 
     console.log('📊 ContentSet 데이터 변환 완료:', contentSetData);
 
-    // Transform passage data
-    const passagesData: Omit<Passage, 'id' | 'content_set_id' | 'created_at'>[] = [{
-      passage_number: 1,
-      title: editablePassage.title,
-      paragraph_1: editablePassage.paragraphs[0] || undefined,
-      paragraph_2: editablePassage.paragraphs[1] || undefined,
-      paragraph_3: editablePassage.paragraphs[2] || undefined,
-      paragraph_4: editablePassage.paragraphs[3] || undefined,
-      paragraph_5: editablePassage.paragraphs[4] || undefined,
-      paragraph_6: editablePassage.paragraphs[5] || undefined,
-      paragraph_7: editablePassage.paragraphs[6] || undefined,
-      paragraph_8: editablePassage.paragraphs[7] || undefined,
-      paragraph_9: editablePassage.paragraphs[8] || undefined,
-      paragraph_10: editablePassage.paragraphs[9] || undefined,
-    }];
+    // Transform passage data - handle both single and dual passage formats
+    let passagesData: Omit<Passage, 'id' | 'content_set_id' | 'created_at'>[] = [];
+    
+    if (editablePassage?.passages && Array.isArray(editablePassage.passages) && editablePassage.passages.length > 0) {
+      // 새로운 2개 지문 형식 - 각 지문을 별도 passage로 저장
+      console.log('🔄 2개 지문 형식 처리:', editablePassage.passages.length, '개 지문');
+      
+      editablePassage.passages.forEach((passage, index) => {
+        const passageData = {
+          passage_number: index + 1,
+          title: passage.title || editablePassage.title || '',
+          paragraph_1: passage.paragraphs?.[0] || undefined,
+          paragraph_2: passage.paragraphs?.[1] || undefined,
+          paragraph_3: passage.paragraphs?.[2] || undefined,
+          paragraph_4: passage.paragraphs?.[3] || undefined,
+          paragraph_5: passage.paragraphs?.[4] || undefined,
+          paragraph_6: passage.paragraphs?.[5] || undefined,
+          paragraph_7: passage.paragraphs?.[6] || undefined,
+          paragraph_8: passage.paragraphs?.[7] || undefined,
+          paragraph_9: passage.paragraphs?.[8] || undefined,
+          paragraph_10: passage.paragraphs?.[9] || undefined,
+        };
+        
+        console.log(`📖 지문 ${index + 1} 변환:`, {
+          title: passageData.title,
+          paragraphCount: Object.values(passageData).filter(p => p && p !== passageData.passage_number && p !== passageData.title).length
+        });
+        
+        passagesData.push(passageData);
+      });
+    } else if (editablePassage?.paragraphs && Array.isArray(editablePassage.paragraphs)) {
+      // 기존 단일 지문 형식
+      console.log('📄 단일 지문 형식 처리');
+      passagesData = [{
+        passage_number: 1,
+        title: editablePassage.title,
+        paragraph_1: editablePassage.paragraphs[0] || undefined,
+        paragraph_2: editablePassage.paragraphs[1] || undefined,
+        paragraph_3: editablePassage.paragraphs[2] || undefined,
+        paragraph_4: editablePassage.paragraphs[3] || undefined,
+        paragraph_5: editablePassage.paragraphs[4] || undefined,
+        paragraph_6: editablePassage.paragraphs[5] || undefined,
+        paragraph_7: editablePassage.paragraphs[6] || undefined,
+        paragraph_8: editablePassage.paragraphs[7] || undefined,
+        paragraph_9: editablePassage.paragraphs[8] || undefined,
+        paragraph_10: editablePassage.paragraphs[9] || undefined,
+      }];
+    }
 
     console.log('📝 Passage 데이터 변환 완료:', passagesData.length, '개');
 
-    // Transform vocabulary terms (extract from footnotes with example sentences)
+    // Transform vocabulary terms - handle both single and dual passage formats
+    let allFootnotes: string[] = [];
+    
+    if (editablePassage?.passages && Array.isArray(editablePassage.passages) && editablePassage.passages.length > 0) {
+      // 새로운 2개 지문 형식 - 모든 지문의 footnote를 합치기
+      console.log('🔄 2개 지문의 어휘 용어 합치기');
+      editablePassage.passages.forEach((passage, index) => {
+        if (passage.footnote && Array.isArray(passage.footnote)) {
+          console.log(`📚 지문 ${index + 1} 어휘 용어:`, passage.footnote.length, '개');
+          allFootnotes = allFootnotes.concat(passage.footnote);
+        }
+      });
+    } else if (editablePassage?.footnote && Array.isArray(editablePassage.footnote)) {
+      // 기존 단일 지문 형식
+      console.log('📄 단일 지문 어휘 용어 처리');
+      allFootnotes = editablePassage.footnote;
+    }
+    
+    console.log('📚 총 어휘 용어 수:', allFootnotes.length, '개');
+    
     const vocabularyTerms: Omit<VocabularyTerm, 'id' | 'content_set_id' | 'created_at'>[] = 
-      editablePassage.footnote?.map((footnote: string) => {
-        console.log('어휘 용어 원본 footnote:', footnote);
+      allFootnotes?.map((footnote: string, index: number) => {
+        console.log(`어휘 용어 ${index + 1} 원본 footnote:`, footnote);
         
         // 첫 번째 콜론만 기준으로 분리
         const colonIndex = footnote.indexOf(':');
@@ -139,7 +233,7 @@ export async function POST(request: NextRequest) {
           example_sentence: exampleSentence
         };
         
-        console.log('분리된 용어:', result);
+        console.log(`분리된 용어 ${index + 1}:`, result);
         return result;
       }) || [];
 
