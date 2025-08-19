@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
               updatedAt: setDetails.updated_at
             },
             // 관련 데이터들
+            // 첫 번째 지문 (기존 호환성 유지)
             passage: setDetails.passages?.[0] ? {
               title: setDetails.passages[0].title,
               paragraphs: [
@@ -71,6 +72,23 @@ export async function GET(request: NextRequest) {
                 setDetails.passages[0].paragraph_10
               ].filter(p => p && p.trim() !== '')
             } : null,
+            // 모든 지문 배열 (여러 지문 지원)
+            passages: (setDetails.passages || []).map((passage: any) => ({
+              id: passage.id,
+              title: passage.title,
+              paragraphs: [
+                passage.paragraph_1,
+                passage.paragraph_2,
+                passage.paragraph_3,
+                passage.paragraph_4,
+                passage.paragraph_5,
+                passage.paragraph_6,
+                passage.paragraph_7,
+                passage.paragraph_8,
+                passage.paragraph_9,
+                passage.paragraph_10
+              ].filter(p => p && p.trim() !== '')
+            })),
             vocabularyTerms: (setDetails.vocabulary_terms || []).map((term: VocabularyTerm) => ({
               id: term.id,
               term: term.term,

@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateQuestion, ModelType } from '@/lib/openai';
 import { generateVocabularyPrompt } from '@/lib/prompts';
-import { VocabularyQuestion } from '@/types';
+import { VocabularyQuestion, VocabularyQuestionType } from '@/types';
 
 interface VocabularyGenerationRequest {
   terms: string[];  // 용어 목록 (footnote에서 추출)
   passage: string;  // 지문 내용 (맥락 제공용)
   division: string; // 구분 (난이도 조절용)
+  questionType: VocabularyQuestionType; // 문제 유형 (6가지 중 선택)
   model?: ModelType; // GPT 모델 선택
 }
 
 interface GeneratedQuestionData {
+  term: string;
+  questionType: VocabularyQuestionType;
   question: string;
-  options: string[];
+  options?: string[];     // 객관식인 경우만
   answer: string;
+  answerInitials?: string; // 단답형인 경우 초성 힌트
   explanation: string;
 }
 
@@ -36,6 +40,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!body.questionType) {
+      return NextResponse.json(
+        { error: '문제 유형이 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
     console.log('Generating vocabulary questions for terms:', body.terms);
 
     // 각 용어별로 문제 생성
@@ -51,13 +62,14 @@ export async function POST(request: NextRequest) {
           ? term.split(':').map(s => s.trim())
           : [term.trim(), ''];
 
-        // 프롬프트 생성 (DB에서 조회, 실패 시 기본값 사용)
+        // 유형별 프롬프트 생성 (DB에서 조회, 실패 시 기본값 사용)
         const { generateVocabularyPromptFromDB } = await import('@/lib/prompts');
         const prompt = await generateVocabularyPromptFromDB(
           termName,
           termDescription,
           body.passage,
-          body.division
+          body.division,
+          body.questionType
         );
 
         console.log(`Generating question for term: ${termName}`);
@@ -79,33 +91,72 @@ export async function POST(request: NextRequest) {
         });
 
         // 결과 파싱 및 VocabularyQuestion 형태로 변환
-        if (result && typeof result === 'object' && 'question' in result) {
-          const questionData = result as GeneratedQuestionData;
-          
-          console.log(`✅ Successfully parsed question for term "${termName}"`);
-          
-          vocabularyQuestions.push({
-            id: `vocab_${i + 1}_${Date.now()}`,
-            term: termName,
-            question: questionData.question || '',
-            options: questionData.options || [],
-            answer: questionData.answer || '',
-            explanation: questionData.explanation || ''
-          });
+        if (result && typeof result === 'object') {
+          // GPT가 vocabularyQuestions 배열로 응답하는 경우
+          if ('vocabularyQuestions' in result && Array.isArray(result.vocabularyQuestions)) {
+            const questions = result.vocabularyQuestions as GeneratedQuestionData[];
+            if (questions.length > 0) {
+              const questionData = questions[0]; // 첫 번째 문제 사용
+              
+              console.log(`✅ Successfully parsed question for term "${termName}" (from array)`);
+              
+              vocabularyQuestions.push({
+                id: `vocab_${i + 1}_${Date.now()}`,
+                term: termName,
+                questionType: body.questionType,
+                question: questionData.question || '',
+                options: questionData.options || undefined,
+                answer: questionData.answer || '',
+                answerInitials: questionData.answerInitials || undefined,
+                explanation: questionData.explanation || ''
+              });
+            }
+          }
+          // 직접 문제 객체인 경우
+          else if ('question' in result) {
+            const questionData = result as GeneratedQuestionData;
+            
+            console.log(`✅ Successfully parsed question for term "${termName}" (direct)`);
+            
+            vocabularyQuestions.push({
+              id: `vocab_${i + 1}_${Date.now()}`,
+              term: termName,
+              questionType: body.questionType,
+              question: questionData.question || '',
+              options: questionData.options || undefined,
+              answer: questionData.answer || '',
+              answerInitials: questionData.answerInitials || undefined,
+              explanation: questionData.explanation || ''
+            });
+          } else {
+            console.log(`❌ Failed to parse question for term "${termName}" - unexpected format`);
+          }
         } else {
-          console.log(`❌ Failed to parse question for term "${termName}" - result does not match expected format`);
+          console.log(`❌ Failed to parse question for term "${termName}" - result is not an object`);
         }
 
       } catch (termError) {
         console.error(`Error generating question for term "${term}":`, termError);
         
         // 실패한 용어는 기본 문제로 대체
+        const termName = term.split(':')[0]?.trim() || term;
+        const isMultipleChoice = body.questionType.includes('객관식');
+        
         vocabularyQuestions.push({
           id: `vocab_${i + 1}_${Date.now()}`,
-          term: term.split(':')[0]?.trim() || term,
-          question: `다음 중 '${term.split(':')[0]?.trim() || term}'의 의미로 가장 적절한 것은?`,
-          options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
-          answer: '선택지 1',
+          term: termName,
+          questionType: body.questionType,
+          question: isMultipleChoice 
+            ? `다음 중 '${termName}'의 의미로 가장 적절한 것은?`
+            : `'${termName}'의 의미를 쓰세요.`,
+          options: isMultipleChoice 
+            ? (body.questionType === '2지선다 객관식' ? ['선택지 1', '선택지 2'] :
+               body.questionType === '3지선다 객관식' ? ['선택지 1', '선택지 2', '선택지 3'] :
+               body.questionType === '4지선다 객관식' ? ['선택지 1', '선택지 2', '선택지 3', '선택지 4'] :
+               ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'])
+            : undefined,
+          answer: isMultipleChoice ? '선택지 1' : termName,
+          answerInitials: !isMultipleChoice ? 'ㅇㅇ' : undefined,
           explanation: '문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.'
         });
       }

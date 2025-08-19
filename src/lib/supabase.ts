@@ -770,41 +770,12 @@ export const db = {
       if (comprehensiveQuestionsWithId.length > 0) {
         console.log('🧠 ComprehensiveQuestions 삽입 시작:', comprehensiveQuestionsWithId.length, '개');
         
-        // 새로운 4가지 유형을 기존 제약조건에 맞는 값으로 매핑
-        const mappedQuestions = comprehensiveQuestionsWithId.map(q => {
-          let mappedQuestionType = q.question_type;
-          
-          // 새로운 4가지 유형을 기존 제약조건 허용 값으로 매핑
-          switch (q.question_type) {
-            case '정보 확인':
-              mappedQuestionType = '단답형';
-              break;
-            case '주제 파악':
-              mappedQuestionType = '핵심 내용 요약';
-              break;
-            case '자료해석':
-              mappedQuestionType = '자료분석하기';
-              break;
-            case '추론':
-              mappedQuestionType = 'OX문제';
-              break;
-            default:
-              // 이미 기존 유형인 경우 그대로 유지
-              mappedQuestionType = q.question_type;
-          }
-          
-          console.log(`📝 질문 유형 매핑: "${q.question_type}" -> "${mappedQuestionType}"`);
-          
-          return {
-            ...q,
-            question_type: mappedQuestionType
-          };
-        });
+        console.log('📝 새로운 유형 그대로 저장:', comprehensiveQuestionsWithId.map(q => q.question_type));
         
-        const { error: compError } = await supabase.from('comprehensive_questions').insert(mappedQuestions)
+        const { error: compError } = await supabase.from('comprehensive_questions').insert(comprehensiveQuestionsWithId)
         if (compError) {
           console.error('❌ ComprehensiveQuestions 삽입 오류:', compError);
-          console.error('❌ 삽입 시도 데이터:', JSON.stringify(mappedQuestions, null, 2));
+          console.error('❌ 삽입 시도 데이터:', JSON.stringify(comprehensiveQuestionsWithId, null, 2));
           throw compError;
         }
         results.push('comprehensive_questions')
@@ -868,4 +839,42 @@ export const db = {
     
     if (error) throw error
   }
+}
+
+// 종합문제 유형 라벨링 함수
+export function getComprehensiveQuestionTypeLabel(questionType: string): string {
+  // 새로운 4가지 유형 매핑
+  const newTypeMap: { [key: string]: string } = {
+    '정보 확인': '정보 확인',
+    '주제 파악': '주제 파악', 
+    '자료해석': '자료해석',
+    '추론': '추론'
+  };
+
+  // 이전 유형들을 새로운 유형으로 매핑
+  const legacyTypeMap: { [key: string]: string } = {
+    '단답형': '정보 확인',
+    'type_short': '정보 확인',
+    '핵심 내용 요약': '주제 파악',
+    'type_summary': '주제 파악',
+    '핵심문장 찾기': '주제 파악', 
+    'type_keyword': '주제 파악',
+    'OX문제': '자료해석',
+    'type_ox': '자료해석',
+    '자료분석하기': '자료해석',
+    'type_data': '자료해석'
+  };
+
+  // 새로운 유형이면 그대로 반환
+  if (newTypeMap[questionType]) {
+    return newTypeMap[questionType];
+  }
+
+  // 이전 유형이면 새로운 유형으로 매핑
+  if (legacyTypeMap[questionType]) {
+    return legacyTypeMap[questionType];
+  }
+
+  // 매핑되지 않는 경우 원본 반환
+  return questionType;
 }

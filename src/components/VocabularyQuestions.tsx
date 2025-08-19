@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { VocabularyQuestion, EditablePassage } from '@/types';
+import { VocabularyQuestion, EditablePassage, VocabularyQuestionType, VOCABULARY_QUESTION_TYPES } from '@/types';
 import PromptModal from './PromptModal';
 
 interface VocabularyQuestionsProps {
@@ -30,6 +30,7 @@ export default function VocabularyQuestions({
   const [localQuestions, setLocalQuestions] = useState<VocabularyQuestion[]>(vocabularyQuestions);
   const [generatingVocab, setGeneratingVocab] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
+  const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<VocabularyQuestionType[]>(['5지선다 객관식']);
   
   // 2개 지문 형식에서 모든 footnote 통합하여 가져오기
   const getAllFootnotes = () => {
@@ -130,34 +131,64 @@ export default function VocabularyQuestions({
       return;
     }
 
+    if (selectedQuestionTypes.length === 0) {
+      alert('문제 유형을 선택해주세요.');
+      return;
+    }
+
     setGeneratingVocab(true);
     
     try {
       // 로컬 스토리지에서 선택된 모델 가져오기
       const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
       
-      const response = await fetch('/api/generate-vocabulary', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          terms: selectedTermsList,
-          passage: `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`,
-          division: division,
-          model: selectedModel
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('어휘 문제 생성에 실패했습니다.');
-      }
-
-      const result = await response.json();
-      const questions = result.vocabularyQuestions || [];
+      // 모든 문제를 저장할 배열
+      const allQuestions: VocabularyQuestion[] = [];
+      let lastUsedPrompt = '';
       
-      setLocalQuestions(questions);
-      onUpdate(questions, result._metadata?.usedPrompt);
+      // 선택된 각 문제 유형별로 API 호출
+      for (const questionType of selectedQuestionTypes) {
+        console.log(`🎯 생성 중인 문제 유형: ${questionType}`);
+        
+        const response = await fetch('/api/generate-vocabulary', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            terms: selectedTermsList,
+            passage: `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`,
+            division: division,
+            questionType: questionType,
+            model: selectedModel
+          }),
+        });
+
+        if (!response.ok) {
+          console.error(`❌ ${questionType} 문제 생성 실패`);
+          continue; // 실패한 유형은 건너뛰고 계속 진행
+        }
+
+        const result = await response.json();
+        const questions = result.vocabularyQuestions || [];
+        
+        // 첫 번째 유형의 프롬프트를 저장
+        if (!lastUsedPrompt && result._metadata?.usedPrompt) {
+          lastUsedPrompt = result._metadata.usedPrompt;
+        }
+        
+        console.log(`✅ ${questionType} 문제 ${questions.length}개 생성 완료`);
+        allQuestions.push(...questions);
+      }
+      
+      if (allQuestions.length === 0) {
+        throw new Error('모든 문제 유형 생성에 실패했습니다.');
+      }
+      
+      console.log(`🎉 총 ${allQuestions.length}개 문제 생성 완료 (${selectedQuestionTypes.length}가지 유형)`);
+      
+      setLocalQuestions(allQuestions);
+      onUpdate(allQuestions, lastUsedPrompt);
       
     } catch (error) {
       console.error('Error:', error);
@@ -177,12 +208,28 @@ export default function VocabularyQuestions({
 
   // 문제 추가
   const addQuestion = () => {
+    // 선택된 유형 중 첫 번째를 기본값으로 사용 (선택된 유형이 없으면 5지선다 사용)
+    const defaultQuestionType = selectedQuestionTypes.length > 0 ? selectedQuestionTypes[0] : '5지선다 객관식';
+    const isMultipleChoice = defaultQuestionType.includes('객관식');
+    const optionCount = defaultQuestionType === '2지선다 객관식' ? 2 :
+                       defaultQuestionType === '3지선다 객관식' ? 3 :
+                       defaultQuestionType === '4지선다 객관식' ? 4 : 5;
+    
     const newQuestion: VocabularyQuestion = {
       id: `vocab_new_${Date.now()}`,
+      content_set_id: '',
+      question_number: localQuestions.length + 1,
+      question_type: defaultQuestionType,
+      difficulty: '일반',
       term: '새로운 용어',
-      question: '질문을 입력하세요',
-      options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
-      answer: '선택지 1',
+      question_text: '질문을 입력하세요',
+      option_1: isMultipleChoice ? '선택지 1' : undefined,
+      option_2: isMultipleChoice ? '선택지 2' : undefined,
+      option_3: isMultipleChoice && optionCount >= 3 ? '선택지 3' : undefined,
+      option_4: isMultipleChoice && optionCount >= 4 ? '선택지 4' : undefined,
+      option_5: isMultipleChoice && optionCount >= 5 ? '선택지 5' : undefined,
+      correct_answer: isMultipleChoice ? '선택지 1' : '답을 입력하세요',
+      answer_initials: !isMultipleChoice ? 'ㅇㅇ' : undefined,
       explanation: '해설을 입력하세요'
     };
     
@@ -203,10 +250,11 @@ export default function VocabularyQuestions({
     onUpdate(updated);
   };
 
-  // 선택지 수정
+  // 선택지 수정 (기존 인터페이스 지원을 위해 유지)
   const handleOptionUpdate = (questionIndex: number, optionIndex: number, value: string) => {
     const updated = [...localQuestions];
-    updated[questionIndex].options[optionIndex] = value;
+    const field = `option_${optionIndex + 1}` as keyof VocabularyQuestion;
+    updated[questionIndex] = { ...updated[questionIndex], [field]: value };
     setLocalQuestions(updated);
     onUpdate(updated);
   };
@@ -220,14 +268,16 @@ export default function VocabularyQuestions({
               <h2 className="text-xl font-bold text-gray-800">3단계: 어휘 문제 생성</h2>
               <button
                 onClick={handleGenerateVocabulary}
-                disabled={generatingVocab || selectedTerms.length === 0}
+                disabled={generatingVocab || selectedTerms.length === 0 || selectedQuestionTypes.length === 0}
                 className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
               >
                 {generatingVocab 
                   ? '생성 중...' 
                   : selectedTerms.length === 0 
                     ? '용어 선택 필요'
-                    : `${selectedTerms.length}개 문제 생성`
+                    : selectedQuestionTypes.length === 0
+                      ? '문제 유형 선택 필요'
+                      : `${selectedTerms.length}개 용어 × ${selectedQuestionTypes.length}가지 유형`
                 }
               </button>
             </div>
@@ -235,6 +285,67 @@ export default function VocabularyQuestions({
               문제 생성
             </span>
           </div>
+
+        {/* 문제 유형 선택 */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold text-gray-800">문제 유형 선택</h3>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                {selectedQuestionTypes.length}/6개 선택됨
+              </span>
+              <button
+                onClick={() => {
+                  const allTypes = Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[];
+                  setSelectedQuestionTypes(prev => 
+                    prev.length === allTypes.length ? [] : allTypes
+                  );
+                }}
+                className="text-sm bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1 rounded transition-colors"
+              >
+                {selectedQuestionTypes.length === 6 ? '전체 해제' : '전체 선택'}
+              </button>
+            </div>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600 mb-3">
+              생성할 문제 유형을 선택하세요. 선택한 유형별로 각각 문제가 생성됩니다.
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {(Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[]).map((type) => {
+                const isSelected = selectedQuestionTypes.includes(type);
+                return (
+                  <label 
+                    key={type}
+                    className={`
+                      flex items-center space-x-3 p-3 rounded border cursor-pointer transition-all
+                      ${isSelected 
+                        ? 'bg-purple-50 border-purple-200 text-purple-900' 
+                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                      }
+                    `}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedQuestionTypes(prev => [...prev, type]);
+                        } else {
+                          setSelectedQuestionTypes(prev => prev.filter(t => t !== type));
+                        }
+                      }}
+                      className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <span className="text-sm font-medium">
+                      {type}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
         <div className="mb-6">
           <div className="flex justify-between items-center mb-3">
@@ -299,7 +410,9 @@ export default function VocabularyQuestions({
               ? '어휘 문제 생성 중...' 
               : selectedTerms.length === 0 
                 ? '용어를 선택해주세요'
-                : `선택된 ${selectedTerms.length}개 용어로 문제 생성하기`
+                : selectedQuestionTypes.length === 0
+                  ? '문제 유형을 선택해주세요'
+                  : `${selectedTerms.length}개 용어 × ${selectedQuestionTypes.length}가지 유형으로 문제 생성`
             }
           </button>
         </div>
@@ -320,7 +433,10 @@ export default function VocabularyQuestions({
               어휘 문제 생성 중
             </h3>
             <p className="text-sm text-gray-500 mb-2">
-              선택된 {selectedTerms.length}개 용어로 문제를 생성하고 있습니다
+              선택된 {selectedTerms.length}개 용어로 {selectedQuestionTypes.length}가지 유형의 문제를 생성하고 있습니다
+            </p>
+            <p className="text-xs text-gray-400">
+              선택된 유형: {selectedQuestionTypes.join(', ')}
             </p>
             <p className="text-xs text-gray-400">
               잠시만 기다려주세요
@@ -390,6 +506,13 @@ export default function VocabularyQuestions({
                 </button>
               </div>
 
+              {/* 문제 유형 표시 */}
+              <div className="mb-3">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  {question.question_type || question.questionType || '5지선다 객관식'}
+                </span>
+              </div>
+
               {/* 용어 */}
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -397,7 +520,7 @@ export default function VocabularyQuestions({
                 </label>
                 <input
                   type="text"
-                  value={question.term}
+                  value={question.term || ''}
                   onChange={(e) => handleQuestionUpdate(qIndex, 'term', e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   placeholder="용어를 입력하세요"
@@ -410,52 +533,122 @@ export default function VocabularyQuestions({
                   질문
                 </label>
                 <textarea
-                  value={question.question}
-                  onChange={(e) => handleQuestionUpdate(qIndex, 'question', e.target.value)}
+                  value={question.question_text || question.question || ''}
+                  onChange={(e) => handleQuestionUpdate(qIndex, question.question_text ? 'question_text' : 'question', e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm min-h-[80px] resize-vertical"
                   placeholder="질문을 입력하세요"
                 />
               </div>
 
-              {/* 선택지 */}
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  선택지
-                </label>
-                <div className="space-y-2">
-                  {question.options.map((option, oIndex) => (
-                    <div key={oIndex} className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500 min-w-[20px]">
-                        {oIndex + 1}.
-                      </span>
-                      <input
-                        type="text"
-                        value={option}
-                        onChange={(e) => handleOptionUpdate(qIndex, oIndex, e.target.value)}
-                        className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                        placeholder={`선택지 ${oIndex + 1}`}
-                      />
-                    </div>
-                  ))}
+              {/* 선택지 (객관식만) */}
+              {((question.question_type || question.questionType || '5지선다 객관식').includes('객관식')) && (
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    선택지
+                  </label>
+                  <div className="space-y-2">
+                    {(() => {
+                      const questionType = question.question_type || question.questionType || '5지선다 객관식';
+                      const maxOptions = questionType === '2지선다 객관식' ? 2 :
+                                        questionType === '3지선다 객관식' ? 3 :
+                                        questionType === '4지선다 객관식' ? 4 : 5;
+                      
+                      const options = [
+                        question.option_1 || (question.options && question.options[0]),
+                        question.option_2 || (question.options && question.options[1]),
+                        question.option_3 || (question.options && question.options[2]),
+                        question.option_4 || (question.options && question.options[3]),
+                        question.option_5 || (question.options && question.options[4])
+                      ];
+                      
+                      return Array.from({ length: maxOptions }, (_, oIndex) => (
+                        <div key={oIndex} className="flex items-center gap-2">
+                          <span className="text-sm text-gray-500 min-w-[20px]">
+                            {oIndex + 1}.
+                          </span>
+                          <input
+                            type="text"
+                            value={options[oIndex] || ''}
+                            onChange={(e) => {
+                              if (question.options) {
+                                // 기존 options 배열 방식
+                                handleOptionUpdate(qIndex, oIndex, e.target.value);
+                              } else {
+                                // 새로운 option_1, option_2 방식
+                                const field = `option_${oIndex + 1}` as keyof VocabularyQuestion;
+                                handleQuestionUpdate(qIndex, field, e.target.value);
+                              }
+                            }}
+                            className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                            placeholder={`선택지 ${oIndex + 1}`}
+                          />
+                        </div>
+                      ));
+                    })()
+                    }
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* 정답 */}
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   정답
                 </label>
-                <select
-                  value={question.answer}
-                  onChange={(e) => handleQuestionUpdate(qIndex, 'answer', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                >
-                  {question.options.map((option, index) => (
-                    <option key={index} value={option}>
-                      {index + 1}. {option}
-                    </option>
-                  ))}
-                </select>
+                {((question.question_type || question.questionType || '5지선다 객관식').includes('객관식')) ? (
+                  <select
+                    value={question.correct_answer || question.answer || ''}
+                    onChange={(e) => handleQuestionUpdate(qIndex, question.correct_answer !== undefined ? 'correct_answer' : 'answer', e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">정답을 선택하세요</option>
+                    {(() => {
+                      const questionType = question.question_type || question.questionType || '5지선다 객관식';
+                      const maxOptions = questionType === '2지선다 객관식' ? 2 :
+                                        questionType === '3지선다 객관식' ? 3 :
+                                        questionType === '4지선다 객관식' ? 4 : 5;
+                      
+                      const options = [
+                        question.option_1 || (question.options && question.options[0]),
+                        question.option_2 || (question.options && question.options[1]),
+                        question.option_3 || (question.options && question.options[2]),
+                        question.option_4 || (question.options && question.options[3]),
+                        question.option_5 || (question.options && question.options[4])
+                      ];
+                      
+                      return options.slice(0, maxOptions).map((option, index) => 
+                        option ? (
+                          <option key={index} value={option}>
+                            {index + 1}. {option}
+                          </option>
+                        ) : null
+                      ).filter(Boolean);
+                    })()
+                    }
+                  </select>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={question.correct_answer || question.answer || ''}
+                      onChange={(e) => handleQuestionUpdate(qIndex, question.correct_answer !== undefined ? 'correct_answer' : 'answer', e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                      placeholder="정답을 입력하세요"
+                    />
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">
+                        초성 힌트 (예: ㅂㅇㅊ)
+                      </label>
+                      <input
+                        type="text"
+                        value={question.answer_initials || question.answerInitials || ''}
+                        onChange={(e) => handleQuestionUpdate(qIndex, question.answer_initials !== undefined ? 'answer_initials' : 'answerInitials', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                        placeholder="초성을 입력하세요 (예: ㅂㅇㅊ)"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 해설 */}

@@ -341,18 +341,29 @@ export async function POST(request: NextRequest) {
     
     // 먼저 모든 기본문제를 찾아서 세트 ID 생성
     comprehensiveQuestions?.forEach((q: { type?: string; questionType?: string; isSupplementary?: boolean; id?: string }, index: number) => {
-      const questionType = q.type || q.questionType || '단답형';
+      // 새로운 유형 우선 사용, fallback으로 구 유형 매핑
+      let questionType = q.type || q.questionType || '정보 확인';
+      
+      // 새로운 4가지 유형을 그대로 사용 (변환하지 않음)
+      console.log(`새로운 유형 그대로 사용: ${questionType}`);
+      
       const isSupplementary = q.isSupplementary || false;
       
       if (!isSupplementary && !typeToSetIdMap[questionType]) {
         // 이 타입의 첫 번째 기본문제
         const timestamp = Date.now();
         const typeCodeMap: { [key: string]: string } = {
+          // 새로운 4가지 유형
+          '정보 확인': 'info',
+          '주제 파악': 'theme',
+          '자료해석': 'data',
+          '추론': 'inference',
+          // 구 유형 호환성 (혹시 모를 경우)
           '단답형': 'short',
           '핵심 내용 요약': 'summary',
           '핵심문장 찾기': 'keyword',
           'OX문제': 'ox',
-          '자료분석하기': 'data'
+          '자료분석하기': 'dataold'
         };
         const typeCode = typeCodeMap[questionType] || 'comp';
         typeToSetIdMap[questionType] = `comp_${typeCode}_${timestamp}_${questionType}`;
@@ -376,7 +387,12 @@ export async function POST(request: NextRequest) {
         explanation: string;
         questionSetNumber?: number;
       }, index: number) => {
-        const questionType = q.type || q.questionType || '단답형';
+        // 새로운 유형 우선 사용, fallback으로 구 유형 매핑
+        let questionType = q.type || q.questionType || '정보 확인';
+        
+        // 새로운 4가지 유형을 그대로 저장 (변환하지 않음)
+        console.log(`새로운 유형 그대로 저장: ${questionType}`);
+        
         const isSupplementary = q.isSupplementary || false;
         
         // 문제 유형에 따른 세트 ID 사용

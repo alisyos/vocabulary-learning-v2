@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
+import { getComprehensiveQuestionTypeLabel } from '@/lib/supabase';
 
 interface SetDetails {
   id: string; // UUID
@@ -109,6 +110,7 @@ interface ApiResponse {
   data: {
     contentSet: SetDetails;
     passage: PassageData | null;
+    passages: PassageData[]; // 여러 지문 지원
     vocabularyTerms: VocabularyTerm[];
     vocabularyQuestions: VocabularyQuestion[];
     paragraphQuestions: ParagraphQuestion[];
@@ -129,6 +131,8 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   
   // 편집 상태
   const [editablePassage, setEditablePassage] = useState<{title: string; paragraphs: string[]}>({title: '', paragraphs: []});
+  const [editablePassages, setEditablePassages] = useState<Array<{id?: string; title: string; paragraphs: string[]}>>([]);
+  const [currentPassageIndex, setCurrentPassageIndex] = useState(0);
   const [editableVocabulary, setEditableVocabulary] = useState<string[]>([]);
   const [editableVocabQuestions, setEditableVocabQuestions] = useState<VocabularyQuestion[]>([]);
   const [editableParagraphQuestions, setEditableParagraphQuestions] = useState<ParagraphQuestion[]>([]);
@@ -148,11 +152,28 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         setData(result);
         
         // 편집 가능한 상태로 초기화
-        if (result.data?.passage) {
+        if (result.data?.passages && result.data.passages.length > 0) {
+          // 모든 지문을 저장
+          setEditablePassages(result.data.passages.map((p: any) => ({
+            id: p.id,
+            title: p.title || '',
+            paragraphs: [...(p.paragraphs || [])]
+          })));
+          // 첫 번째 지문을 현재 편집 중인 지문으로 설정
+          setEditablePassage({
+            title: result.data.passages[0].title || '',
+            paragraphs: [...(result.data.passages[0].paragraphs || [])]
+          });
+        } else if (result.data?.passage) {
+          // 기존 호환성 유지 (단일 지문)
           setEditablePassage({
             title: result.data.passage.title || '',
             paragraphs: [...(result.data.passage.paragraphs || [])]
           });
+          setEditablePassages([{
+            title: result.data.passage.title || '',
+            paragraphs: [...(result.data.passage.paragraphs || [])]
+          }]);
         }
         
         // Supabase에서는 어휘 용어가 별도 테이블로 분리됨
@@ -277,6 +298,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       console.log('수정사항 저장 시작...', {
         contentSetId: setId,
         editablePassage,
+        editablePassages,
         editableVocabulary,
         editableVocabQuestions,
         editableParagraphQuestions,
@@ -291,6 +313,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         body: JSON.stringify({
           contentSetId: setId,
           editablePassage,
+          editablePassages, // 여러 지문 배열도 전송
           editableVocabulary,
           editableVocabQuestions,
           editableParagraphQuestions,
@@ -571,13 +594,23 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         </div>
     </div>
 
+         ${editablePassages.length > 0 ? editablePassages.map((passage, passageIndex) => `
+         <div class="section">
+         <h2 class="section-title">📖 지문 ${editablePassages.length > 1 ? `${passageIndex + 1} ` : ''}(${passage.paragraphs.length}단락)</h2>
+         <div class="passage-content">
+             <h3 style="margin-bottom: 20px; color: #1e40af; font-weight: bold; font-size: 20px; text-align: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px;">${passage.title}</h3>
+             ${passage.paragraphs.map(paragraph => `<div class="paragraph">${paragraph}</div>`).join('')}
+         </div>
+         </div>
+         `).join('') : `
          <div class="section">
          <h2 class="section-title">📖 지문 (${editablePassage.paragraphs.length}단락)</h2>
          <div class="passage-content">
              <h3 style="margin-bottom: 20px; color: #1e40af; font-weight: bold; font-size: 20px; text-align: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px;">${editablePassage.title}</h3>
              ${editablePassage.paragraphs.map(paragraph => `<div class="paragraph">${paragraph}</div>`).join('')}
          </div>
-     </div>
+         </div>
+         `}
 
     <div class="section">
         <h2 class="section-title">📚 어휘 (${editableVocabulary.length}개)</h2>
@@ -668,7 +701,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                     <div class="question main-question">
                       <div class="question-header">
                         <span class="question-number">[문제 ${questionIndex + 1}]</span>
-                        <span class="question-type-badge">${question.questionType}</span>
+                        <span class="question-type-badge">${getComprehensiveQuestionTypeLabel(question.questionType)}</span>
                       </div>
                       
                       <div class="question-text">${question.question}</div>
@@ -721,18 +754,21 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
           // setKey에서 세트 번호와 유형 추출 (예: set_1_단답형 -> 세트 1, 단답형)
           const setMatch = setKey.match(/^set_(\d+)_(.+)$/);
           const setNumber = setMatch ? setMatch[1] : '?';
-          const setType = setMatch ? setMatch[2] : (mainQuestion?.questionType || mainQuestion?.type || '문제유형');
+          const rawSetType = setMatch ? setMatch[2] : (mainQuestion?.questionType || mainQuestion?.type || '문제유형');
+          const setType = getComprehensiveQuestionTypeLabel(rawSetType);
           
           return `
           <div class="question-set">
             <div class="set-header">
                 <h3 class="set-title">[종합 문제 - 세트 ${setNumber}] - ${setType}</h3>
             </div>
-            ${questions.map((question, questionIndex) => `
+            ${questions.map((question, questionIndex) => {
+              const questionTypeLabel = getComprehensiveQuestionTypeLabel(question.questionType || question.type || '기타');
+              return `
               <div class="question ${question.isSupplementary ? 'supplementary-question' : 'main-question'}">
                 <div class="question-header">
                     <span class="question-number">${question.isSupplementary ? '보완 문제' : '기본 문제'}</span>
-                    <span class="question-type-badge">${question.questionType || question.type}</span>
+                    <span class="question-type-badge">${questionTypeLabel}</span>
                     <span class="question-nature-badge ${question.isSupplementary ? 'supplementary-badge' : 'main-badge'}">
                       ${question.isSupplementary ? '보완문제' : '기본문제'}
                     </span>
@@ -765,7 +801,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
                     <span class="explanation-label">해설:</span> ${question.explanation}
                 </div>
               </div>
-            `).join('')}
+            `; }).join('')}
           </div>
         `;
         }).join('')}
@@ -937,7 +973,8 @@ ${editablePassage.paragraphs
       if (!acc[type]) {
         acc[type] = { main: 0, supplementary: 0 };
       }
-      if (question.is_supplementary) {
+      // is_supplementary와 isSupplementary 둘 다 확인
+      if (question.is_supplementary || question.isSupplementary) {
         acc[type].supplementary++;
       } else {
         acc[type].main++;
@@ -1318,7 +1355,7 @@ ${editablePassage.paragraphs
         
         <div class="info-card">
           <h3>지문 정보</h3>
-          <p><strong>단락 수:</strong> ${editablePassage.paragraphs.filter(p => p.trim()).length}개</p>
+          <p><strong>지문 수:</strong> ${editablePassages.length > 0 ? editablePassages.length : 1}개</p>
           <p><strong>어휘 수:</strong> ${editableVocabulary.length}개</p>
         </div>
       </div>
@@ -1355,7 +1392,7 @@ ${editablePassage.paragraphs
 
     <!-- 탭 메뉴 -->
     <div class="tabs">
-      <button class="tab active" onclick="showTab('passage')">지문 (${editablePassage.paragraphs.filter(p => p.trim()).length}단락)</button>
+      <button class="tab active" onclick="showTab('passage')">지문 (${editablePassages.length > 0 ? editablePassages.length : 1}개)</button>
       <button class="tab" onclick="showTab('vocabulary-list')">어휘 (${editableVocabulary.length}개)</button>
       <button class="tab" onclick="showTab('vocabulary')">어휘 문제 (${editableVocabQuestions.length}개)</button>
       <button class="tab" onclick="showTab('paragraph')">문단 문제 (${totalParagraphQuestions}개)</button>
@@ -1365,54 +1402,92 @@ ${editablePassage.paragraphs
 
     <!-- 지문 탭 -->
     <div id="passage-tab" class="tab-content active">
-      <div class="passage-section">
-        <h2 class="passage-title">${editablePassage.title}</h2>
-        ${editablePassage.paragraphs
-          .map((paragraph, index) => {
-            if (!paragraph.trim()) return '';
-            
-            // 어휘 용어들 추출 및 하이라이트 처리
-            let highlightedParagraph = paragraph;
-            
-            // 디버깅: 어휘 데이터 확인
-            console.log('HTML ver.2 어휘 데이터:', editableVocabulary);
-            console.log('문단 텍스트:', paragraph.substring(0, 100));
-            
-            // 어휘 용어들을 추출하고 길이순으로 정렬 (긴 것부터)
-            const vocabTerms = editableVocabulary
-              .map((vocab, vocabIndex) => ({
-                vocab: vocab,
-                term: extractTermFromVocab(vocab),
-                index: vocabIndex
-              }))
-              .filter(item => item.term && item.term.length > 1)
-              .sort((a, b) => b.term.length - a.term.length); // 길이 내림차순 정렬
-            
-            console.log('길이순 정렬된 어휘 용어들:', vocabTerms.map(item => item.term));
-            
-            // 길이가 긴 용어부터 하이라이트 적용
-            vocabTerms.forEach((vocabItem) => {
-              const term = vocabItem.term;
-              console.log('어휘 ' + (vocabItem.index + 1) + ': "' + vocabItem.vocab + '" -> 용어: "' + term + '" (길이: ' + term.length + ')');
+      ${editablePassages.length > 0 ? (function() {
+        let result = '';
+        
+        // 여러 지문이 있을 때 공통 제목 표시
+        if (editablePassages.length > 1) {
+          result += `<h2 class="passage-title" style="text-align: center; margin-bottom: 40px;">${editablePassages[0].title}</h2>`;
+        }
+        
+        // 각 지문 표시
+        result += editablePassages.map((passage, passageIndex) => `
+          <div class="passage-section" style="margin-bottom: ${passageIndex < editablePassages.length - 1 ? '50px' : '30px'};">
+            ${editablePassages.length > 1 ? 
+              `<h3 style="color: #2c3e50; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">지문 ${passageIndex + 1}</h3>` : 
+              `<h2 class="passage-title">${passage.title}</h2>`
+            }
+            ${passage.paragraphs
+              .map((paragraph, index) => {
+                if (!paragraph.trim()) return '';
+                
+                // 어휘 용어들 추출 및 하이라이트 처리
+                let highlightedParagraph = paragraph;
+                
+                // 어휘 용어들을 추출하고 길이순으로 정렬 (긴 것부터)
+                const vocabTerms = editableVocabulary
+                  .map((vocab, vocabIndex) => ({
+                    vocab: vocab,
+                    term: extractTermFromVocab(vocab),
+                    index: vocabIndex
+                  }))
+                  .filter(item => item.term && item.term.length > 1)
+                  .sort((a, b) => b.term.length - a.term.length);
+                
+                // 길이가 긴 용어부터 하이라이트 적용
+                vocabTerms.forEach((vocabItem) => {
+                  const term = vocabItem.term;
+                  
+                  if (term && term.length > 1) {
+                    const escapedTerm = term.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+                    const regex = new RegExp('(' + escapedTerm + ')', 'gi');
+                    highlightedParagraph = highlightedParagraph.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+                  }
+                });
+                
+                return '<div class="paragraph">' + highlightedParagraph + '</div>';
+              })
+              .join('')}
+          </div>
+        `).join('');
+        
+        return result;
+      })() : `
+        <div class="passage-section">
+          <h2 class="passage-title">${editablePassage.title}</h2>
+          ${editablePassage.paragraphs
+            .map((paragraph, index) => {
+              if (!paragraph.trim()) return '';
               
-              // 정규식을 사용하여 용어를 찾고 스타일 적용 (대소문자 구분 없이)
-              const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const regex = new RegExp('(' + escapedTerm + ')', 'gi');
-              const beforeReplace = highlightedParagraph;
-              highlightedParagraph = highlightedParagraph.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+              // 어휘 용어들 추출 및 하이라이트 처리
+              let highlightedParagraph = paragraph;
               
-              if (beforeReplace !== highlightedParagraph) {
-                console.log('"' + term + '" 용어가 문단에서 발견되어 하이라이트됨');
-              }
-            });
-            
-            return '<div class="paragraph">' +
-              '<span class="paragraph-number">[' + (index + 1) + ']</span>' +
-              highlightedParagraph +
-              '</div>';
-          })
-          .join('')}
-      </div>
+              // 어휘 용어들을 추출하고 길이순으로 정렬 (긴 것부터)
+              const vocabTerms = editableVocabulary
+                .map((vocab, vocabIndex) => ({
+                  vocab: vocab,
+                  term: extractTermFromVocab(vocab),
+                  index: vocabIndex
+                }))
+                .filter(item => item.term && item.term.length > 1)
+                .sort((a, b) => b.term.length - a.term.length);
+              
+              // 길이가 긴 용어부터 하이라이트 적용
+              vocabTerms.forEach((vocabItem) => {
+                const term = vocabItem.term;
+                
+                if (term && term.length > 1) {
+                  const escapedTerm = term.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+                  const regex = new RegExp('(' + escapedTerm + ')', 'gi');
+                  highlightedParagraph = highlightedParagraph.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+                }
+              });
+              
+              return '<div class="paragraph">' + highlightedParagraph + '</div>';
+            })
+            .join('')}
+        </div>
+      `}
     </div>
 
     <!-- 어휘 탭 -->
@@ -1509,7 +1584,24 @@ ${editablePassage.paragraphs
           <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
             <div style="font-weight: bold; color: #1e40af; margin-bottom: 12px; font-size: 16px;">📖 ${paragraphNumber}문단 내용:</div>
             <div style="color: #334155; line-height: 1.6; font-size: 14px;">
-              ${editablePassage.paragraphs[parseInt(paragraphNumber) - 1] || '해당 문단 내용을 찾을 수 없습니다.'}
+              ${(() => {
+                const paragraphIndex = parseInt(paragraphNumber) - 1;
+                
+                // editablePassages가 있고 여러 지문이 있는 경우
+                if (editablePassages.length > 0) {
+                  // 모든 지문의 문단을 합쳐서 순서대로 배열 생성
+                  const allParagraphs = [];
+                  editablePassages.forEach(passage => {
+                    passage.paragraphs.forEach(para => {
+                      if (para.trim()) allParagraphs.push(para);
+                    });
+                  });
+                  return allParagraphs[paragraphIndex] || '해당 문단 내용을 찾을 수 없습니다.';
+                } else {
+                  // 단일 지문인 경우 기존 로직 사용
+                  return editablePassage.paragraphs[paragraphIndex] || '해당 문단 내용을 찾을 수 없습니다.';
+                }
+              })()}
             </div>
           </div>
           
@@ -1581,16 +1673,17 @@ ${editablePassage.paragraphs
         const mainQuestion = questions.find(q => !q.isSupplementary && !q.is_supplementary);
         const supplementaryQuestions = questions.filter(q => q.isSupplementary || q.is_supplementary);
         const setNumber = setKey.split('_')[1]; // set_1_단답형 -> 1
+        const mainQuestionTypeLabel = getComprehensiveQuestionTypeLabel(mainQuestion?.questionType || mainQuestion?.question_type || mainQuestion?.type || '알 수 없음');
         
         return `
           <div style="margin-bottom: 50px; padding: 25px; background-color: #f0f8ff; border-radius: 10px;">
-            <h3 style="color: #2980b9; margin-bottom: 25px;">종합 문제 세트 ${setNumber}: ${mainQuestion?.questionType || mainQuestion?.question_type || mainQuestion?.type || '알 수 없음'}</h3>
+            <h3 style="color: #2980b9; margin-bottom: 25px;">종합 문제 세트 ${setNumber}: ${mainQuestionTypeLabel}</h3>
             
             ${mainQuestion ? `
               <div class="question-container" style="border: 2px solid #3498db;">
                 <div class="question-header">
                   <span class="question-number" style="background: #2980b9;">기본 문제</span>
-                  <span class="question-type">${mainQuestion.questionType || mainQuestion.type}</span>
+                  <span class="question-type">${getComprehensiveQuestionTypeLabel(mainQuestion.questionType || mainQuestion.type)}</span>
                 </div>
                 <div class="question-text">${mainQuestion.question}</div>
                 ${mainQuestion.options && mainQuestion.options.length > 0 ? (
@@ -1629,7 +1722,7 @@ ${editablePassage.paragraphs
                   <div class="question-container" style="border: 1px solid #95a5a6;">
                     <div class="question-header">
                       <span class="question-number" style="background: #7f8c8d;">보완 문제 ${index + 1}</span>
-                      <span class="question-type">${q.questionType || q.type}</span>
+                      <span class="question-type">${getComprehensiveQuestionTypeLabel(q.questionType || q.type)}</span>
                     </div>
                     <div class="question-text">${q.question}</div>
                     ${q.options && q.options.length > 0 ? (
@@ -1818,6 +1911,13 @@ ${editablePassage.paragraphs
       ...prev,
       paragraphs: prev.paragraphs.filter((_, i) => i !== index)
     }));
+    // 여러 지문 배열도 업데이트
+    setEditablePassages(prev => 
+      prev.map((p, i) => i === currentPassageIndex 
+        ? { ...p, paragraphs: p.paragraphs.filter((_, j) => j !== index) }
+        : p
+      )
+    );
   };
 
   // 어휘 편집 함수들
@@ -2152,8 +2252,35 @@ ${editablePassage.paragraphs
             {/* 지문 탭 */}
             {activeTab === 'passage' && (
               <div className="space-y-6">
+                {/* 지문 선택 버튼 (여러 지문이 있을 경우만 표시) */}
+                {editablePassages.length > 1 && (
+                  <div className="flex gap-2 mb-4">
+                    {editablePassages.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          setCurrentPassageIndex(index);
+                          setEditablePassage({
+                            title: editablePassages[index].title,
+                            paragraphs: [...editablePassages[index].paragraphs]
+                          });
+                        }}
+                        className={`px-4 py-2 rounded-md ${
+                          currentPassageIndex === index
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        지문 {index + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">제목</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    제목 {editablePassages.length > 1 ? `(지문 ${currentPassageIndex + 1})` : ''}
+                  </label>
                   <input
                     type="text"
                     value={editablePassage.title}
@@ -2735,7 +2862,7 @@ ${editablePassage.paragraphs
                                     </h5>
                                     <div className="flex items-center space-x-2 mt-1">
                                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                        {question.questionType || question.type}
+                                        {getComprehensiveQuestionTypeLabel(question.questionType || question.type)}
                                       </span>
                                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                         isMainQuestion 

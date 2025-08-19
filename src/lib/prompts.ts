@@ -1447,13 +1447,7 @@ export function getComprehensiveTypeKey(typeName: string): string {
     '정보 확인': '정보 확인',
     '주제 파악': '주제 파악',
     '자료해석': '자료해석',
-    '추론': '추론',
-    // 하위 호환성을 위한 기존 매핑 유지 (비활성화된 프롬프트들)
-    '단답형': 'type_short',
-    '핵심 내용 요약': 'type_summary',
-    '핵심문장 찾기': 'type_keyword',
-    'OX문제': 'type_ox',
-    '자료분석하기': 'type_data'
+    '추론': '추론'
   };
   return typeKeyMap[typeName] || typeName;
 }
@@ -1811,30 +1805,55 @@ export async function generateVocabularyPromptFromDB(
   termName: string,
   termDescription: string,
   passage: string,
-  division: string
+  division: string,
+  questionType?: string
 ): Promise<string> {
   try {
-    // 전체 시스템 프롬프트: system_prompts_v3 테이블의 vocabulary-system-base (완전한 프롬프트)
+    // 전체 시스템 프롬프트: system_prompts_v3 테이블의 vocabulary-system-base
     const basePrompt = await getPromptFromDB('vocabulary', 'vocabularySystem', 'system_base');
     const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(division), getDivisionKey(division));
+    
+    // 문제 유형별 프롬프트 가져오기 (새로운 기능)
+    const typePrompt = questionType 
+      ? await getPromptFromDB('vocabulary', 'vocabularyType', questionType)
+      : null;
 
     console.log('🔧 Vocabulary prompt generation:', {
       basePrompt: basePrompt ? 'FROM DB (' + basePrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
-      divisionPrompt: divisionPrompt ? 'FROM DB (' + divisionPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'
+      divisionPrompt: divisionPrompt ? 'FROM DB (' + divisionPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
+      typePrompt: typePrompt ? 'FROM DB (' + typePrompt.length + ' chars)' : questionType ? 'TYPE NOT FOUND IN DB' : 'NO TYPE SPECIFIED'
     });
 
-    // DB에서 가져온 전체 시스템 프롬프트에 변수 치환
-    let finalPrompt = basePrompt || '';
+    // DB에서 가져온 프롬프트들을 조합하여 최종 프롬프트 생성
+    let finalPrompt = '';
     
-    // 템플릿 변수 치환
-    finalPrompt = finalPrompt
-      .replace(/{termName}/g, termName)
-      .replace(/{termDescription}/g, termDescription || '지문에서 추출된 용어')
-      .replace(/{passage}/g, passage)
-      .replace(/{divisionPrompt}/g, divisionPrompt || '');
+    if (basePrompt) {
+      // 우선순위: 업데이트된 시스템 프롬프트 사용 (6가지 문제 유형 지원)
+      finalPrompt = basePrompt
+        .replace(/{termName}/g, termName)
+        .replace(/{termDescription}/g, termDescription || '지문에서 추출된 용어')
+        .replace(/{passage}/g, passage)
+        .replace(/{divisionPrompt}/g, divisionPrompt || division)
+        .replace(/{questionTypePrompt}/g, typePrompt || `${questionType} 유형의 문제를 생성해주세요.`);
+    } else if (typePrompt) {
+      // 폴백: 유형별 프롬프트 사용
+      finalPrompt = `${typePrompt}
 
-    // typePrompt는 basePrompt와 충돌하므로 사용하지 않음
-    // basePrompt (vocabulary-system-base)가 이미 완전한 프롬프트 구조를 포함
+### 용어 정보
+- 용어명: ${termName}
+- 용어 설명: ${termDescription || '지문에서 추출된 용어'}
+
+### 지문 내용
+${passage}
+
+### 학년 수준
+${divisionPrompt || division}
+
+위 정보를 바탕으로 JSON 형식으로 문제를 생성해주세요.`;
+    } else {
+      // 완전한 폴백
+      return generateVocabularyPrompt(termName, termDescription, passage, division);
+    }
 
     return finalPrompt;
   } catch (error) {

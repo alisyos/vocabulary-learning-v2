@@ -104,11 +104,10 @@ export default function FinalSave({
       'OX문제': paragraphQuestions.filter(q => q.type === 'OX문제').length
     } : null,
     typeDistribution: comprehensiveQuestions && comprehensiveQuestions.length > 0 ? {
-      '단답형': comprehensiveQuestions.filter(q => q.type === '단답형').length,
-      '핵심 내용 요약': comprehensiveQuestions.filter(q => q.type === '핵심 내용 요약').length,
-      '핵심문장 찾기': comprehensiveQuestions.filter(q => q.type === '핵심문장 찾기').length,
-      'OX문제': comprehensiveQuestions.filter(q => q.type === 'OX문제').length,
-      '자료분석하기': comprehensiveQuestions.filter(q => q.type === '자료분석하기').length
+      '정보 확인': comprehensiveQuestions.filter(q => q.type === '정보 확인').length,
+      '주제 파악': comprehensiveQuestions.filter(q => q.type === '주제 파악').length,
+      '자료해석': comprehensiveQuestions.filter(q => q.type === '자료해석').length,
+      '추론': comprehensiveQuestions.filter(q => q.type === '추론').length
     } : null
   };
 

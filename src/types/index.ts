@@ -121,14 +121,16 @@ export interface EditablePassage {
   }[];
 }
 
-// 어휘 문제 (각 용어당 1개씩) - 워크플로우용
+// 어휘 문제 (각 용어당 1개씩) - 워크플로우용 (업데이트)
 export interface VocabularyQuestionWorkflow {
   id: string;
-  term: string;        // 용어
-  question: string;    // 질문
-  options: string[];   // 보기 1~5
-  answer: string;      // 정답
-  explanation: string; // 해설
+  term: string;                    // 용어
+  questionType: VocabularyQuestionType; // 문제 유형
+  question: string;                // 질문
+  options?: string[];              // 보기 (객관식인 경우만, 2~5개)
+  answer: string;                  // 정답
+  answerInitials?: string;         // 단답형인 경우 초성 힌트 (예: 'ㅈㄹㅎㅁ')
+  explanation: string;             // 해설
 }
 
 // 문단 문제 유형
@@ -176,6 +178,27 @@ export interface ComprehensiveQuestionWorkflow {
 
 // 워크플로우에서 사용하는 ComprehensiveQuestion 타입 별칭
 export type ComprehensiveQuestion = ComprehensiveQuestionWorkflow;
+
+// === 어휘 문제 유형 관련 추가 ===
+
+// 어휘 문제 유형 정의 (6가지)
+export type VocabularyQuestionType = 
+  | '5지선다 객관식'         // 기존 유형
+  | '단답형 초성 문제'       // 주관식 단답형 + 초성 힌트
+  | '2지선다 객관식'         // 2개 선택지
+  | '3지선다 객관식'         // 3개 선택지  
+  | '4지선다 객관식'         // 4개 선택지
+  | '단답형 설명 문제';       // 어휘 설명의 단어가 정답
+
+// 어휘 문제 유형별 상수
+export const VOCABULARY_QUESTION_TYPES = {
+  MULTIPLE_CHOICE_5: '5지선다 객관식',
+  SHORT_ANSWER_WITH_INITIAL: '단답형 초성 문제', 
+  MULTIPLE_CHOICE_2: '2지선다 객관식',
+  MULTIPLE_CHOICE_3: '3지선다 객관식',
+  MULTIPLE_CHOICE_4: '4지선다 객관식',
+  SHORT_ANSWER_FROM_DEFINITION: '단답형 설명 문제'
+} as const;
 
 // 워크플로우 전체 데이터
 export interface WorkflowData {
@@ -291,12 +314,12 @@ export interface VocabularyTerm {
   created_at?: string;
 }
 
-// 어휘 문제 (vocabulary_questions 테이블) - Supabase 적용
+// 어휘 문제 (vocabulary_questions 테이블) - Supabase 적용 (업데이트)
 export interface VocabularyQuestion {
   id?: string; // UUID
   content_set_id: string; // UUID
   question_number: number;
-  question_type: '객관식' | '주관식';
+  question_type: VocabularyQuestionType; // 새로운 6가지 유형
   difficulty: '일반' | '보완';
   term?: string; // 어휘 용어
   question_text: string;
@@ -306,6 +329,7 @@ export interface VocabularyQuestion {
   option_4?: string;
   option_5?: string;
   correct_answer: string;
+  answer_initials?: string; // 단답형인 경우 초성 힌트
   explanation: string;
   created_at?: string;
 }
@@ -336,7 +360,7 @@ export interface ComprehensiveQuestionDB {
   id?: string; // UUID
   content_set_id: string; // UUID
   question_number: number;
-  question_type: '단답형' | '핵심 내용 요약' | '핵심문장 찾기' | 'OX문제' | '자료분석하기';
+  question_type: '정보 확인' | '주제 파악' | '자료해석' | '추론';
   question_format: '객관식' | '주관식';
   difficulty: '일반' | '보완';
   question_text: string;
