@@ -105,7 +105,14 @@ export async function GET(request: NextRequest) {
                 options: [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(opt => opt && opt.trim() !== ''),
                 correctAnswer: q.correct_answer,
                 answer: q.correct_answer, // 호환성을 위한 별칭
-                explanation: q.explanation
+                explanation: q.explanation,
+                // 🆕 상세 문제 유형과 난이도 필드 추가
+                question_type: q.question_type,
+                detailed_question_type: q.detailed_question_type,
+                difficulty: q.difficulty,
+                // 추가 필드들 (디버깅용 및 호환성)
+                detailedQuestionType: q.detailed_question_type,
+                questionType: q.question_type
               };
               console.log('어휘문제 변환 결과:', result);
               return result;

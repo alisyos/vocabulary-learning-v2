@@ -68,11 +68,15 @@ export async function GET(request: NextRequest) {
       vocabularyTerms: contentSetDetails.vocabulary_terms || [],
       vocabularyQuestions: contentSetDetails.vocabulary_questions?.map(q => ({
         id: q.id,
-        term: q.question_text.includes('다음 중') ? '어휘' : q.question_text.split(' ')[0], // Extract term from question
+        term: q.term || (q.question_text.includes('다음 중') ? '어휘' : q.question_text.split(' ')[0]), // Use term field if available
         question: q.question_text,
         options: [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(o => o),
         answer: q.correct_answer,
-        explanation: q.explanation
+        explanation: q.explanation,
+        // 추가 필드들 - 상세 문제 유형과 난이도
+        question_type: q.question_type,
+        detailed_question_type: q.detailed_question_type,
+        difficulty: q.difficulty
       })) || [],
       paragraphQuestions: contentSetDetails.paragraph_questions?.map(q => {
         const isWordOrderQuestion = q.question_type === '어절 순서 맞추기';

@@ -9,6 +9,7 @@ import {
   ParagraphQuestionWorkflow,
   ComprehensiveQuestion 
 } from '@/types';
+import { getVocabularyQuestionTypeLabel } from '@/lib/supabase';
 
 interface FinalSaveProps {
   input: PassageInput;
@@ -97,6 +98,21 @@ export default function FinalSave({
     vocabularyCount: vocabularyQuestions?.length || 0,
     paragraphQuestionCount: paragraphQuestions?.length || 0,
     comprehensiveCount: comprehensiveQuestions?.length || 0,
+    // 어휘 문제 유형별 분포 계산
+    vocabularyTypeDistribution: vocabularyQuestions && vocabularyQuestions.length > 0 ? (() => {
+      const distribution: { [key: string]: number } = {};
+      vocabularyQuestions.forEach(q => {
+        // 상세 유형이 있으면 우선 사용, 없으면 기본 유형 사용
+        const detailedType = (q as any).detailed_question_type || (q as any).detailedQuestionType;
+        const questionType = q.question_type || (q as any).questionType || '객관식';
+        
+        // 라벨 생성 (getVocabularyQuestionTypeLabel 함수 사용)
+        const label = getVocabularyQuestionTypeLabel(questionType, detailedType);
+        
+        distribution[label] = (distribution[label] || 0) + 1;
+      });
+      return distribution;
+    })() : null,
     paragraphTypeDistribution: paragraphQuestions && paragraphQuestions.length > 0 ? {
       '빈칸 채우기': paragraphQuestions.filter(q => q.type === '빈칸 채우기').length,
       '주관식 단답형': paragraphQuestions.filter(q => q.type === '주관식 단답형').length,
@@ -341,6 +357,21 @@ export default function FinalSave({
                   </div>
                 </div>
                 
+                {/* 어휘 문제 유형별 분포 */}
+                {summary.vocabularyTypeDistribution && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-gray-800 mb-2">어휘 문제 유형별 분포</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                      {Object.entries(summary.vocabularyTypeDistribution).map(([type, count]) => (
+                        <div key={type} className="bg-purple-100 p-2 rounded text-center">
+                          <div className="font-medium">{type}</div>
+                          <div className="text-gray-600">{count}개</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 {/* 문단 문제 유형별 분포 */}
                 {summary.paragraphTypeDistribution && (
                   <div className="mt-4">
@@ -465,7 +496,16 @@ export default function FinalSave({
             <h4 className="font-medium text-gray-800 mb-3">어휘 문제</h4>
             <div className="space-y-2 text-sm">
               <p><strong>총 문제 수:</strong> {summary.vocabularyCount}개</p>
-              <p><strong>문제 형태:</strong> 객관식 (5지선다)</p>
+              {summary.vocabularyTypeDistribution && (
+                <div>
+                  <p><strong>유형별 분포:</strong></p>
+                  <ul className="ml-4 space-y-1">
+                    {Object.entries(summary.vocabularyTypeDistribution).map(([type, count]) => (
+                      <li key={type}>• {type}: {count as number}개</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
 

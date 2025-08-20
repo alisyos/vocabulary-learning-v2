@@ -878,3 +878,36 @@ export function getComprehensiveQuestionTypeLabel(questionType: string): string 
   // 매핑되지 않는 경우 원본 반환
   return questionType;
 }
+
+// 어휘 문제 유형 라벨링 함수
+export function getVocabularyQuestionTypeLabel(questionType: string, detailedQuestionType?: string): string {
+  // 상세 유형이 있으면 우선 사용
+  if (detailedQuestionType) {
+    const detailedTypeMap: { [key: string]: string } = {
+      '5지선다 객관식': '5지선다',
+      '4지선다 객관식': '4지선다',
+      '3지선다 객관식': '3지선다',
+      '2지선다 객관식': '2지선다',
+      '단답형 초성 문제': '단답형(초성)',
+      '단답형 설명 문제': '단답형(설명)'
+    };
+    
+    if (detailedTypeMap[detailedQuestionType]) {
+      return detailedTypeMap[detailedQuestionType];
+    }
+  }
+
+  // 기본 유형 매핑
+  const typeMap: { [key: string]: string } = {
+    '객관식': '객관식',
+    '주관식': '주관식',
+    '5지선다 객관식': '5지선다',
+    '4지선다 객관식': '4지선다', 
+    '3지선다 객관식': '3지선다',
+    '2지선다 객관식': '2지선다',
+    '단답형 초성 문제': '단답형(초성)',
+    '단답형 설명 문제': '단답형(설명)'
+  };
+
+  return typeMap[questionType] || questionType;
+}

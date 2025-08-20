@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
-import { getComprehensiveQuestionTypeLabel } from '@/lib/supabase';
+import { getComprehensiveQuestionTypeLabel, getVocabularyQuestionTypeLabel } from '@/lib/supabase';
 
 interface SetDetails {
   id: string; // UUID
@@ -203,13 +203,30 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         setEditableVocabulary(vocabularyTermsFormatted);
         
         // 어휘 문제 데이터 안전하게 처리
+        console.log('🔍 원본 vocabularyQuestions 데이터:', result.data?.vocabularyQuestions?.slice(0, 2));
+        
         const safeVocabQuestions = (result.data?.vocabularyQuestions || [])
           .filter(q => q && q.id)
-          .map((q: any) => ({
-            ...q,
-            term: q.term || '', // term이 없을 경우 빈 문자열로 설정
-            options: q.options || []
-          }));
+          .map((q: any) => {
+            console.log('🔄 처리 중인 문제:', {
+              id: q.id,
+              term: q.term,
+              question_type: q.question_type,
+              detailed_question_type: q.detailed_question_type,
+              difficulty: q.difficulty
+            });
+            
+            return {
+              ...q,
+              term: q.term || '', // term이 없을 경우 빈 문자열로 설정
+              options: q.options || [],
+              // 상세 문제 유형과 난이도 필드 보존
+              detailed_question_type: q.detailed_question_type,
+              difficulty: q.difficulty
+            };
+          });
+          
+        console.log('✅ 최종 safeVocabQuestions:', safeVocabQuestions.slice(0, 2));
         setEditableVocabQuestions([...safeVocabQuestions]);
         
         // 문단 문제 데이터 안전하게 처리
@@ -337,6 +354,16 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       setSaving(false);
     }
   };
+
+  // 어휘 문제를 어휘별로 그룹화 (React 편집 탭용, originalIndex 포함)
+  const vocabularyQuestionsByTermForEdit: { [key: string]: (typeof editableVocabQuestions[0] & {originalIndex: number})[] } = {};
+  editableVocabQuestions.forEach((q, index) => {
+    const term = q.term || '미분류';
+    if (!vocabularyQuestionsByTermForEdit[term]) {
+      vocabularyQuestionsByTermForEdit[term] = [];
+    }
+    vocabularyQuestionsByTermForEdit[term].push({ ...q, originalIndex: index });
+  });
 
   // HTML 다운로드 함수
   const handleHtmlDownload = () => {
@@ -940,7 +967,25 @@ ${editablePassage.paragraphs
       });
     });
 
-    // 어휘 문제는 문단별로 구분하지 않음
+    // 어휘 문제를 어휘별로 그룹화 (종합 문제처럼 세트로 구성)
+    const vocabularyQuestionsByTerm: { [key: string]: typeof editableVocabQuestions } = {};
+    editableVocabQuestions.forEach(q => {
+      const term = q.term || '기타';
+      if (!vocabularyQuestionsByTerm[term]) {
+        vocabularyQuestionsByTerm[term] = [];
+      }
+      vocabularyQuestionsByTerm[term].push(q);
+    });
+
+    // 어휘 문제를 어휘별로 그룹화 (HTML ver.2에서도 동일)
+    const vocabularyQuestionsByTermV2: { [key: string]: typeof editableVocabQuestions } = {};
+    editableVocabQuestions.forEach(q => {
+      const term = q.term || '기타';
+      if (!vocabularyQuestionsByTermV2[term]) {
+        vocabularyQuestionsByTermV2[term] = [];
+      }
+      vocabularyQuestionsByTermV2[term].push(q);
+    });
 
     // 각 문단별 문단 문제 그룹화
     const paragraphQuestionsByParagraph: { [key: number]: typeof editableParagraphQuestions } = {};
@@ -1546,27 +1591,63 @@ ${editablePassage.paragraphs
     <!-- 어휘 문제 탭 -->
     <div id="vocabulary-tab" class="tab-content">
       <h2 style="color: #2c3e50; margin-bottom: 30px;">📝 어휘 문제</h2>
-      ${editableVocabQuestions.map((question, index) => `
-        <div class="question-container">
-          <div class="question-header">
-            <span class="question-number">어휘 문제 ${index + 1}</span>
-            <span class="question-type">${question.term}</span>
+      ${Object.keys(vocabularyQuestionsByTerm).sort().map(term => {
+        const questions = vocabularyQuestionsByTerm[term];
+        return `
+          <div style="margin-bottom: 40px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #17a2b8;">
+            <h3 style="color: #17a2b8; margin-bottom: 20px;">📚 어휘: ${term} (${questions.length}개 문제)</h3>
+            ${questions.map((question, questionIndex) => {
+              const questionTypeLabel = getVocabularyQuestionTypeLabel(
+                question.question_type || question.questionType || '객관식',
+                question.detailed_question_type || question.detailedQuestionType
+              );
+              const detailedType = question.detailed_question_type || question.detailedQuestionType || questionTypeLabel;
+              const isSupplementary = question.difficulty === '보완' || question.question_type === '보완';
+              const levelLabel = isSupplementary ? '보완문제' : '일반문제';
+              
+              return `
+                <div class="question-container" style="margin-bottom: 30px; background-color: white; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                  <div class="question-header" style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                    <span class="question-number" style="font-weight: 600; color: #2c3e50;">문제 ${questionIndex + 1}</span>
+                    <span class="question-type-badge" style="background-color: #17a2b8; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px;">
+                      ${detailedType}
+                    </span>
+                    <span class="question-level-badge" style="background-color: ${isSupplementary ? '#f39c12' : '#27ae60'}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px;">
+                      ${levelLabel}
+                    </span>
+                  </div>
+                  <div class="question-text">${question.question}</div>
+                  
+                  ${question.options && question.options.length > 0 ? `
+                    <div class="options">
+                      ${question.options.map((option, optIndex) => `
+                        <div class="option ${option === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${option === (question.correctAnswer || question.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px; transition: background-color 0.2s;">
+                          ${optIndex + 1}. ${option} ${option === (question.correctAnswer || question.answer) ? ' ✓' : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : `
+                    <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8;">
+                      <strong>정답:</strong> ${question.correctAnswer || question.answer}
+                      ${question.answer_initials || question.answerInitials ? `
+                        <span style="margin-left: 15px; color: #666; font-size: 0.9em;">
+                          (초성 힌트: ${question.answer_initials || question.answerInitials})
+                        </span>
+                      ` : ''}
+                    </div>
+                  `}
+                  
+                  <div class="answer-section">
+                    <div class="explanation" style="margin-top: 15px; padding: 15px; background-color: #f0f8ff; border-radius: 5px; border-left: 4px solid #3498db;">
+                      <strong>해설:</strong> ${question.explanation}
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
           </div>
-          <div class="question-text">${question.question}</div>
-          <div class="options">
-            ${question.options.map((option, optIndex) => `
-              <div class="option ${option === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${option === (question.correctAnswer || question.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px; transition: background-color 0.2s;">
-                ${optIndex + 1}. ${option} ${option === (question.correctAnswer || question.answer) ? ' ✓' : ''}
-              </div>
-            `).join('')}
-          </div>
-          <div class="answer-section">
-            <div class="explanation" style="margin-top: 15px; padding: 15px; background-color: #f0f8ff; border-radius: 5px; border-left: 4px solid #3498db;">
-              <strong>해설:</strong> ${question.explanation}
-            </div>
-          </div>
-        </div>
-      `).join('')}
+        `;
+      }).join('')}
     </div>
 
     <!-- 문단 문제 탭 -->
@@ -2478,7 +2559,7 @@ ${editablePassage.paragraphs
             {activeTab === 'vocab-questions' && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900">어휘 문제</h3>
+                  <h3 className="text-lg font-medium text-gray-900">어휘 문제 ({editableVocabQuestions.length}개)</h3>
                   <button
                     onClick={addVocabQuestion}
                     className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
@@ -2487,88 +2568,126 @@ ${editablePassage.paragraphs
                   </button>
                 </div>
                 
-                <div className="space-y-6">
-                  {editableVocabQuestions.map((question, index) => (
-                    <div key={question.questionId} className="border border-gray-200 rounded-lg p-6">
-                      <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-lg font-medium text-gray-900">문제 {index + 1}</h4>
-                        <button
-                          onClick={() => removeVocabQuestion(index)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          삭제
-                        </button>
+                {Object.keys(vocabularyQuestionsByTermForEdit).sort().map(term => {
+                  const questions = vocabularyQuestionsByTermForEdit[term];
+                  return (
+                    <div key={term} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                      <div className="flex items-center mb-4">
+                        <h4 className="text-lg font-semibold text-gray-900">📚 어휘: {term}</h4>
+                        <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {questions.length}개 문제
+                        </span>
                       </div>
                       
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">어휘</label>
-                            <input
-                              type="text"
-                              value={question.term}
-                              onChange={(e) => handleVocabQuestionChange(index, 'term', e.target.value)}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                            <select
-                              value={question.correctAnswer || question.answer}
-                              onChange={(e) => handleVocabQuestionChange(index, 'correctAnswer', e.target.value)}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                                                          {question.options.map((option, optIndex) => (
-                              <option key={`${question.questionId}-opt-${optIndex}`} value={option}>{optIndex + 1}. {option}</option>
-                            ))}
-                            </select>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">질문</label>
-                          <textarea
-                            value={question.question}
-                            onChange={(e) => handleVocabQuestionChange(index, 'question', e.target.value)}
-                            rows={2}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
-                          <div className="space-y-2">
-                            {question.options.map((option, optIndex) => (
-                              <div key={`${question.questionId}-option-${optIndex}`} className="flex items-center space-x-2">
-                                <span className="text-sm font-medium w-6">{optIndex + 1}.</span>
-                                <input
-                                  type="text"
-                                  value={option}
-                                  onChange={(e) => {
-                                    const newOptions = [...question.options];
-                                    newOptions[optIndex] = e.target.value;
-                                    handleVocabQuestionChange(index, 'options', newOptions);
-                                  }}
-                                  className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
+                      <div className="space-y-6">
+                        {questions.map((question, questionIndex) => {
+                          const originalIndex = (question as any).originalIndex;
+                          const questionTypeLabel = getVocabularyQuestionTypeLabel(
+                            question.question_type || question.questionType || '객관식',
+                            question.detailed_question_type || question.detailedQuestionType
+                          );
+                          
+                          return (
+                            <div key={question.questionId} className="bg-white border border-gray-200 rounded-lg p-6">
+                              <div className="flex justify-between items-center mb-4">
+                                <div className="flex items-center space-x-3">
+                                  <h5 className="text-md font-medium text-gray-900">문제 {questionIndex + 1}</h5>
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                                    {question.detailed_question_type || question.detailedQuestionType || questionTypeLabel}
+                                  </span>
+                                  {(question.difficulty || question.question_type === '보완') && (
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      (question.difficulty === '보완' || question.question_type === '보완')
+                                        ? 'bg-orange-100 text-orange-800'
+                                        : 'bg-green-100 text-green-800'
+                                    }`}>
+                                      {question.difficulty === '보완' || question.question_type === '보완' ? '보완문제' : '일반문제'}
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => removeVocabQuestion(originalIndex)}
+                                  className="text-red-600 hover:text-red-800 text-sm"
+                                >
+                                  삭제
+                                </button>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
-                          <textarea
-                            value={question.explanation}
-                            onChange={(e) => handleVocabQuestionChange(index, 'explanation', e.target.value)}
-                            rows={3}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
+                    
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">어휘</label>
+                                    <input
+                                      type="text"
+                                      value={question.term}
+                                      onChange={(e) => handleVocabQuestionChange(originalIndex, 'term', e.target.value)}
+                                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
+                                    <select
+                                      value={question.correctAnswer || question.answer}
+                                      onChange={(e) => handleVocabQuestionChange(originalIndex, 'correctAnswer', e.target.value)}
+                                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                      {question.options.map((option, optIndex) => (
+                                        <option key={question.questionId + '-opt-' + optIndex} value={option}>
+                                          {optIndex + 1}. {option}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">질문</label>
+                                  <textarea
+                                    value={question.question}
+                                    onChange={(e) => handleVocabQuestionChange(originalIndex, 'question', e.target.value)}
+                                    rows={2}
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
+                                  <div className="space-y-2">
+                                    {question.options.map((option, optIndex) => (
+                                      <div key={question.questionId + '-option-' + optIndex} className="flex items-center space-x-2">
+                                        <span className="text-sm font-medium w-6">{optIndex + 1}.</span>
+                                        <input
+                                          type="text"
+                                          value={option}
+                                          onChange={(e) => {
+                                            const newOptions = [...question.options];
+                                            newOptions[optIndex] = e.target.value;
+                                            handleVocabQuestionChange(originalIndex, 'options', newOptions);
+                                          }}
+                                          className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
+                                  <textarea
+                                    value={question.explanation}
+                                    onChange={(e) => handleVocabQuestionChange(originalIndex, 'explanation', e.target.value)}
+                                    rows={3}
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             )}
             

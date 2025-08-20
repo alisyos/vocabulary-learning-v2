@@ -167,9 +167,47 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // 하드코딩된 프롬프트 중에서 해당 프롬프트 찾기
-    const { DEFAULT_PROMPTS_V2 } = await import('@/lib/promptsV2');
-    const originalPrompt = DEFAULT_PROMPTS_V2.find(p => p.promptId === promptId);
+    // 먼저 DB에서 기존 프롬프트 정보 조회 시도
+    let originalPrompt;
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      
+      const { data: dbPrompt, error: dbError } = await supabase
+        .from('system_prompts_v3')
+        .select('*')
+        .eq('prompt_id', promptId)
+        .single();
+      
+      if (!dbError && dbPrompt) {
+        // DB에서 찾은 경우, SystemPrompt 형태로 변환
+        originalPrompt = {
+          promptId: dbPrompt.prompt_id,
+          category: dbPrompt.category,
+          subCategory: dbPrompt.sub_category,
+          name: dbPrompt.name,
+          key: dbPrompt.key,
+          promptText: dbPrompt.prompt_text,
+          description: dbPrompt.description || '',
+          isActive: dbPrompt.is_active,
+          isDefault: dbPrompt.is_default || false,
+          version: dbPrompt.version || 1
+        };
+        console.log('🔍 DB에서 기존 프롬프트를 찾았습니다:', promptId);
+      }
+    } catch (dbError) {
+      console.log('DB 조회 실패, 하드코딩된 프롬프트에서 찾아보겠습니다.');
+    }
+    
+    // DB에서 찾지 못한 경우, 하드코딩된 프롬프트에서 찾기
+    if (!originalPrompt) {
+      const { DEFAULT_PROMPTS_V2 } = await import('@/lib/promptsV2');
+      const hardcodedPrompt = DEFAULT_PROMPTS_V2.find(p => p.promptId === promptId);
+      
+      if (hardcodedPrompt) {
+        originalPrompt = hardcodedPrompt;
+        console.log('🔍 하드코딩된 프롬프트에서 찾았습니다:', promptId);
+      }
+    }
     
     if (!originalPrompt) {
       return NextResponse.json(
