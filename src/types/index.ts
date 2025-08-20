@@ -314,12 +314,12 @@ export interface VocabularyTerm {
   created_at?: string;
 }
 
-// 어휘 문제 (vocabulary_questions 테이블) - Supabase 적용 (업데이트)
+// 어휘 문제 (vocabulary_questions 테이블) - 실제 DB 스키마에 맞춤
 export interface VocabularyQuestion {
   id?: string; // UUID
   content_set_id: string; // UUID
   question_number: number;
-  question_type: VocabularyQuestionType; // 새로운 6가지 유형
+  question_type: '객관식' | '주관식'; // DB 제약조건에 맞는 2가지 유형
   difficulty: '일반' | '보완';
   term?: string; // 어휘 용어
   question_text: string;
@@ -329,9 +329,12 @@ export interface VocabularyQuestion {
   option_4?: string;
   option_5?: string;
   correct_answer: string;
-  answer_initials?: string; // 단답형인 경우 초성 힌트
   explanation: string;
   created_at?: string;
+  
+  // ✅ 확장 필드들 (DB 컬럼 추가 완료)
+  detailed_question_type?: string; // 6가지 상세 유형 저장
+  answer_initials?: string; // 단답형인 경우 초성 힌트
 }
 
 // 문단 문제 (paragraph_questions 테이블) - Supabase 적용

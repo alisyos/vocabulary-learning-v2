@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { VocabularyQuestion, EditablePassage, VocabularyQuestionType, VOCABULARY_QUESTION_TYPES } from '@/types';
 import PromptModal from './PromptModal';
 
@@ -31,6 +31,7 @@ export default function VocabularyQuestions({
   const [generatingVocab, setGeneratingVocab] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<VocabularyQuestionType[]>(['5지선다 객관식']);
+  const [selectedTerm, setSelectedTerm] = useState<string>('');
   
   // 2개 지문 형식에서 모든 footnote 통합하여 가져오기
   const getAllFootnotes = () => {
@@ -187,8 +188,14 @@ export default function VocabularyQuestions({
       
       console.log(`🎉 총 ${allQuestions.length}개 문제 생성 완료 (${selectedQuestionTypes.length}가지 유형)`);
       
-      setLocalQuestions(allQuestions);
-      onUpdate(allQuestions, lastUsedPrompt);
+      // 생성된 문제들의 difficulty 기본값 설정 (API에서 설정되지 않은 경우)
+      const questionsWithDefaults = allQuestions.map(question => ({
+        ...question,
+        difficulty: question.difficulty || '일반' // 기본값을 '일반' (기본문제)로 설정
+      }));
+      
+      setLocalQuestions(questionsWithDefaults);
+      onUpdate(questionsWithDefaults, lastUsedPrompt);
       
     } catch (error) {
       console.error('Error:', error);
@@ -220,7 +227,7 @@ export default function VocabularyQuestions({
       content_set_id: '',
       question_number: localQuestions.length + 1,
       question_type: defaultQuestionType,
-      difficulty: '일반',
+      difficulty: '일반', // 새 문제는 기본적으로 '일반' (기본문제)로 설정
       term: '새로운 용어',
       question_text: '질문을 입력하세요',
       option_1: isMultipleChoice ? '선택지 1' : undefined,
@@ -258,6 +265,23 @@ export default function VocabularyQuestions({
     setLocalQuestions(updated);
     onUpdate(updated);
   };
+
+  // 고유한 용어 목록 추출 (review 단계에서 사용)
+  const uniqueTerms = currentStep === 'review' 
+    ? Array.from(new Set(localQuestions.map(q => q.term || '').filter(Boolean)))
+    : [];
+  
+  // 선택된 용어가 없으면 첫 번째 용어 선택 (review 단계에서만)
+  useEffect(() => {
+    if (currentStep === 'review' && !selectedTerm && uniqueTerms.length > 0) {
+      setSelectedTerm(uniqueTerms[0]);
+    }
+  }, [currentStep, uniqueTerms.length, selectedTerm]);
+  
+  // 선택된 용어의 문제들만 필터링 (review 단계에서만)
+  const filteredQuestions = currentStep === 'review' && selectedTerm 
+    ? localQuestions.filter(q => q.term === selectedTerm)
+    : localQuestions;
 
   if (currentStep === 'generation') {
     return (
@@ -449,6 +473,7 @@ export default function VocabularyQuestions({
   }
 
   // currentStep === 'review'
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-6">
@@ -479,10 +504,82 @@ export default function VocabularyQuestions({
         </div>
       </div>
 
+      {/* 어휘별 탭 네비게이션 */}
+      {uniqueTerms.length > 1 && (
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-2 overflow-x-auto">
+              {uniqueTerms.map((term, index) => {
+                const termQuestions = localQuestions.filter(q => q.term === term);
+                const basicCount = termQuestions.filter(q => q.difficulty === '일반').length;
+                const supplementCount = termQuestions.filter(q => q.difficulty === '보완').length;
+                const isSelected = selectedTerm === term;
+                return (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedTerm(term)}
+                    className={`
+                      whitespace-nowrap py-2 px-4 border-b-2 font-medium text-sm transition-colors
+                      ${isSelected 
+                        ? 'border-purple-500 text-purple-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <span>{term}</span>
+                    <div className="ml-2 flex items-center space-x-1">
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                        기본 {basicCount}
+                      </span>
+                      {supplementCount > 0 && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                          보완 {supplementCount}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+      )}
+
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-gray-800">
-            어휘 문제 ({localQuestions.length}개)
+            {selectedTerm ? (
+              <>
+                "{selectedTerm}" 문제 ({filteredQuestions.length}개)
+                <div className="ml-2 inline-flex items-center space-x-2">
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                    기본 {filteredQuestions.filter(q => q.difficulty === '일반').length}개
+                  </span>
+                  {filteredQuestions.filter(q => q.difficulty === '보완').length > 0 && (
+                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
+                      보완 {filteredQuestions.filter(q => q.difficulty === '보완').length}개
+                    </span>
+                  )}
+                </div>
+                <span className="ml-2 text-sm text-gray-500">
+                  전체 {localQuestions.length}개 중
+                </span>
+              </>
+            ) : (
+              <>
+                어휘 문제 ({localQuestions.length}개)
+                <div className="ml-2 inline-flex items-center space-x-2">
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                    기본 {localQuestions.filter(q => q.difficulty === '일반').length}개
+                  </span>
+                  {localQuestions.filter(q => q.difficulty === '보완').length > 0 && (
+                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
+                      보완 {localQuestions.filter(q => q.difficulty === '보완').length}개
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
           </h3>
           <button
             onClick={addQuestion}
@@ -493,10 +590,16 @@ export default function VocabularyQuestions({
         </div>
 
         <div className="space-y-6">
-          {localQuestions.map((question, qIndex) => (
-            <div key={question.id} className="border border-gray-200 rounded-lg p-4">
+          {filteredQuestions.map((question, displayIndex) => {
+            // 실제 문제의 인덱스 찾기 (삭제/수정을 위해)
+            const qIndex = localQuestions.findIndex(q => q.id === question.id);
+            
+            return (
+              <div key={question.id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex justify-between items-start mb-4">
-                <h4 className="text-md font-medium text-gray-800">문제 {qIndex + 1}</h4>
+                <h4 className="text-md font-medium text-gray-800">
+                  문제 {displayIndex + 1}
+                </h4>
                 <button
                   onClick={() => removeQuestion(qIndex)}
                   className="text-red-500 hover:text-red-700 text-sm"
@@ -506,10 +609,47 @@ export default function VocabularyQuestions({
                 </button>
               </div>
 
-              {/* 문제 유형 표시 */}
-              <div className="mb-3">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                  {question.question_type || question.questionType || '5지선다 객관식'}
+              {/* 문제 유형 및 기본/보완 선택 */}
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    {question.question_type || question.questionType || '5지선다 객관식'}
+                  </span>
+                  
+                  {/* 기본/보완 문제 선택 */}
+                  <div className="flex items-center space-x-2">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name={`difficulty_${question.id}`}
+                        value="일반"
+                        checked={question.difficulty === '일반'}
+                        onChange={(e) => handleQuestionUpdate(qIndex, 'difficulty', e.target.value)}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                      />
+                      <span className="ml-1 text-sm text-gray-700">기본문제</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name={`difficulty_${question.id}`}
+                        value="보완"
+                        checked={question.difficulty === '보완'}
+                        onChange={(e) => handleQuestionUpdate(qIndex, 'difficulty', e.target.value)}
+                        className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 focus:ring-orange-500"
+                      />
+                      <span className="ml-1 text-sm text-gray-700">보완문제</span>
+                    </label>
+                  </div>
+                </div>
+                
+                {/* 문제 타입 배지 */}
+                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                  question.difficulty === '보완' 
+                    ? 'bg-orange-100 text-orange-800' 
+                    : 'bg-blue-100 text-blue-800'
+                }`}>
+                  {question.difficulty === '보완' ? '보완' : '기본'}
                 </span>
               </div>
 
@@ -664,7 +804,8 @@ export default function VocabularyQuestions({
                 />
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

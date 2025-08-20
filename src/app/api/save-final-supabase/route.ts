@@ -239,14 +239,72 @@ export async function POST(request: NextRequest) {
 
     console.log('📚 VocabularyTerms 데이터 변환 완료:', vocabularyTerms.length, '개');
 
+    // 6가지 어휘 문제 유형을 DB의 2가지 유형으로 매핑하는 함수
+    const mapVocabularyQuestionType = (detailedType: string): '객관식' | '주관식' => {
+      const objectiveTypes = [
+        '5지선다 객관식',
+        '2지선다 객관식', 
+        '3지선다 객관식',
+        '4지선다 객관식'
+      ];
+      
+      const subjectiveTypes = [
+        '단답형 초성 문제',
+        '단답형 설명 문제'
+      ];
+      
+      if (objectiveTypes.includes(detailedType)) {
+        return '객관식';
+      } else if (subjectiveTypes.includes(detailedType)) {
+        return '주관식';
+      } else {
+        // fallback: 옵션 배열 유무로 판단
+        return '객관식';
+      }
+    };
+
     // Transform vocabulary questions
     const transformedVocabularyQuestions: Omit<VocabularyQuestion, 'id' | 'content_set_id' | 'created_at'>[] = 
-      vocabularyQuestions?.map((q: { term?: string; question: string; options: string[]; correctAnswer: string; answer: string; explanation: string }, index: number) => {
+      vocabularyQuestions?.map((q: { 
+        term?: string; 
+        question: string; 
+        options: string[]; 
+        correctAnswer: string; 
+        answer: string; 
+        explanation: string;
+        questionType?: string;
+        difficulty?: string;
+        answerInitials?: string; // 초성 힌트 추가
+      }, index: number) => {
         console.log(`어휘문제 ${index + 1} 원본:`, q);
+        
+        // questionType 매핑 (6가지 → 2가지)
+        let mappedQuestionType: '객관식' | '주관식';
+        const originalQuestionType = q.questionType || '';
+        
+        if (originalQuestionType) {
+          mappedQuestionType = mapVocabularyQuestionType(originalQuestionType);
+          console.log(`어휘문제 ${index + 1} 타입 매핑: "${originalQuestionType}" → "${mappedQuestionType}"`);
+        } else {
+          // fallback: 옵션 배열 유무로 판단
+          mappedQuestionType = (q.options && q.options.length > 0) ? '객관식' : '주관식';
+          console.log(`어휘문제 ${index + 1} 타입 fallback: 옵션수 ${q.options?.length || 0} → "${mappedQuestionType}"`);
+        }
+        
+        // difficulty 결정 (UI에서 설정된 값 사용, 없으면 기본값)
+        const difficulty = q.difficulty || '일반';
+        
+        // 주관식 문제인 경우 초성 힌트 처리
+        const isSubjective = mappedQuestionType === '주관식';
+        const answerInitials = isSubjective ? q.answerInitials : null;
+        
+        console.log(`어휘문제 ${index + 1} 초성 힌트 처리: 주관식=${isSubjective}, answerInitials="${answerInitials}"`);
+        
+        // ✅ 완전한 DB 스키마 활용 (detailed_question_type, answer_initials 컬럼 추가 완료)
         const result = {
           question_number: index + 1,
-          question_type: '객관식' as const,
-          difficulty: '일반' as const,
+          question_type: mappedQuestionType,
+          difficulty: difficulty as '일반' | '보완',
           term: q.term || '', // 어휘 용어 저장
           question_text: q.question,
           option_1: q.options?.[0],
@@ -255,8 +313,27 @@ export async function POST(request: NextRequest) {
           option_4: q.options?.[3],
           option_5: q.options?.[4],
           correct_answer: q.answer || q.correctAnswer,
-          explanation: q.explanation
+          explanation: q.explanation,
+          // ✅ 6가지 상세 유형 및 초성 힌트 저장
+          detailed_question_type: originalQuestionType, // 6가지 상세 유형 저장
+          answer_initials: isSubjective ? answerInitials : null // 주관식만 초성 힌트 저장
         };
+        
+        // 디버깅 정보 추가
+        console.log(`어휘문제 ${index + 1} 최종 저장 데이터 (DB 컬럼만):`, {
+          question_type: result.question_type,
+          difficulty: result.difficulty,
+          term: result.term,
+          has_options: !!(result.option_1),
+          answer_length: result.correct_answer.length
+        });
+        
+        // 6가지 상세 유형 정보는 로그로만 출력 (향후 DB 컬럼 추가 시 활용)
+        console.log(`어휘문제 ${index + 1} 메타 정보 (로그용):`, {
+          original_question_type: originalQuestionType,
+          answer_initials: answerInitials,
+          is_subjective: isSubjective
+        });
         console.log(`어휘문제 ${index + 1} 변환 결과:`, result);
         return result;
       }) || [];
