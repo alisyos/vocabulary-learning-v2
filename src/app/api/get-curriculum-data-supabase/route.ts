@@ -93,7 +93,8 @@ export async function GET(request: NextRequest) {
               id: term.id,
               term: term.term,
               definition: term.definition,
-              example_sentence: term.example_sentence
+              example_sentence: term.example_sentence,
+              has_question_generated: term.has_question_generated // has_question_generated 필드 추가
             })),
             vocabularyQuestions: (setDetails.vocabulary_questions || []).map((q: VocabularyQuestion) => {
               console.log('어휘문제 DB 데이터:', q);
@@ -110,6 +111,9 @@ export async function GET(request: NextRequest) {
                 question_type: q.question_type,
                 detailed_question_type: q.detailed_question_type,
                 difficulty: q.difficulty,
+                // 🆕 초성힌트 필드 추가
+                answer_initials: q.answer_initials,
+                answerInitials: q.answer_initials, // camelCase 별칭
                 // 추가 필드들 (디버깅용 및 호환성)
                 detailedQuestionType: q.detailed_question_type,
                 questionType: q.question_type

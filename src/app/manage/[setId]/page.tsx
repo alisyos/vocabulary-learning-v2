@@ -98,6 +98,7 @@ interface VocabularyTerm {
   definition: string;
   exampleSentence: string;
   orderIndex: number;
+  has_question_generated?: boolean; // 어휘 문제 생성 여부
 }
 
 interface PassageData {
@@ -134,6 +135,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   const [editablePassages, setEditablePassages] = useState<Array<{id?: string; title: string; paragraphs: string[]}>>([]);
   const [currentPassageIndex, setCurrentPassageIndex] = useState(0);
   const [editableVocabulary, setEditableVocabulary] = useState<string[]>([]);
+  const [vocabularyTermsData, setVocabularyTermsData] = useState<VocabularyTerm[]>([]);
   const [editableVocabQuestions, setEditableVocabQuestions] = useState<VocabularyQuestion[]>([]);
   const [editableParagraphQuestions, setEditableParagraphQuestions] = useState<ParagraphQuestion[]>([]);
   const [editableComprehensive, setEditableComprehensive] = useState<ComprehensiveQuestion[]>([]);
@@ -181,26 +183,49 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         console.log('어휘 문제 원본 데이터:', result.data?.vocabularyQuestions);
         console.log('종합 문제 원본 데이터:', result.data?.comprehensiveQuestions);
         
-        const vocabularyTermsFormatted = (result.data?.vocabularyTerms || []).map((term: any, index) => {
+        // VocabularyTerm 객체를 직접 사용하여 has_question_generated 필드 보존
+        const vocabularyTermsProcessed = (result.data?.vocabularyTerms || []).map((term: any, index) => {
           console.log(`어휘 용어 ${index + 1} 원본:`, term);
           
           if (term && typeof term === 'object' && term.term && term.definition) {
-            // 예시 문장이 있으면 포함, 없으면 정의만
-            let formattedTerm;
-            if (term.example_sentence && term.example_sentence.trim() !== '') {
-              formattedTerm = `${term.term}: ${term.definition} (예시: ${term.example_sentence})`;
-            } else {
-              formattedTerm = `${term.term}: ${term.definition}`;
-            }
-            console.log(`어휘 용어 ${index + 1} 변환 결과:`, formattedTerm);
-            return formattedTerm;
+            // VocabularyTerm 객체 구조를 유지
+            const processedTerm = {
+              id: term.id,
+              content_set_id: term.content_set_id,
+              term: term.term,
+              definition: term.definition,
+              example_sentence: term.example_sentence || '',
+              has_question_generated: term.has_question_generated || false,
+              created_at: term.created_at
+            };
+            console.log(`어휘 용어 ${index + 1} 처리 결과:`, processedTerm);
+            return processedTerm;
           }
-          // 이미 문자열 형태인 경우 (fallback)
-          const fallback = typeof term === 'string' ? term : `용어: 정의`;
-          console.log(`어휘 용어 ${index + 1} fallback:`, fallback);
-          return fallback;
+          // 기존 문자열 형태는 객체로 변환 (fallback)
+          const fallbackTerm = typeof term === 'string' ? term : `용어: 정의`;
+          const [termPart, definitionPart] = fallbackTerm.split(':').map(s => s.trim());
+          const processedFallback = {
+            id: `temp-${index}`,
+            content_set_id: '',
+            term: termPart || '용어',
+            definition: definitionPart || '정의',
+            example_sentence: '',
+            has_question_generated: false,
+            created_at: ''
+          };
+          console.log(`어휘 용어 ${index + 1} fallback 처리:`, processedFallback);
+          return processedFallback;
         });
-        setEditableVocabulary(vocabularyTermsFormatted);
+        
+        // 이제 VocabularyTerm 배열로 저장
+        setEditableVocabulary(vocabularyTermsProcessed.map(term => 
+          term.example_sentence 
+            ? `${term.term}: ${term.definition} (예시: ${term.example_sentence})`
+            : `${term.term}: ${term.definition}`
+        ));
+        
+        // 원본 VocabularyTerm 객체도 별도 상태로 저장
+        setVocabularyTermsData(vocabularyTermsProcessed);
         
         // 어휘 문제 데이터 안전하게 처리
         console.log('🔍 원본 vocabularyQuestions 데이터:', result.data?.vocabularyQuestions?.slice(0, 2));
@@ -363,6 +388,22 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       vocabularyQuestionsByTermForEdit[term] = [];
     }
     vocabularyQuestionsByTermForEdit[term].push({ ...q, originalIndex: index });
+  });
+
+  // 각 어휘별로 난이도순 정렬 (일반문제 먼저, 보완문제 나중에)
+  Object.keys(vocabularyQuestionsByTermForEdit).forEach(term => {
+    vocabularyQuestionsByTermForEdit[term].sort((a, b) => {
+      // difficulty 또는 question_type을 기준으로 정렬
+      const aDifficulty = a.difficulty || a.question_type || '일반';
+      const bDifficulty = b.difficulty || b.question_type || '일반';
+      
+      // '일반' 또는 '일반' 아닌 다른 값은 앞에, '보완'은 뒤에
+      if (aDifficulty === '보완' && bDifficulty !== '보완') return 1;
+      if (aDifficulty !== '보완' && bDifficulty === '보완') return -1;
+      
+      // 둘 다 같은 카테고리면 원래 순서 유지 (originalIndex 기준)
+      return a.originalIndex - b.originalIndex;
+    });
   });
 
   // HTML 다운로드 함수
@@ -977,6 +1018,22 @@ ${editablePassage.paragraphs
       vocabularyQuestionsByTerm[term].push(q);
     });
 
+    // 각 어휘별로 난이도순 정렬 (일반문제 먼저, 보완문제 나중에)
+    Object.keys(vocabularyQuestionsByTerm).forEach(term => {
+      vocabularyQuestionsByTerm[term].sort((a, b) => {
+        // difficulty 또는 question_type을 기준으로 정렬
+        const aDifficulty = a.difficulty || a.question_type || '일반';
+        const bDifficulty = b.difficulty || b.question_type || '일반';
+        
+        // '일반' 또는 '일반' 아닌 다른 값은 앞에, '보완'은 뒤에
+        if (aDifficulty === '보완' && bDifficulty !== '보완') return 1;
+        if (aDifficulty !== '보완' && bDifficulty === '보완') return -1;
+        
+        // 둘 다 같은 카테고리면 원래 순서 유지
+        return 0;
+      });
+    });
+
     // 어휘 문제를 어휘별로 그룹화 (HTML ver.2에서도 동일)
     const vocabularyQuestionsByTermV2: { [key: string]: typeof editableVocabQuestions } = {};
     editableVocabQuestions.forEach(q => {
@@ -985,6 +1042,22 @@ ${editablePassage.paragraphs
         vocabularyQuestionsByTermV2[term] = [];
       }
       vocabularyQuestionsByTermV2[term].push(q);
+    });
+
+    // 각 어휘별로 난이도순 정렬 (HTML ver.2용)
+    Object.keys(vocabularyQuestionsByTermV2).forEach(term => {
+      vocabularyQuestionsByTermV2[term].sort((a, b) => {
+        // difficulty 또는 question_type을 기준으로 정렬
+        const aDifficulty = a.difficulty || a.question_type || '일반';
+        const bDifficulty = b.difficulty || b.question_type || '일반';
+        
+        // '일반' 또는 '일반' 아닌 다른 값은 앞에, '보완'은 뒤에
+        if (aDifficulty === '보완' && bDifficulty !== '보완') return 1;
+        if (aDifficulty !== '보완' && bDifficulty === '보완') return -1;
+        
+        // 둘 다 같은 카테고리면 원래 순서 유지
+        return 0;
+      });
     });
 
     // 각 문단별 문단 문제 그룹화
@@ -2406,11 +2479,13 @@ ${editablePassage.paragraphs
               </div>
             )}
             
-            {/* 어휘 탭 */}
+            {/* 어휘 탭 - 핵심어/어려운 어휘 분류 표시 */}
             {activeTab === 'vocabulary' && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900">용어 설명</h3>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    어휘 ({vocabularyTermsData.length}개)
+                  </h3>
                   <button
                     onClick={addVocabulary}
                     className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
@@ -2418,139 +2493,217 @@ ${editablePassage.paragraphs
                     + 용어 추가
                   </button>
                 </div>
-                
-                <div className="space-y-4">
-                  {editableVocabulary.map((vocab, index) => {
-                    // 개선된 파싱 로직
-                    const parseVocabulary = (vocabString: string) => {
-                      console.log(`어휘 ${index + 1} 파싱 시도:`, vocabString);
-                      
-                      // 패턴 1: "용어: 설명 (예시: 예시문장)"
-                      const fullMatch = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시:\s*(.+?)\)\s*$/);
-                      if (fullMatch) {
-                        const result = {
-                          term: fullMatch[1].trim(),
-                          description: fullMatch[2].trim(),
-                          example: fullMatch[3].trim()
-                        };
-                        console.log('전체 패턴 매치:', result);
-                        return result;
-                      }
-                      
-                      // 패턴 2: "용어: 설명 (예시:" (닫는 괄호가 없는 경우 - 기존 잘못 저장된 데이터 처리)
-                      const incompleteMatch = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시:\s*(.*)$/);
-                      if (incompleteMatch) {
-                        // (예시: 부분을 제거하고 설명만 사용
-                        const cleanDescription = incompleteMatch[2].trim();
-                        const result = {
-                          term: incompleteMatch[1].trim(),
-                          description: cleanDescription,
-                          example: incompleteMatch[3].trim() || '' // 예시 부분이 있다면 사용
-                        };
-                        console.log('불완전 패턴 매치 (정리됨):', result);
-                        return result;
-                      }
-                      
-                      // 패턴 3: "용어: 설명 (예시" (예시 부분이 잘린 경우 - 기존 잘못 저장된 데이터)
-                      const truncatedMatch = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시\s*$/);
-                      if (truncatedMatch) {
-                        const result = {
-                          term: truncatedMatch[1].trim(),
-                          description: truncatedMatch[2].trim(),
-                          example: ''
-                        };
-                        console.log('잘린 예시 패턴 매치:', result);
-                        return result;
-                      }
-                      
-                      // 패턴 4: "용어: 설명"
-                      const simpleMatch = vocabString.match(/^([^:]+):\s*(.+)$/);
-                      if (simpleMatch) {
-                        // 설명 부분에서 (예시: 부분을 분리 시도
-                        const desc = simpleMatch[2].trim();
-                        const exampleMatch = desc.match(/^(.+?)\s*\(예시:\s*(.*)$/);
-                        if (exampleMatch) {
+
+                {/* 핵심어 섹션 (어휘 문제가 생성된 용어) */}
+                {(() => {
+                  const coreTerms = vocabularyTermsData.filter(term => term.has_question_generated === true);
+                  return coreTerms.length > 0 && (
+                    <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                      <h4 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
+                        <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
+                        핵심어 ({coreTerms.length}개)
+                      </h4>
+                      <p className="text-sm text-blue-700 mb-4">어휘 문제가 생성된 핵심 학습 용어입니다.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {coreTerms.map((term, index) => (
+                          <div key={term.id} className="bg-white rounded-lg p-4 border border-blue-200">
+                            <div className="font-semibold text-blue-900 text-lg mb-2">
+                              {term.term}
+                            </div>
+                            <div className="text-gray-700 mb-2">
+                              {term.definition}
+                            </div>
+                            {term.example_sentence && (
+                              <div className="text-sm text-gray-600 italic">
+                                예시: {term.example_sentence}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 어려운 어휘 섹션 (어휘 문제가 생성되지 않은 용어) */}
+                {(() => {
+                  const difficultTerms = vocabularyTermsData.filter(term => term.has_question_generated !== true);
+                  return difficultTerms.length > 0 && (
+                    <div className="bg-orange-50 rounded-lg p-6 border border-orange-200">
+                      <h4 className="text-lg font-semibold text-orange-900 mb-4 flex items-center">
+                        <span className="w-3 h-3 bg-orange-500 rounded-full mr-2"></span>
+                        어려운 어휘 ({difficultTerms.length}개)
+                      </h4>
+                      <p className="text-sm text-orange-700 mb-4">문제로 만들어지지 않은 추가 학습 용어입니다.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {difficultTerms.map((term, index) => (
+                          <div key={term.id} className="bg-white rounded-lg p-4 border border-orange-200">
+                            <div className="font-semibold text-orange-900 text-lg mb-2">
+                              {term.term}
+                            </div>
+                            <div className="text-gray-700 mb-2">
+                              {term.definition}
+                            </div>
+                            {term.example_sentence && (
+                              <div className="text-sm text-gray-600 italic">
+                                예시: {term.example_sentence}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 편집 모드 (기존 편집 기능 유지) */}
+                <div className="bg-gray-50 rounded-lg p-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">편집 모드</h4>
+                  <div className="space-y-4">
+                    {editableVocabulary.map((vocab, index) => {
+                      // 개선된 파싱 로직
+                      const parseVocabulary = (vocabString: string) => {
+                        console.log(`어휘 ${index + 1} 파싱 시도:`, vocabString);
+                        
+                        // 패턴 1: "용어: 설명 (예시: 예시문장)"
+                        const fullMatch = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시:\s*(.+?)\)\s*$/);
+                        if (fullMatch) {
                           const result = {
-                            term: simpleMatch[1].trim(),
-                            description: exampleMatch[1].trim(),
-                            example: exampleMatch[2].trim()
+                            term: fullMatch[1].trim(),
+                            description: fullMatch[2].trim(),
+                            example: fullMatch[3].trim()
                           };
-                          console.log('설명에서 예시 분리:', result);
-                          return result;
-                        } else {
-                          const result = {
-                            term: simpleMatch[1].trim(),
-                            description: desc,
-                            example: ''
-                          };
-                          console.log('단순 패턴 매치:', result);
+                          console.log('전체 패턴 매치:', result);
                           return result;
                         }
-                      }
-                      
-                      // 파싱 실패 시 기본값
-                      const result = {
-                        term: vocabString.trim() || '용어',
-                        description: '',
-                        example: ''
-                      };
-                      console.log('파싱 실패, 기본값 사용:', result);
-                      return result;
-                    };
-                    
-                    const { term, description, example } = parseVocabulary(vocab);
-                    
-                    const updateVocabulary = (newTerm: string, newDescription: string, newExample: string) => {
-                      const newVocab = newExample 
-                        ? `${newTerm}: ${newDescription} (예시: ${newExample})`
-                        : `${newTerm}: ${newDescription}`;
-                      handleVocabularyChange(index, newVocab);
-                    };
-                    
-                    return (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <label className="text-sm font-medium text-gray-600">용어 {index + 1}</label>
-                          <button
-                            onClick={() => removeVocabulary(index)}
-                            className="text-red-600 hover:text-red-800 text-sm"
-                          >
-                            삭제
-                          </button>
-                        </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">용어</label>
-                            <input
-                              type="text"
-                              value={term}
-                              onChange={(e) => updateVocabulary(e.target.value, description, example)}
-                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
+                        // 패턴 2: "용어: 설명 (예시:" (닫는 괄호가 없는 경우 - 기존 잘못 저장된 데이터 처리)
+                        const incompleteMatch = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시:\s*(.*)$/);
+                        if (incompleteMatch) {
+                          // (예시: 부분을 제거하고 설명만 사용
+                          const cleanDescription = incompleteMatch[2].trim();
+                          const result = {
+                            term: incompleteMatch[1].trim(),
+                            description: cleanDescription,
+                            example: incompleteMatch[3].trim() || '' // 예시 부분이 있다면 사용
+                          };
+                          console.log('불완전 패턴 매치 (정리됨):', result);
+                          return result;
+                        }
+                        
+                        // 패턴 3: "용어: 설명 (예시" (예시 부분이 잘린 경우 - 기존 잘못 저장된 데이터)
+                        const truncatedMatch = vocabString.match(/^([^:]+):\s*(.+?)\s*\(예시\s*$/);
+                        if (truncatedMatch) {
+                          const result = {
+                            term: truncatedMatch[1].trim(),
+                            description: truncatedMatch[2].trim(),
+                            example: ''
+                          };
+                          console.log('잘린 예시 패턴 매치:', result);
+                          return result;
+                        }
+                        
+                        // 패턴 4: "용어: 설명"
+                        const simpleMatch = vocabString.match(/^([^:]+):\s*(.+)$/);
+                        if (simpleMatch) {
+                          // 설명 부분에서 (예시: 부분을 분리 시도
+                          const desc = simpleMatch[2].trim();
+                          const exampleMatch = desc.match(/^(.+?)\s*\(예시:\s*(.*)$/);
+                          if (exampleMatch) {
+                            const result = {
+                              term: simpleMatch[1].trim(),
+                              description: exampleMatch[1].trim(),
+                              example: exampleMatch[2].trim()
+                            };
+                            console.log('설명에서 예시 분리:', result);
+                            return result;
+                          } else {
+                            const result = {
+                              term: simpleMatch[1].trim(),
+                              description: desc,
+                              example: ''
+                            };
+                            console.log('단순 패턴 매치:', result);
+                            return result;
+                          }
+                        }
+                        
+                        // 파싱 실패 시 기본값
+                        const result = {
+                          term: vocabString.trim() || '용어',
+                          description: '',
+                          example: ''
+                        };
+                        console.log('파싱 실패, 기본값 사용:', result);
+                        return result;
+                      };
+                      
+                      const { term, description, example } = parseVocabulary(vocab);
+                      
+                      const updateVocabulary = (newTerm: string, newDescription: string, newExample: string) => {
+                        const newVocab = newExample 
+                          ? `${newTerm}: ${newDescription} (예시: ${newExample})`
+                          : `${newTerm}: ${newDescription}`;
+                        handleVocabularyChange(index, newVocab);
+                        
+                        // VocabularyTerm 데이터도 업데이트
+                        const updatedTermsData = [...vocabularyTermsData];
+                        if (updatedTermsData[index]) {
+                          updatedTermsData[index] = {
+                            ...updatedTermsData[index],
+                            term: newTerm,
+                            definition: newDescription,
+                            example_sentence: newExample
+                          };
+                          setVocabularyTermsData(updatedTermsData);
+                        }
+                      };
+                      
+                      return (
+                        <div key={index} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <label className="text-sm font-medium text-gray-600">용어 {index + 1}</label>
+                            <button
+                              onClick={() => removeVocabulary(index)}
+                              className="text-red-600 hover:text-red-800 text-sm"
+                            >
+                              삭제
+                            </button>
                           </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">설명</label>
-                            <input
-                              type="text"
-                              value={description}
-                              onChange={(e) => updateVocabulary(term, e.target.value, example)}
-                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">예시문장</label>
-                            <input
-                              type="text"
-                              value={example}
-                              onChange={(e) => updateVocabulary(term, description, e.target.value)}
-                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">용어</label>
+                              <input
+                                type="text"
+                                value={term}
+                                onChange={(e) => updateVocabulary(e.target.value, description, example)}
+                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">설명</label>
+                              <input
+                                type="text"
+                                value={description}
+                                onChange={(e) => updateVocabulary(term, e.target.value, example)}
+                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">예시문장</label>
+                              <input
+                                type="text"
+                                value={example}
+                                onChange={(e) => updateVocabulary(term, description, e.target.value)}
+                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -2626,19 +2779,58 @@ ${editablePassage.paragraphs
                                   </div>
                                   <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                                    <select
-                                      value={question.correctAnswer || question.answer}
-                                      onChange={(e) => handleVocabQuestionChange(originalIndex, 'correctAnswer', e.target.value)}
-                                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    >
-                                      {question.options.map((option, optIndex) => (
-                                        <option key={question.questionId + '-opt-' + optIndex} value={option}>
-                                          {optIndex + 1}. {option}
-                                        </option>
-                                      ))}
-                                    </select>
+                                    {(() => {
+                                      const isSubjective = (question.detailed_question_type || question.detailedQuestionType || '').includes('단답형') || 
+                                                          (question.question_type || question.questionType || '').includes('주관식');
+                                      
+                                      return isSubjective ? (
+                                        <textarea
+                                          value={question.correctAnswer || question.answer}
+                                          onChange={(e) => handleVocabQuestionChange(originalIndex, 'correctAnswer', e.target.value)}
+                                          rows={2}
+                                          placeholder="주관식 정답을 입력하세요"
+                                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                      ) : (
+                                        <select
+                                          value={question.correctAnswer || question.answer}
+                                          onChange={(e) => handleVocabQuestionChange(originalIndex, 'correctAnswer', e.target.value)}
+                                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        >
+                                          {question.options.map((option, optIndex) => (
+                                            <option key={question.questionId + '-opt-' + optIndex} value={option}>
+                                              {optIndex + 1}. {option}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
+                                
+                                {/* 초성힌트 표시 (주관식 문제만) */}
+                                {(() => {
+                                  const isSubjective = (question.detailed_question_type || question.detailedQuestionType || '').includes('단답형') || 
+                                                      (question.question_type || question.questionType || '').includes('주관식');
+                                  
+                                  return isSubjective ? (
+                                    <div className="grid grid-cols-1 gap-4">
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          초성힌트 
+                                          <span className="text-gray-500 text-xs ml-2">(선택사항)</span>
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={question.answerInitials || question.answer_initials || ''}
+                                          onChange={(e) => handleVocabQuestionChange(originalIndex, 'answerInitials', e.target.value)}
+                                          placeholder="예: ㄱㅇㅂ (정답의 초성을 입력하면 학습자에게 힌트로 제공됩니다)"
+                                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : null;
+                                })()}
                                 
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 mb-1">질문</label>
@@ -2650,26 +2842,34 @@ ${editablePassage.paragraphs
                                   />
                                 </div>
                                 
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
-                                  <div className="space-y-2">
-                                    {question.options.map((option, optIndex) => (
-                                      <div key={question.questionId + '-option-' + optIndex} className="flex items-center space-x-2">
-                                        <span className="text-sm font-medium w-6">{optIndex + 1}.</span>
-                                        <input
-                                          type="text"
-                                          value={option}
-                                          onChange={(e) => {
-                                            const newOptions = [...question.options];
-                                            newOptions[optIndex] = e.target.value;
-                                            handleVocabQuestionChange(originalIndex, 'options', newOptions);
-                                          }}
-                                          className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        />
+                                {/* 선택지 (객관식 문제만 표시) */}
+                                {(() => {
+                                  const isSubjective = (question.detailed_question_type || question.detailedQuestionType || '').includes('단답형') || 
+                                                      (question.question_type || question.questionType || '').includes('주관식');
+                                  
+                                  return !isSubjective ? (
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">선택지</label>
+                                      <div className="space-y-2">
+                                        {question.options.map((option, optIndex) => (
+                                          <div key={question.questionId + '-option-' + optIndex} className="flex items-center space-x-2">
+                                            <span className="text-sm font-medium w-6">{optIndex + 1}.</span>
+                                            <input
+                                              type="text"
+                                              value={option}
+                                              onChange={(e) => {
+                                                const newOptions = [...question.options];
+                                                newOptions[optIndex] = e.target.value;
+                                                handleVocabQuestionChange(originalIndex, 'options', newOptions);
+                                              }}
+                                              className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            />
+                                          </div>
+                                        ))}
                                       </div>
-                                    ))}
-                                  </div>
-                                </div>
+                                    </div>
+                                  ) : null;
+                                })()}
                                 
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>

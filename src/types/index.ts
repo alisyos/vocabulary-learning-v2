@@ -311,6 +311,7 @@ export interface VocabularyTerm {
   term: string;
   definition: string;
   example_sentence?: string | null; // 예시 문장
+  has_question_generated?: boolean; // 어휘 문제 생성 여부
   created_at?: string;
 }
 

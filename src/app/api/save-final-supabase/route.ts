@@ -188,6 +188,12 @@ export async function POST(request: NextRequest) {
     
     console.log('📚 총 어휘 용어 수:', allFootnotes.length, '개');
     
+    // 어휘 문제에서 사용된 용어들 추출 (문제 생성 여부 판단용)
+    const vocabularyQuestionTerms = new Set(
+      vocabularyQuestions?.map((q: any) => q.term?.trim().toLowerCase()).filter(Boolean) || []
+    );
+    console.log('📝 어휘 문제가 생성된 용어들:', Array.from(vocabularyQuestionTerms));
+    
     const vocabularyTerms: Omit<VocabularyTerm, 'id' | 'content_set_id' | 'created_at'>[] = 
       allFootnotes?.map((footnote: string, index: number) => {
         console.log(`어휘 용어 ${index + 1} 원본 footnote:`, footnote);
@@ -196,10 +202,14 @@ export async function POST(request: NextRequest) {
         const colonIndex = footnote.indexOf(':');
         if (colonIndex === -1) {
           // 콜론이 없는 경우
+          const term = footnote.trim();
+          const hasQuestion = vocabularyQuestionTerms.has(term.toLowerCase());
+          
           return {
-            term: footnote.trim(),
+            term: term,
             definition: '',
-            example_sentence: null
+            example_sentence: null,
+            has_question_generated: hasQuestion
           };
         }
         
@@ -224,13 +234,32 @@ export async function POST(request: NextRequest) {
             if (examplePart && examplePart !== '') {
               exampleSentence = examplePart;
             }
+          } else {
+            // 패턴 3: "정의. 예시: 예시문장" (괄호 없는 경우)
+            const noParenthesesMatch = definitionPart.match(/^(.+?)\.\s*예시:\s*(.+)$/);
+            if (noParenthesesMatch) {
+              definition = noParenthesesMatch[1].trim();
+              exampleSentence = noParenthesesMatch[2].trim();
+            } else {
+              // 패턴 4: "정의 예시: 예시문장" (마침표 없는 경우)
+              const simpleMatch = definitionPart.match(/^(.+?)\s+예시:\s*(.+)$/);
+              if (simpleMatch) {
+                definition = simpleMatch[1].trim();
+                exampleSentence = simpleMatch[2].trim();
+              }
+            }
           }
         }
+        
+        // 이 용어에 대한 문제가 생성되었는지 확인
+        const hasQuestion = vocabularyQuestionTerms.has(term.toLowerCase());
+        console.log(`용어 "${term}" 문제 생성 여부:`, hasQuestion);
         
         const result = {
           term: term || '',
           definition: definition || footnote,
-          example_sentence: exampleSentence
+          example_sentence: exampleSentence,
+          has_question_generated: hasQuestion
         };
         
         console.log(`분리된 용어 ${index + 1}:`, result);
