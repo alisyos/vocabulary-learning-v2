@@ -4,6 +4,136 @@ import { ParagraphQuestionWorkflow, ParagraphQuestionType } from '@/types';
 import { db } from '@/lib/supabase';
 import { getDivisionKey, getDivisionSubCategory } from '@/lib/prompts';
 
+// 오류 유형 정의
+enum ErrorType {
+  OPENAI_API_ERROR = 'OPENAI_API_ERROR',
+  DATABASE_ERROR = 'DATABASE_ERROR', 
+  INPUT_VALIDATION_ERROR = 'INPUT_VALIDATION_ERROR',
+  GPT_RESPONSE_ERROR = 'GPT_RESPONSE_ERROR'
+}
+
+// 오류 유형별 한국어 메시지 정의
+const ERROR_MESSAGES = {
+  [ErrorType.OPENAI_API_ERROR]: 'AI 서비스 연결에 문제가 있습니다. 잠시 후 다시 시도해 주세요.',
+  [ErrorType.DATABASE_ERROR]: '데이터 처리 중 오류가 발생했습니다. 관리자에게 문의해 주세요.',
+  [ErrorType.INPUT_VALIDATION_ERROR]: '입력된 정보가 올바르지 않습니다. 이전 단계를 확인해 주세요.',
+  [ErrorType.GPT_RESPONSE_ERROR]: '문제 생성 형식에 오류가 있습니다. 다시 시도해 주세요.',
+  UNKNOWN_ERROR: '문단 문제 생성 중 예상하지 못한 오류가 발생했습니다.'
+};
+
+// 오류 유형별 HTTP 상태 코드 정의
+const ERROR_STATUS_CODES = {
+  [ErrorType.OPENAI_API_ERROR]: 503, // Service Unavailable
+  [ErrorType.DATABASE_ERROR]: 500, // Internal Server Error
+  [ErrorType.INPUT_VALIDATION_ERROR]: 400, // Bad Request
+  [ErrorType.GPT_RESPONSE_ERROR]: 422, // Unprocessable Entity
+  UNKNOWN_ERROR: 500
+};
+
+// 오류 분류 함수
+function classifyError(error: any): ErrorType {
+  if (!error) return ErrorType.INPUT_VALIDATION_ERROR;
+  
+  const errorMessage = error.message || error.toString();
+  const errorCode = error.code || error.status;
+
+  // OpenAI API 관련 오류
+  if (errorMessage.includes('openai') || 
+      errorMessage.includes('API key') || 
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('quota') ||
+      errorCode === 429 || errorCode === 401) {
+    return ErrorType.OPENAI_API_ERROR;
+  }
+
+  // 데이터베이스 관련 오류
+  if (errorMessage.includes('supabase') || 
+      errorMessage.includes('database') ||
+      errorMessage.includes('connection') ||
+      errorMessage.includes('PostgrestError') ||
+      errorMessage.includes('Failed to fetch')) {
+    return ErrorType.DATABASE_ERROR;
+  }
+
+  // GPT 응답 파싱 관련 오류
+  if (errorMessage.includes('JSON') || 
+      errorMessage.includes('parse') ||
+      errorMessage.includes('SyntaxError') ||
+      errorMessage.includes('Unexpected token') ||
+      errorMessage.includes('Invalid JSON')) {
+    return ErrorType.GPT_RESPONSE_ERROR;
+  }
+
+  // 기본적으로 알 수 없는 오류로 분류
+  return ErrorType.OPENAI_API_ERROR; // 가장 일반적인 오류 유형
+}
+
+// 향상된 오류 응답 생성 함수
+function createErrorResponse(error: any, context?: string) {
+  const errorType = classifyError(error);
+  const errorMessage = ERROR_MESSAGES[errorType] || ERROR_MESSAGES.UNKNOWN_ERROR;
+  const statusCode = ERROR_STATUS_CODES[errorType] || ERROR_STATUS_CODES.UNKNOWN_ERROR;
+
+  // 향상된 오류 로깅 (메타데이터 포함)
+  const errorMetadata = {
+    error: {
+      message: error.message || String(error),
+      stack: error.stack,
+      name: error.name,
+      code: error.code || error.status
+    },
+    errorType,
+    context: context || '문단 문제 생성',
+    timestamp: new Date().toISOString(),
+    request: {
+      userAgent: global.currentRequest?.headers?.get('user-agent') || 'unknown',
+      ip: global.currentRequest?.headers?.get('x-forwarded-for') || 'unknown',
+      method: global.currentRequest?.method || 'unknown',
+      url: global.currentRequest?.url || 'unknown'
+    },
+    system: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      memory: process.memoryUsage(),
+      uptime: process.uptime()
+    }
+  };
+
+  console.error(`[${errorType}] ${context || '문단 문제 생성'} 오류:`, errorMetadata);
+
+  // 추가 오류 추적을 위한 구조화된 로그 (향후 외부 로깅 서비스 연동 준비)
+  if (process.env.NODE_ENV === 'production') {
+    // 프로덕션 환경에서는 민감한 정보 제거
+    const sanitizedLog = {
+      errorType,
+      context: context || '문단 문제 생성',
+      timestamp: errorMetadata.timestamp,
+      error: {
+        message: errorMetadata.error.message,
+        name: errorMetadata.error.name,
+        code: errorMetadata.error.code
+      },
+      system: {
+        nodeVersion: errorMetadata.system.nodeVersion,
+        platform: errorMetadata.system.platform
+      }
+    };
+    
+    // 여기서 외부 로깅 서비스(예: Sentry, LogRocket 등)로 전송 가능
+    // await logToExternalService(sanitizedLog);
+    console.log('[PROD_ERROR]', JSON.stringify(sanitizedLog));
+  }
+
+  return NextResponse.json(
+    { 
+      error: errorMessage,
+      errorType,
+      context: context || '문단 문제 생성'
+    },
+    { status: statusCode }
+  );
+}
+
 interface ParagraphGenerationRequest {
   paragraphs: string[];  // 선택된 문단들
   selectedParagraphs: number[];  // 선택된 문단 번호들 (1-based)
@@ -29,24 +159,22 @@ export async function POST(request: NextRequest) {
     
     // 입력값 검증
     if (!body.paragraphs || !Array.isArray(body.paragraphs) || body.paragraphs.length === 0) {
-      return NextResponse.json(
-        { error: '문단 목록이 필요합니다.' },
-        { status: 400 }
-      );
+      return createErrorResponse(ErrorType.INPUT_VALIDATION_ERROR, new Error('문단 목록이 필요합니다.'));
     }
 
     if (!body.selectedParagraphs || !Array.isArray(body.selectedParagraphs) || body.selectedParagraphs.length === 0) {
-      return NextResponse.json(
-        { error: '선택된 문단이 필요합니다.' },
-        { status: 400 }
-      );
+      return createErrorResponse(ErrorType.INPUT_VALIDATION_ERROR, new Error('선택된 문단이 필요합니다.'));
     }
 
     if (!body.questionType || !body.division || !body.title) {
-      return NextResponse.json(
-        { error: '문제 유형, 구분, 제목 정보가 필요합니다.' },
-        { status: 400 }
-      );
+      return createErrorResponse(ErrorType.INPUT_VALIDATION_ERROR, new Error('문제 유형, 구분, 제목 정보가 필요합니다.'));
+    }
+
+    // 선택된 문단 번호 유효성 검증
+    for (const paragraphNumber of body.selectedParagraphs) {
+      if (paragraphNumber < 1 || paragraphNumber > body.paragraphs.length) {
+        return createErrorResponse(ErrorType.INPUT_VALIDATION_ERROR, new Error(`잘못된 문단 번호입니다: ${paragraphNumber}`));
+      }
     }
 
     console.log('Generating paragraph questions for type:', body.questionType);
@@ -118,13 +246,29 @@ export async function POST(request: NextRequest) {
               paragraphQuestions.push(question);
             }
           } catch (error) {
-            console.error(`Error generating ${body.questionType} question ${questionIndex} for paragraph ${paragraphNumber}:`, error);
+            const classifiedError = classifyError(error);
+            console.error(`Error generating ${body.questionType} question ${questionIndex} for paragraph ${paragraphNumber}:`, {
+              error: error,
+              errorType: classifiedError,
+              paragraphNumber,
+              questionIndex,
+              questionType: body.questionType
+            });
+            
+            // 개별 문제 생성 실패는 전체 프로세스를 중단하지 않고 로그만 남김
+            // 하지만 모든 문제 생성이 실패한 경우를 대비해 추후 체크
           }
         }
       }
     }
 
     console.log(`Generated ${paragraphQuestions.length} paragraph questions`);
+
+    // 문제가 하나도 생성되지 않은 경우 오류 반환
+    if (paragraphQuestions.length === 0) {
+      console.error('No paragraph questions were generated successfully');
+      return createErrorResponse(ErrorType.GPT_RESPONSE_ERROR, new Error('모든 문제 생성에 실패했습니다.'));
+    }
 
     // AI 생성 로그 저장
     try {
@@ -156,10 +300,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in paragraph question generation:', error);
-    return NextResponse.json(
-      { error: '문단 문제 생성 중 오류가 발생했습니다.' },
-      { status: 500 }
-    );
+    
+    // 오류 분류 및 적절한 응답 생성
+    const classifiedError = classifyError(error);
+    return createErrorResponse(classifiedError, error);
   }
 }
 

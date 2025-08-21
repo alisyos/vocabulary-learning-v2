@@ -3,6 +3,112 @@ import { generateQuestion, ModelType } from '@/lib/openai';
 import { generateComprehensivePrompt } from '@/lib/prompts';
 import { ComprehensiveQuestion, ComprehensiveQuestionType } from '@/types';
 
+// 오류 유형 정의
+enum ErrorType {
+  OPENAI_API_ERROR = 'OPENAI_API_ERROR',
+  DATABASE_ERROR = 'DATABASE_ERROR',
+  INPUT_VALIDATION_ERROR = 'INPUT_VALIDATION_ERROR',
+  GPT_RESPONSE_ERROR = 'GPT_RESPONSE_ERROR'
+}
+
+// 한국어 오류 메시지 매핑
+const ERROR_MESSAGES = {
+  [ErrorType.OPENAI_API_ERROR]: 'AI 서비스 연결에 문제가 있습니다. 잠시 후 다시 시도해 주세요.',
+  [ErrorType.DATABASE_ERROR]: '데이터 처리 중 오류가 발생했습니다. 관리자에게 문의해 주세요.',
+  [ErrorType.INPUT_VALIDATION_ERROR]: '입력된 정보가 올바르지 않습니다. 이전 단계를 확인해 주세요.',
+  [ErrorType.GPT_RESPONSE_ERROR]: '종합 문제 생성 형식에 오류가 있습니다. 다시 시도해 주세요.',
+  UNKNOWN_ERROR: '종합 문제 생성 중 예상하지 못한 오류가 발생했습니다.'
+};
+
+// HTTP 상태 코드 매핑
+const ERROR_STATUS_CODES = {
+  [ErrorType.OPENAI_API_ERROR]: 503,
+  [ErrorType.DATABASE_ERROR]: 500,
+  [ErrorType.INPUT_VALIDATION_ERROR]: 400,
+  [ErrorType.GPT_RESPONSE_ERROR]: 422
+};
+
+// 오류 유형 분류 함수
+function classifyError(error: any): ErrorType {
+  const errorMessage = error.message?.toLowerCase() || '';
+  const errorCode = error.code || error.status;
+
+  // OpenAI API 오류
+  if (errorCode === 401 || errorCode === 429 || errorCode === 503) {
+    return ErrorType.OPENAI_API_ERROR;
+  }
+  if (errorMessage.includes('openai') || errorMessage.includes('api key') || 
+      errorMessage.includes('rate limit') || errorMessage.includes('quota')) {
+    return ErrorType.OPENAI_API_ERROR;
+  }
+
+  // 데이터베이스 오류
+  if (errorMessage.includes('supabase') || errorMessage.includes('database') || 
+      errorMessage.includes('connection') || errorMessage.includes('timeout')) {
+    return ErrorType.DATABASE_ERROR;
+  }
+
+  // GPT 응답 파싱 오류
+  if (errorMessage.includes('json') || errorMessage.includes('parse') || 
+      errorMessage.includes('invalid response') || errorMessage.includes('format')) {
+    return ErrorType.GPT_RESPONSE_ERROR;
+  }
+
+  // 입력 검증 오류 (이미 별도 처리되어 여기 도달 가능성 낮음)
+  if (errorMessage.includes('validation') || errorMessage.includes('required') || 
+      errorMessage.includes('invalid input')) {
+    return ErrorType.INPUT_VALIDATION_ERROR;
+  }
+
+  // 기본값
+  return ErrorType.OPENAI_API_ERROR; // 대부분 AI API 관련 문제일 가능성 높음
+}
+
+// 구조화된 오류 응답 생성 함수
+function createErrorResponse(error: any, context: string = '종합 문제 생성') {
+  const errorType = classifyError(error);
+  const message = ERROR_MESSAGES[errorType] || ERROR_MESSAGES.UNKNOWN_ERROR;
+  const statusCode = ERROR_STATUS_CODES[errorType] || 500;
+
+  // 메타데이터 수집 (프로덕션 안전)
+  const errorMetadata = {
+    error: {
+      message: error.message || String(error),
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      name: error.name,
+      code: error.code || error.status
+    },
+    errorType,
+    context,
+    timestamp: new Date().toISOString(),
+    request: {
+      userAgent: (global as any).currentRequest?.headers?.get('user-agent') || 'unknown',
+      ip: (global as any).currentRequest?.headers?.get('x-forwarded-for') || 'unknown',
+      method: (global as any).currentRequest?.method || 'unknown',
+      url: (global as any).currentRequest?.url || 'unknown'
+    },
+    system: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      memory: process.memoryUsage(),
+      uptime: process.uptime()
+    }
+  };
+
+  console.error(`[${errorType}] ${context} 오류:`, errorMetadata);
+
+  return NextResponse.json(
+    { 
+      error: { 
+        message,
+        type: errorType,
+        timestamp: errorMetadata.timestamp
+      }
+    },
+    { status: statusCode }
+  );
+}
+
 interface ComprehensiveGenerationRequest {
   passage: string;  // 지문 내용 (수정된 지문)
   division: string; // 구분 (난이도 조절용)
@@ -350,10 +456,6 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
     });
 
   } catch (error) {
-    console.error('Error in comprehensive question generation:', error);
-    return NextResponse.json(
-      { error: '종합 문제 생성 중 오류가 발생했습니다.' },
-      { status: 500 }
-    );
+    return createErrorResponse(error, '종합 문제 생성');
   }
 } 

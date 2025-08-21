@@ -72,6 +72,25 @@ export default function ParagraphQuestions({
     );
   };
 
+  // 오류 응답에서 구체적인 메시지 추출
+  const parseErrorMessage = (response: Response, fallbackMessage: string = '문단 문제 생성 중 오류가 발생했습니다.') => {
+    return response.json().then(errorData => {
+      // 구조화된 오류 응답에서 메시지 추출
+      if (errorData?.error?.message) {
+        return errorData.error.message;
+      }
+      // 단순한 오류 메시지
+      if (typeof errorData?.error === 'string') {
+        return errorData.error;
+      }
+      // 기본 메시지
+      return fallbackMessage;
+    }).catch(() => {
+      // JSON 파싱 실패 시 기본 메시지
+      return fallbackMessage;
+    });
+  };
+
   // 문단 문제 생성
   const handleGenerateParagraph = async () => {
     if (selectedParagraphs.length === 0) {
@@ -106,7 +125,10 @@ export default function ParagraphQuestions({
       });
 
       if (!response.ok) {
-        throw new Error('문단 문제 생성에 실패했습니다.');
+        // 구체적인 오류 메시지 추출 및 표시
+        const errorMessage = await parseErrorMessage(response);
+        alert(errorMessage);
+        return;
       }
 
       const result = await response.json();
@@ -117,7 +139,16 @@ export default function ParagraphQuestions({
 
     } catch (error) {
       console.error('Error generating paragraph questions:', error);
-      alert('문단 문제 생성 중 오류가 발생했습니다.');
+      // 네트워크 오류 등 예외 상황에 대한 구체적인 메시지
+      if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+          alert('네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.');
+        } else {
+          alert(`문단 문제 생성 중 오류가 발생했습니다: ${error.message}`);
+        }
+      } else {
+        alert('문단 문제 생성 중 예상하지 못한 오류가 발생했습니다.');
+      }
     } finally {
       setGeneratingParagraph(false);
     }

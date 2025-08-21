@@ -681,7 +681,15 @@ export default function VocabularyQuestions({
               </div>
 
               {/* 선택지 (객관식만) */}
-              {((question.question_type || question.questionType || '5지선다 객관식').includes('객관식')) && (
+              {(() => {
+                const questionType = question.question_type || question.questionType || '5지선다 객관식';
+                // 객관식 문제 유형 판별: '객관식'이 포함되거나 선택형 문제들
+                const isMultipleChoice = questionType.includes('객관식') || 
+                                       questionType === '2개중 선택형' || 
+                                       questionType === '3개중 선택형' || 
+                                       questionType === '낱말 골라 쓰기';
+                return isMultipleChoice;
+              })() && (
                 <div className="mb-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     선택지
@@ -735,7 +743,15 @@ export default function VocabularyQuestions({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   정답
                 </label>
-                {((question.question_type || question.questionType || '5지선다 객관식').includes('객관식')) ? (
+                {(() => {
+                  const questionType = question.question_type || question.questionType || '5지선다 객관식';
+                  // 객관식 문제 유형 판별: '객관식'이 포함되거나 선택형 문제들
+                  const isMultipleChoice = questionType.includes('객관식') || 
+                                         questionType === '2개중 선택형' || 
+                                         questionType === '3개중 선택형' || 
+                                         questionType === '낱말 골라 쓰기';
+                  return isMultipleChoice;
+                })() ? (
                   <select
                     value={question.correct_answer || question.answer || ''}
                     onChange={(e) => handleQuestionUpdate(qIndex, question.correct_answer !== undefined ? 'correct_answer' : 'answer', e.target.value)}
