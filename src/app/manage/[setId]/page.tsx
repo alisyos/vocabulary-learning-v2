@@ -406,489 +406,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     });
   });
 
-  // HTML 다운로드 함수
-  const handleHtmlDownload = () => {
-    if (!data) return;
 
-    const { contentSet } = data.data;
-    
-    // 종합문제를 세트별로 그룹화 (문제 유형별 그룹화)
-    const questionSets: { [key: string]: typeof editableComprehensive } = {};
-    
-    // 문제 유형별로 그룹화 (같은 유형의 기본문제 + 보완문제들을 1세트로)
-    const typeGroups: { [key: string]: typeof editableComprehensive } = {};
-    
-    editableComprehensive.forEach(question => {
-      const questionType = question.questionType || question.type || '기타';
-      if (!typeGroups[questionType]) {
-        typeGroups[questionType] = [];
-      }
-      typeGroups[questionType].push(question);
-    });
-    
-    // 각 유형별 그룹을 기본문제 우선으로 정렬하고 세트 생성
-    let setIndex = 0;
-    Object.entries(typeGroups).forEach(([type, questions]) => {
-      // 기본문제와 보완문제 분리
-      const mainQuestions = questions.filter(q => !q.isSupplementary);
-      const supplementaryQuestions = questions.filter(q => q.isSupplementary);
-      
-      // 기본문제별로 세트 생성 (일반적으로 1개의 기본문제당 1세트)
-      mainQuestions.forEach((mainQuestion, mainIndex) => {
-        setIndex++;
-        const setKey = `set_${setIndex}_${type}`;
-        questionSets[setKey] = [mainQuestion];
-        
-        // 해당 기본문제에 연결된 보완문제들 추가
-        // 같은 유형의 보완문제들을 순서대로 배분
-        const relatedSupplementaryQuestions = supplementaryQuestions.slice(
-          mainIndex * 2, // 기본문제 당 2개씩 보완문제 할당
-          (mainIndex + 1) * 2
-        );
-        
-        questionSets[setKey].push(...relatedSupplementaryQuestions);
-      });
-    });
-
-    // 기본 문제 세트 수 계산 (기본 문제만)
-    const mainQuestions = editableComprehensive.filter(q => !q.isSupplementary);
-    const totalMainSets = mainQuestions.length;
-    
-    // 문단문제 유형별 분포 계산
-    const paragraphTypeStats = editableParagraphQuestions.reduce((acc, question) => {
-      const type = question.questionType || '기타';
-      if (!acc[type]) {
-        acc[type] = 0;
-      }
-      acc[type]++;
-      return acc;
-    }, {} as Record<string, number>);
-
-    // 종합문제 유형별 분포 계산 (실제 문제 유형 기준)
-    const comprehensiveTypeStats = editableComprehensive.reduce((acc, question) => {
-      // questionType이 있으면 사용, 없으면 type 사용 (호환성)
-      const type = question.questionType || question.type || '기타';
-      if (!acc[type]) {
-        acc[type] = { main: 0, supplementary: 0 };
-      }
-      if (question.isSupplementary) {
-        acc[type].supplementary++;
-      } else {
-        acc[type].main++;
-      }
-      return acc;
-    }, {} as Record<string, { main: number; supplementary: number }>);
-
-    // HTML 템플릿 생성
-    const htmlContent = `
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${editablePassage.title}</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 850px; margin: 0 auto; padding: 25px; line-height: 1.6; color: #374151; }
-        .header { border-bottom: 3px solid #e5e7eb; padding-bottom: 25px; margin-bottom: 35px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 30px; border-radius: 12px; margin: -25px -25px 35px -25px; }
-        .title { font-size: 28px; font-weight: bold; color: #1e40af; margin-bottom: 15px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .content-id { text-align: center; font-size: 18px; color: #6b7280; margin-bottom: 30px; font-weight: 600; background-color: #fff; padding: 8px 16px; border-radius: 20px; display: inline-block; border: 2px solid #e5e7eb; }
-        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .info-row { display: flex; gap: 15px; margin-bottom: 15px; }
-        .info-row .info-section { flex: 1; min-width: 0; }
-        .info-section { background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s ease; }
-        .info-section:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        .info-title { font-size: 16px; font-weight: bold; color: #1e40af; margin-bottom: 15px; display: flex; align-items: center; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
-        .info-title::before { content: "●"; margin-right: 10px; font-size: 12px; }
-        .info-item { margin-bottom: 10px; display: flex; align-items: flex-start; }
-        .info-label { font-weight: 600; color: #4b5563; min-width: 85px; font-size: 14px; }
-        .info-value { color: #1f2937; flex: 1; font-size: 14px; line-height: 1.5; }
-        .type-stats { margin-top: 12px; background-color: #f1f5f9; padding: 12px; border-radius: 8px; border-left: 4px solid #3b82f6; }
-        .type-stat-item { margin-bottom: 6px; font-size: 13px; color: #6b7280; display: flex; align-items: center; }
-        .type-stat-item::before { content: "▶"; margin-right: 8px; color: #3b82f6; font-size: 10px; }
-        .section { margin-bottom: 40px; }
-        .section-title { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
-        .passage-content { background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .paragraph { margin-bottom: 15px; text-align: justify; }
-        .vocabulary-list { list-style: none; padding: 0; }
-        .vocabulary-item { background-color: #f8fafc; padding: 12px; margin-bottom: 8px; border-radius: 6px; border-left: 4px solid #3b82f6; }
-        .vocab-term { font-weight: bold; color: #1e40af; }
-        .vocab-definition { margin-left: 10px; }
-        .vocab-example { font-style: italic; color: #6b7280; margin-top: 4px; }
-        .question-set { background-color: #fff; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 25px; }
-        .set-header { background-color: #f1f5f9; padding: 15px; margin: -25px -25px 20px -25px; border-radius: 10px 10px 0 0; border-bottom: 1px solid #e2e8f0; }
-        .set-title { font-size: 16px; font-weight: bold; color: #1e40af; margin: 0; }
-        .question { background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 15px; }
-        .question.main-question { border-left: 4px solid #3b82f6; background-color: #eff6ff; }
-        .question.supplementary-question { border-left: 4px solid #f59e0b; background-color: #fffbeb; }
-        .question-header { margin-bottom: 15px; }
-        .question-number { font-weight: bold; color: #1e40af; }
-        .question-type-badge { background-color: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px; }
-        .question-nature-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px; }
-        .main-badge { background-color: #dbeafe; color: #1e40af; }
-        .supplementary-badge { background-color: #fef3c7; color: #92400e; }
-        .question-text { margin: 10px 0; font-weight: 500; }
-        .options { margin: 15px 0; }
-        .option { margin: 5px 0; padding: 8px; background-color: #f3f4f6; border-radius: 4px; }
-        .correct-answer { background-color: #d1fae5; color: #059669; font-weight: bold; }
-        .explanation { background-color: #fef3c7; padding: 12px; border-radius: 6px; margin-top: 10px; }
-        .explanation-label { font-weight: bold; color: #92400e; }
-        .vocab-question { background-color: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-         @media (max-width: 768px) {
-             .info-row { flex-direction: column; }
-             .info-row .info-section { flex: none; }
-             .image-gallery { grid-template-columns: 1fr; }
-         }
-         
-         @media print { 
-             body { max-width: none; margin: 0; padding: 15px; } 
-             .info-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } 
-             .info-row { display: flex; gap: 10px; margin-bottom: 10px; }
-             .info-row .info-section { flex: 1; min-width: 0; }
-             .header { background: #f8fafc; }
-             .info-section { box-shadow: none; border: 1px solid #e2e8f0; }
-             .info-section:hover { transform: none; }
-         }
-    </style>
-</head>
-  <body>
-      <div class="header">
-          <h1 class="title">어휘 학습 콘텐츠</h1>
-          <div style="text-align: center; margin-bottom: 30px;">
-             <div class="content-id">콘텐츠 세트 ID: ${contentSet.setId || contentSet.id || 'N/A'}</div>
-         </div>
-        
-        <!-- 첫 번째 행: 기본 정보 + 생성 정보 -->
-        <div class="info-row">
-            <div class="info-section">
-                <div class="info-title">기본 정보</div>
-                <div class="info-item">
-                    <span class="info-label">과목:</span>
-                    <span class="info-value">${contentSet.subject} / ${contentSet.grade} / ${contentSet.area}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">주제:</span>
-                    <span class="info-value">${contentSet.mainTopic || contentSet.maintopic} > ${contentSet.subTopic || contentSet.subtopic}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">핵심 개념어:</span>
-                    <span class="info-value">${contentSet.keywords || contentSet.keyword}</span>
-                </div>
-            </div>
-            
-            <div class="info-section">
-                <div class="info-title">생성 정보</div>
-                <div class="info-item">
-                    <span class="info-label">교육과정:</span>
-                    <span class="info-value">${contentSet.division}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">지문길이:</span>
-                    <span class="info-value">${contentSet.passageLength || '정보 없음'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">유형:</span>
-                    <span class="info-value">${contentSet.textType || '선택안함'}</span>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 두 번째 행: 지문 정보 + 어휘 문제 -->
-        <div class="info-row">
-            <div class="info-section">
-                <div class="info-title">지문 정보</div>
-                <div class="info-item">
-                    <span class="info-label">단락 수:</span>
-                    <span class="info-value">${editablePassage.paragraphs.length}개</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">어휘 수:</span>
-                    <span class="info-value">${editableVocabulary.length}개</span>
-                </div>
-            </div>
-            
-            <div class="info-section">
-                <div class="info-title">어휘 문제</div>
-                <div class="info-item">
-                    <span class="info-label">총 문제 수:</span>
-                    <span class="info-value">${editableVocabQuestions.length}개</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">문제형태:</span>
-                    <span class="info-value">객관식 (5지선다)</span>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 세 번째 행: 문단 문제 + 종합 문제 -->
-        <div class="info-row">
-            <div class="info-section">
-                <div class="info-title">문단 문제</div>
-                <div class="info-item">
-                    <span class="info-label">총 문제 수:</span>
-                    <span class="info-value">${editableParagraphQuestions.length}개</span>
-                </div>
-                ${editableParagraphQuestions.length > 0 ? `
-                <div class="info-item" style="flex-direction: column; align-items: flex-start;">
-                    <span class="info-label">유형별 분포:</span>
-                    <div class="type-stats">
-                        ${Object.entries(paragraphTypeStats).map(([type, count]) => 
-                          `<div class="type-stat-item">${type}: ${count}개</div>`
-                        ).join('')}
-                    </div>
-                </div>
-                ` : `
-                <div class="info-item">
-                    <span class="info-label">문제형태:</span>
-                    <span class="info-value">저장된 문단 문제가 없습니다</span>
-                </div>
-                `}
-            </div>
-            
-            <div class="info-section">
-                <div class="info-title">종합 문제</div>
-                <div class="info-item">
-                    <span class="info-label">총 문제 수:</span>
-                    <span class="info-value">${editableComprehensive.length}개 (${totalMainSets}세트)</span>
-                </div>
-                <div class="info-item" style="flex-direction: column; align-items: flex-start;">
-                    <span class="info-label">유형별 분포:</span>
-                    <div class="type-stats">
-                        ${Object.entries(comprehensiveTypeStats).map(([type, stats]) => 
-                          `<div class="type-stat-item">${type}: 기본 문제 ${stats.main}개, 보완 문제 ${stats.supplementary}개</div>`
-                        ).join('')}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-         ${editablePassages.length > 0 ? editablePassages.map((passage, passageIndex) => `
-         <div class="section">
-         <h2 class="section-title">📖 지문 ${editablePassages.length > 1 ? `${passageIndex + 1} ` : ''}(${passage.paragraphs.length}단락)</h2>
-         <div class="passage-content">
-             <h3 style="margin-bottom: 20px; color: #1e40af; font-weight: bold; font-size: 20px; text-align: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px;">${passage.title}</h3>
-             ${passage.paragraphs.map(paragraph => `<div class="paragraph">${paragraph}</div>`).join('')}
-         </div>
-         </div>
-         `).join('') : `
-         <div class="section">
-         <h2 class="section-title">📖 지문 (${editablePassage.paragraphs.length}단락)</h2>
-         <div class="passage-content">
-             <h3 style="margin-bottom: 20px; color: #1e40af; font-weight: bold; font-size: 20px; text-align: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px;">${editablePassage.title}</h3>
-             ${editablePassage.paragraphs.map(paragraph => `<div class="paragraph">${paragraph}</div>`).join('')}
-         </div>
-         </div>
-         `}
-
-    <div class="section">
-        <h2 class="section-title">📚 어휘 (${editableVocabulary.length}개)</h2>
-        <ul class="vocabulary-list">
-            ${editableVocabulary.map((vocab, index) => {
-              const match = vocab.match(/^([^:]+):\s*(.+?)\s*\(예시:\s*(.+?)\)\s*$/);
-              if (match) {
-                return `
-                  <li class="vocabulary-item">
-                    <span class="vocab-term">[어휘 ${index + 1}] - ${match[1].trim()}</span>
-                    <div class="vocab-definition">${match[2].trim()}</div>
-                    <div class="vocab-example">예시: ${match[3].trim()}</div>
-                  </li>
-                `;
-              }
-              const simpleMatch = vocab.match(/^([^:]+):\s*(.+)$/);
-              if (simpleMatch) {
-                return `
-                  <li class="vocabulary-item">
-                    <span class="vocab-term">[어휘 ${index + 1}] - ${simpleMatch[1].trim()}</span>
-                    <div class="vocab-definition">${simpleMatch[2].trim()}</div>
-                  </li>
-                `;
-              }
-              return `<li class="vocabulary-item"><span class="vocab-term">[어휘 ${index + 1}] - ${vocab}</span></li>`;
-            }).join('')}
-        </ul>
-    </div>
-
-    <div class="section">
-        <h2 class="section-title">❓ 어휘 문제 (${editableVocabQuestions.length}개)</h2>
-        ${editableVocabQuestions.map((question, index) => `
-          <div class="vocab-question">
-            <div class="question-header">
-                <span class="question-number">[어휘 문제 ${index + 1}]</span> - <strong>${question.term}</strong>
-            </div>
-            <div class="question-text">${question.question}</div>
-            <div class="options">
-                ${question.options.map((option, optIndex) => `
-                  <div class="option ${option === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}">
-                    ${optIndex + 1}. ${option} ${option === (question.correctAnswer || question.answer) ? '✓' : ''}
-                  </div>
-                `).join('')}
-            </div>
-            <div class="explanation">
-                <span class="explanation-label">해설:</span> ${question.explanation}
-            </div>
-          </div>
-        `).join('')}
-    </div>
-
-    <div class="section">
-        <h2 class="section-title">📋 문단 문제 (${editableParagraphQuestions.length}개)</h2>
-        ${editableParagraphQuestions.length === 0 ? 
-          '<div style="text-align: center; padding: 40px; color: #6b7280; background-color: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">저장된 문단 문제가 없습니다.</div>' :
-          (() => {
-            // 문단 번호별로 그룹화
-            const questionsByParagraph = editableParagraphQuestions.reduce((acc, question) => {
-              const paragraphNum = question.paragraphNumber || 1;
-              if (!acc[paragraphNum]) {
-                acc[paragraphNum] = [];
-              }
-              acc[paragraphNum].push(question);
-              return acc;
-            }, {});
-            
-            // 문단 번호 순으로 정렬하여 HTML 생성
-            return Object.keys(questionsByParagraph)
-              .sort((a, b) => parseInt(a) - parseInt(b))
-              .map(paragraphNum => {
-                const questions = questionsByParagraph[paragraphNum];
-                const firstQuestion = questions[0];
-                
-                return `
-                <div class="question-set">
-                  <div class="set-header">
-                    <h3 class="set-title">[문단 ${paragraphNum}번 관련 문제] (${questions.length}개 문제)</h3>
-                  </div>
-                  
-                  ${firstQuestion.paragraphText ? `
-                    <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
-                      <div style="font-weight: bold; color: #1e40af; margin-bottom: 12px; font-size: 16px;">📖 관련 문단 내용:</div>
-                      <div style="line-height: 1.7; color: #374151; font-size: 15px;">${firstQuestion.paragraphText}</div>
-                    </div>
-                  ` : ''}
-                  
-                  ${questions.map((question, questionIndex) => `
-                    <div class="question main-question">
-                      <div class="question-header">
-                        <span class="question-number">[문제 ${questionIndex + 1}]</span>
-                        <span class="question-type-badge">${getComprehensiveQuestionTypeLabel(question.questionType)}</span>
-                      </div>
-                      
-                      <div class="question-text">${question.question}</div>
-                      ${question.questionType === '어절 순서 맞추기' ? `
-                        <div style="margin: 15px 0; padding: 10px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
-                          <strong>어절 목록:</strong> ${(question.wordSegments || []).join(', ')}
-                        </div>
-                        <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8;">
-                          <strong>정답:</strong> ${question.correctAnswer}
-                        </div>
-                      ` : question.questionType === '주관식 단답형' ? `
-                        <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px;">
-                          <strong>정답:</strong> ${question.correctAnswer}
-                        </div>
-                      ` : question.questionType === 'OX문제' ? `
-                        <div class="options">
-                          ${question.options.slice(0, 2).map((option, optIndex) => `
-                            <div class="option ${(optIndex + 1).toString() === question.correctAnswer ? 'correct-answer' : ''}">
-                              ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === question.correctAnswer ? '✓' : ''}
-                            </div>
-                          `).join('')}
-                        </div>
-                      ` : `
-                        <div class="options">
-                          ${question.options.map((option, optIndex) => `
-                            <div class="option ${(optIndex + 1).toString() === question.correctAnswer ? 'correct-answer' : ''}">
-                              ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === question.correctAnswer ? '✓' : ''}
-                            </div>
-                          `).join('')}
-                        </div>
-                      `}
-                      <div class="explanation">
-                        <span class="explanation-label">해설:</span> ${question.explanation}
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>
-                `;
-              }).join('');
-          })()
-        }
-    </div>
-
-    <div class="section">
-        <h2 class="section-title">📝 종합 문제 (${editableComprehensive.length}개, ${totalMainSets}세트)</h2>
-        ${Object.entries(questionSets).map(([setKey, questions]) => {
-          const mainQuestion = questions.find(q => !q.isSupplementary);
-          const supplementaryQuestions = questions.filter(q => q.isSupplementary);
-          
-          // setKey에서 세트 번호와 유형 추출 (예: set_1_단답형 -> 세트 1, 단답형)
-          const setMatch = setKey.match(/^set_(\d+)_(.+)$/);
-          const setNumber = setMatch ? setMatch[1] : '?';
-          const rawSetType = setMatch ? setMatch[2] : (mainQuestion?.questionType || mainQuestion?.type || '문제유형');
-          const setType = getComprehensiveQuestionTypeLabel(rawSetType);
-          
-          return `
-          <div class="question-set">
-            <div class="set-header">
-                <h3 class="set-title">[종합 문제 - 세트 ${setNumber}] - ${setType}</h3>
-            </div>
-            ${questions.map((question, questionIndex) => {
-              const questionTypeLabel = getComprehensiveQuestionTypeLabel(question.questionType || question.type || '기타');
-              return `
-              <div class="question ${question.isSupplementary ? 'supplementary-question' : 'main-question'}">
-                <div class="question-header">
-                    <span class="question-number">${question.isSupplementary ? '보완 문제' : '기본 문제'}</span>
-                    <span class="question-type-badge">${questionTypeLabel}</span>
-                    <span class="question-nature-badge ${question.isSupplementary ? 'supplementary-badge' : 'main-badge'}">
-                      ${question.isSupplementary ? '보완문제' : '기본문제'}
-                    </span>
-                </div>
-                <div class="question-text">${question.question}</div>
-                ${question.options && question.options.length > 0 ? (
-                  (question.questionType || question.type) === 'OX문제' ? `
-                    <div class="options">
-                        ${question.options.slice(0, 2).map((option, optIndex) => `
-                          <div class="option ${(optIndex + 1).toString() === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}">
-                            ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (question.correctAnswer || question.answer) ? '✓' : ''}
-                          </div>
-                        `).join('')}
-                    </div>
-                  ` : `
-                    <div class="options">
-                        ${question.options.map((option, optIndex) => `
-                          <div class="option ${(optIndex + 1).toString() === (question.correctAnswer || question.answer) ? 'correct-answer' : ''}">
-                            ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (question.correctAnswer || question.answer) ? '✓' : ''}
-                          </div>
-                        `).join('')}
-                    </div>
-                  `
-                ) : `
-                  <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px;">
-                    <strong>정답:</strong> ${question.correctAnswer || question.answer}
-                  </div>
-                `}
-                <div class="explanation">
-                    <span class="explanation-label">해설:</span> ${question.explanation}
-                </div>
-              </div>
-            `; }).join('')}
-          </div>
-        `;
-        }).join('')}
-    </div>
-
-</body>
-</html>`;
-
-    // HTML 파일 다운로드
-    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${String(contentSet.setId || contentSet.id || 'content')}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
   // TXT 다운로드 함수
   const handleTxtDownload = () => {
@@ -1073,6 +591,11 @@ ${editablePassage.paragraphs
     // 통계 계산
     const totalParagraphQuestions = editableParagraphQuestions.length;
     
+    // 어휘 통계 계산 (핵심어 vs 어려운 어휘)
+    const coreVocabularyCount = vocabularyTermsData.filter(term => term.has_question_generated === true).length;
+    const difficultVocabularyCount = vocabularyTermsData.filter(term => term.has_question_generated !== true).length;
+    const totalVocabularyCount = vocabularyTermsData.length;
+    
     // 문단문제 유형별 분포 계산 (HTML ver.1과 동일한 방식)
     const paragraphTypeStats = editableParagraphQuestions.reduce((acc, question) => {
       // 여러 필드명을 시도해서 실제 유형을 찾음
@@ -1099,6 +622,19 @@ ${editablePassage.paragraphs
       }
       return acc;
     }, {} as Record<string, { main: number; supplementary: number }>);
+    
+    // 어휘 문제 유형별 분포 계산
+    const vocabularyTypeStats = editableVocabQuestions.reduce((acc, question) => {
+      // 상세 유형을 우선 사용하고, 없으면 기본 유형 사용
+      const type = question.detailed_question_type || question.detailedQuestionType || 
+                   question.question_type || question.questionType || '5지선다 객관식';
+      console.log('어휘 문제 유형 디버깅:', { question, type }); // 디버깅용
+      if (!acc[type]) {
+        acc[type] = 0;
+      }
+      acc[type]++;
+      return acc;
+    }, {} as Record<string, number>);
     
     // 기본 문제 세트 수 계산 (실제 생성된 세트 수)
     const totalMainSets = Object.keys(questionSets).length;
@@ -1474,7 +1010,7 @@ ${editablePassage.paragraphs
         <div class="info-card">
           <h3>지문 정보</h3>
           <p><strong>지문 수:</strong> ${editablePassages.length > 0 ? editablePassages.length : 1}개</p>
-          <p><strong>어휘 수:</strong> ${editableVocabulary.length}개</p>
+          <p><strong>어휘 수:</strong> ${totalVocabularyCount}개 (핵심어 ${coreVocabularyCount}개 / 어려운 어휘 ${difficultVocabularyCount}개)</p>
         </div>
       </div>
       
@@ -1483,7 +1019,12 @@ ${editablePassage.paragraphs
         <div class="info-card">
           <h3>어휘 문제</h3>
           <p><strong>총 문제 수:</strong> ${editableVocabQuestions.length}개</p>
-          <p><strong>문제형태:</strong> 5지선다 객관식</p>
+          ${editableVocabQuestions.length > 0 ? `
+          <p><strong>유형별 분포:</strong></p>
+          <div style="margin-top: 8px;">
+            ${Object.entries(vocabularyTypeStats).map(([type, count]) => `<div style="margin-bottom: 4px; color: #6c757d; font-size: 0.9em;">• ${type}: ${count}개</div>`).join('')}
+          </div>
+          ` : `<p><strong>문제형태:</strong> 저장된 어휘 문제가 없습니다</p>`}
         </div>
         
         <div class="info-card">
@@ -1542,12 +1083,11 @@ ${editablePassage.paragraphs
                 // 어휘 용어들 추출 및 하이라이트 처리
                 let highlightedParagraph = paragraph;
                 
-                // 어휘 용어들을 추출하고 길이순으로 정렬 (긴 것부터)
-                const vocabTerms = editableVocabulary
-                  .map((vocab, vocabIndex) => ({
-                    vocab: vocab,
-                    term: extractTermFromVocab(vocab),
-                    index: vocabIndex
+                // vocabularyTermsData를 기반으로 어휘 용어들을 추출하고 길이순으로 정렬 (긴 것부터)
+                const vocabTerms = vocabularyTermsData
+                  .map((vocabTerm) => ({
+                    term: vocabTerm.term,
+                    isCoreVocab: vocabTerm.has_question_generated === true
                   }))
                   .filter(item => item.term && item.term.length > 1)
                   .sort((a, b) => b.term.length - a.term.length);
@@ -1555,11 +1095,18 @@ ${editablePassage.paragraphs
                 // 길이가 긴 용어부터 하이라이트 적용
                 vocabTerms.forEach((vocabItem) => {
                   const term = vocabItem.term;
+                  const isCoreVocab = vocabItem.isCoreVocab;
                   
                   if (term && term.length > 1) {
                     const escapedTerm = term.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
                     const regex = new RegExp('(' + escapedTerm + ')', 'gi');
-                    highlightedParagraph = highlightedParagraph.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+                    
+                    // 핵심어는 볼드 + 밑줄, 어려운 어휘는 볼드만 적용
+                    const styleText = isCoreVocab 
+                      ? 'color: #2563eb; font-weight: bold; text-decoration: underline;'
+                      : 'color: #2563eb; font-weight: bold;';
+                    
+                    highlightedParagraph = highlightedParagraph.replace(regex, '<strong style="' + styleText + '">$1</strong>');
                   }
                 });
                 
@@ -1581,11 +1128,12 @@ ${editablePassage.paragraphs
               let highlightedParagraph = paragraph;
               
               // 어휘 용어들을 추출하고 길이순으로 정렬 (긴 것부터)
-              const vocabTerms = editableVocabulary
+              const vocabTerms = vocabularyTermsData
                 .map((vocab, vocabIndex) => ({
                   vocab: vocab,
-                  term: extractTermFromVocab(vocab),
-                  index: vocabIndex
+                  term: vocab.term,
+                  index: vocabIndex,
+                  isCoreVocabulary: vocab.has_question_generated === true
                 }))
                 .filter(item => item.term && item.term.length > 1)
                 .sort((a, b) => b.term.length - a.term.length);
@@ -1597,7 +1145,13 @@ ${editablePassage.paragraphs
                 if (term && term.length > 1) {
                   const escapedTerm = term.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
                   const regex = new RegExp('(' + escapedTerm + ')', 'gi');
-                  highlightedParagraph = highlightedParagraph.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+                  
+                  // 핵심어는 볼드 + 밑줄, 어려운 어휘는 볼드만
+                  const style = vocabItem.isCoreVocabulary 
+                    ? 'color: #2563eb; font-weight: bold; text-decoration: underline;'
+                    : 'color: #2563eb; font-weight: bold;';
+                  
+                  highlightedParagraph = highlightedParagraph.replace(regex, `<strong style="${style}">$1</strong>`);
                 }
               });
               
@@ -1610,54 +1164,104 @@ ${editablePassage.paragraphs
 
     <!-- 어휘 탭 -->
     <div id="vocabulary-list-tab" class="tab-content">
-      <h2 style="color: #2c3e50; margin-bottom: 30px;">📚 핵심 어휘</h2>
-      <div class="vocabulary-grid">
-        ${editableVocabulary.map((vocab, index) => {
-          // 기본적인 어휘 형식: "용어: 정의"
-          const simpleMatch = vocab.match(/^([^:]+):\s*(.+)$/);
-          if (simpleMatch) {
-            const term = simpleMatch[1].trim();
-            const definition = simpleMatch[2].trim();
+      <!-- 핵심어 섹션 -->
+      <div style="margin-bottom: 40px;">
+        <h2 style="color: #2c3e50; margin-bottom: 20px;">📚 핵심어 (${coreVocabularyCount}개)</h2>
+        <p style="color: #6c757d; margin-bottom: 30px; font-style: italic;">어휘 문제로 출제된 중요한 용어들입니다.</p>
+        <div class="vocabulary-grid">
+          ${vocabularyTermsData.filter(term => term.has_question_generated === true).map((vocabTerm, index) => {
+            const vocab = vocabTerm.term + ': ' + vocabTerm.definition + (vocabTerm.example_sentence ? ' (예시: ' + vocabTerm.example_sentence + ')' : '');
             
-            // 예시 부분을 분리 (간단한 문자열 처리)
-            let mainDefinition = definition;
-            let example = '';
-            
-            // 괄호 안에 예시가 있는 경우 분리
-            const lastParenStart = definition.lastIndexOf('(');
-            const lastParenEnd = definition.lastIndexOf(')');
-            
-            if (lastParenStart !== -1 && lastParenEnd !== -1 && lastParenStart < lastParenEnd) {
-              const potentialExample = definition.substring(lastParenStart + 1, lastParenEnd);
-              // 예시:, 예: 등이 포함된 경우만 분리
-              if (potentialExample.includes('예시:') || potentialExample.includes('예:')) {
-                mainDefinition = definition.substring(0, lastParenStart).trim();
-                example = potentialExample;
+            // 기본적인 어휘 형식: "용어: 정의"
+            const simpleMatch = vocab.match(/^([^:]+):\s*(.+)$/);
+            if (simpleMatch) {
+              const term = simpleMatch[1].trim();
+              const definition = simpleMatch[2].trim();
+              
+              // 예시 부분을 분리 (간단한 문자열 처리)
+              let mainDefinition = definition;
+              let example = '';
+              
+              // 괄호 안에 예시가 있는 경우 분리
+              const lastParenStart = definition.lastIndexOf('(');
+              const lastParenEnd = definition.lastIndexOf(')');
+              
+              if (lastParenStart !== -1 && lastParenEnd !== -1 && lastParenStart < lastParenEnd) {
+                const potentialExample = definition.substring(lastParenStart + 1, lastParenEnd);
+                // 예시:, 예: 등이 포함된 경우만 분리
+                if (potentialExample.includes('예시:') || potentialExample.includes('예:')) {
+                  mainDefinition = definition.substring(0, lastParenStart).trim();
+                  example = potentialExample;
+                }
               }
+              
+              // 예시 문구에서 해당 어휘 용어를 하이라이트 처리
+              let highlightedExample = example;
+              if (example && term && term.length > 1) {
+                const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp('(' + escapedTerm + ')', 'gi');
+                highlightedExample = example.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+              }
+              
+              return '<div class="vocabulary-card" style="border-left: 4px solid #28a745;">' +
+                '<div class="vocabulary-term">[핵심어 ' + (index + 1) + '] - ' + term + '</div>' +
+                '<div class="vocabulary-definition">' + mainDefinition + '</div>' +
+                (example ? '<div class="vocabulary-example" style="margin-top: 8px; font-style: italic; color: #6c757d;">(' + highlightedExample + ')</div>' : '') +
+                '</div>';
             }
+            return '';
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- 어려운 어휘 섹션 -->
+      <div>
+        <h2 style="color: #2c3e50; margin-bottom: 20px;">📖 어려운 어휘 (${difficultVocabularyCount}개)</h2>
+        <p style="color: #6c757d; margin-bottom: 30px; font-style: italic;">지문 이해에 도움이 되는 추가 어휘들입니다.</p>
+        <div class="vocabulary-grid">
+          ${vocabularyTermsData.filter(term => term.has_question_generated !== true).map((vocabTerm, index) => {
+            const vocab = vocabTerm.term + ': ' + vocabTerm.definition + (vocabTerm.example_sentence ? ' (예시: ' + vocabTerm.example_sentence + ')' : '');
             
-            // 예시 문구에서 해당 어휘 용어를 하이라이트 처리
-            let highlightedExample = example;
-            if (example && term && term.length > 1) {
-              const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const regex = new RegExp('(' + escapedTerm + ')', 'gi');
-              highlightedExample = example.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+            // 기본적인 어휘 형식: "용어: 정의"
+            const simpleMatch = vocab.match(/^([^:]+):\s*(.+)$/);
+            if (simpleMatch) {
+              const term = simpleMatch[1].trim();
+              const definition = simpleMatch[2].trim();
+              
+              // 예시 부분을 분리 (간단한 문자열 처리)
+              let mainDefinition = definition;
+              let example = '';
+              
+              // 괄호 안에 예시가 있는 경우 분리
+              const lastParenStart = definition.lastIndexOf('(');
+              const lastParenEnd = definition.lastIndexOf(')');
+              
+              if (lastParenStart !== -1 && lastParenEnd !== -1 && lastParenStart < lastParenEnd) {
+                const potentialExample = definition.substring(lastParenStart + 1, lastParenEnd);
+                // 예시:, 예: 등이 포함된 경우만 분리
+                if (potentialExample.includes('예시:') || potentialExample.includes('예:')) {
+                  mainDefinition = definition.substring(0, lastParenStart).trim();
+                  example = potentialExample;
+                }
+              }
+              
+              // 예시 문구에서 해당 어휘 용어를 하이라이트 처리
+              let highlightedExample = example;
+              if (example && term && term.length > 1) {
+                const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp('(' + escapedTerm + ')', 'gi');
+                highlightedExample = example.replace(regex, '<strong style="color: #2563eb; font-weight: bold;">$1</strong>');
+              }
+              
+              return '<div class="vocabulary-card" style="border-left: 4px solid #6c757d;">' +
+                '<div class="vocabulary-term">[어려운 어휘 ' + (index + 1) + '] - ' + term + '</div>' +
+                '<div class="vocabulary-definition">' + mainDefinition + '</div>' +
+                (example ? '<div class="vocabulary-example" style="margin-top: 8px; font-style: italic; color: #6c757d;">(' + highlightedExample + ')</div>' : '') +
+                '</div>';
             }
-            
-            return '<div class="vocabulary-card">' +
-              '<div class="vocabulary-term">[어휘 ' + (index + 1) + '] - ' + term + '</div>' +
-              '<div class="vocabulary-definition">' + mainDefinition + '</div>' +
-              (example ? '<div class="vocabulary-example" style="margin-top: 8px; font-style: italic; color: #6c757d;">(' + highlightedExample + ')</div>' : '') +
-              '</div>';
-          }
-          // 매칭되지 않으면 전체 텍스트를 표시
-          return `
-            <div class="vocabulary-card">
-              <div class="vocabulary-term">[어휘 ${index + 1}]</div>
-              <div class="vocabulary-definition">${vocab}</div>
-            </div>
-          `;
-        }).join('')}
+            return '';
+          }).join('')}
+        </div>
       </div>
     </div>
 
@@ -1666,9 +1270,14 @@ ${editablePassage.paragraphs
       <h2 style="color: #2c3e50; margin-bottom: 30px;">📝 어휘 문제</h2>
       ${Object.keys(vocabularyQuestionsByTerm).sort().map(term => {
         const questions = vocabularyQuestionsByTerm[term];
+        
+        // 기본문제와 보완문제 개수 계산
+        const basicQuestions = questions.filter(q => !(q.difficulty === '보완' || q.question_type === '보완')).length;
+        const supplementaryQuestions = questions.filter(q => q.difficulty === '보완' || q.question_type === '보완').length;
+        
         return `
           <div style="margin-bottom: 40px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #17a2b8;">
-            <h3 style="color: #17a2b8; margin-bottom: 20px;">📚 어휘: ${term} (${questions.length}개 문제)</h3>
+            <h3 style="color: #17a2b8; margin-bottom: 20px;">📚 어휘: ${term} (${questions.length}개 문제 / 기본 ${basicQuestions}개, 보완 ${supplementaryQuestions}개)</h3>
             ${questions.map((question, questionIndex) => {
               const questionTypeLabel = getVocabularyQuestionTypeLabel(
                 question.question_type || question.questionType || '객관식',
@@ -1676,12 +1285,12 @@ ${editablePassage.paragraphs
               );
               const detailedType = question.detailed_question_type || question.detailedQuestionType || questionTypeLabel;
               const isSupplementary = question.difficulty === '보완' || question.question_type === '보완';
-              const levelLabel = isSupplementary ? '보완문제' : '일반문제';
+              const levelLabel = isSupplementary ? '보완문제' : '기본문제';
               
               return `
                 <div class="question-container" style="margin-bottom: 30px; background-color: white; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <div class="question-header" style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
-                    <span class="question-number" style="font-weight: 600; color: #2c3e50;">문제 ${questionIndex + 1}</span>
+                  <div class="question-header" style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; background-color: #2c3e50; padding: 12px; border-radius: 6px;">
+                    <span class="question-number" style="font-weight: 600; color: white;">어휘 문제 ${questionIndex + 1}</span>
                     <span class="question-type-badge" style="background-color: #17a2b8; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px;">
                       ${detailedType}
                     </span>
@@ -1809,9 +1418,10 @@ ${editablePassage.paragraphs
               </div>
               
               <!-- 해설 -->
-              <div class="answer-section" style="margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 6px;">
-                <div style="font-weight: bold; margin-bottom: 8px;">해설:</div>
-                <div class="explanation">${q.explanation}</div>
+              <div class="answer-section">
+                <div class="explanation" style="margin-top: 15px; padding: 15px; background-color: #f0f8ff; border-radius: 5px; border-left: 4px solid #3498db;">
+                  <strong>해설:</strong> ${q.explanation}
+                </div>
               </div>
             </div>
           `).join('')}
@@ -1864,7 +1474,9 @@ ${editablePassage.paragraphs
                   </div>
                 `}
                 <div class="answer-section">
-                  <div class="explanation">${mainQuestion.explanation}</div>
+                  <div class="explanation" style="margin-top: 15px; padding: 15px; background-color: #f0f8ff; border-radius: 5px; border-left: 4px solid #3498db;">
+                    <strong>해설:</strong> ${mainQuestion.explanation}
+                  </div>
                 </div>
               </div>
             ` : ''}
@@ -1903,7 +1515,9 @@ ${editablePassage.paragraphs
                       </div>
                     `}
                     <div class="answer-section">
-                      <div class="explanation">${q.explanation}</div>
+                      <div class="explanation" style="margin-top: 15px; padding: 15px; background-color: #f0f8ff; border-radius: 5px; border-left: 4px solid #3498db;">
+                        <strong>해설:</strong> ${q.explanation}
+                      </div>
                     </div>
                   </div>
                 `).join('')}
@@ -2285,12 +1899,6 @@ ${editablePassage.paragraphs
               <h1 className="text-xl font-bold text-gray-900">{data?.data?.contentSet?.passageTitle || '제목 없음'}</h1>
             </div>
             <div className="flex items-center space-x-3">
-              <button
-                onClick={handleHtmlDownload}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-              >
-                html v1
-              </button>
               <button
                 onClick={handleHtmlDownloadV2}
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"

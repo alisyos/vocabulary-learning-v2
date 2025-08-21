@@ -218,9 +218,9 @@ export default function VocabularyQuestions({
     // 선택된 유형 중 첫 번째를 기본값으로 사용 (선택된 유형이 없으면 5지선다 사용)
     const defaultQuestionType = selectedQuestionTypes.length > 0 ? selectedQuestionTypes[0] : '5지선다 객관식';
     const isMultipleChoice = defaultQuestionType.includes('객관식');
-    const optionCount = defaultQuestionType === '2지선다 객관식' ? 2 :
-                       defaultQuestionType === '3지선다 객관식' ? 3 :
-                       defaultQuestionType === '4지선다 객관식' ? 4 : 5;
+    const optionCount = defaultQuestionType === '2개중 선택형' ? 2 :
+                       defaultQuestionType === '3개중 선택형' ? 3 :
+                       defaultQuestionType === '낱말 골라 쓰기' ? 4 : 5;
     
     const newQuestion: VocabularyQuestion = {
       id: `vocab_new_${Date.now()}`,
@@ -689,9 +689,9 @@ export default function VocabularyQuestions({
                   <div className="space-y-2">
                     {(() => {
                       const questionType = question.question_type || question.questionType || '5지선다 객관식';
-                      const maxOptions = questionType === '2지선다 객관식' ? 2 :
-                                        questionType === '3지선다 객관식' ? 3 :
-                                        questionType === '4지선다 객관식' ? 4 : 5;
+                      const maxOptions = questionType === '2개중 선택형' ? 2 :
+                                        questionType === '3개중 선택형' ? 3 :
+                                        questionType === '낱말 골라 쓰기' ? 4 : 5;
                       
                       const options = [
                         question.option_1 || (question.options && question.options[0]),
@@ -744,9 +744,9 @@ export default function VocabularyQuestions({
                     <option value="">정답을 선택하세요</option>
                     {(() => {
                       const questionType = question.question_type || question.questionType || '5지선다 객관식';
-                      const maxOptions = questionType === '2지선다 객관식' ? 2 :
-                                        questionType === '3지선다 객관식' ? 3 :
-                                        questionType === '4지선다 객관식' ? 4 : 5;
+                      const maxOptions = questionType === '2개중 선택형' ? 2 :
+                                        questionType === '3개중 선택형' ? 3 :
+                                        questionType === '낱말 골라 쓰기' ? 4 : 5;
                       
                       const options = [
                         question.option_1 || (question.options && question.options[0]),

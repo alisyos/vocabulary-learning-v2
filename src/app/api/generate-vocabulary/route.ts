@@ -150,9 +150,9 @@ export async function POST(request: NextRequest) {
             ? `다음 중 '${termName}'의 의미로 가장 적절한 것은?`
             : `'${termName}'의 의미를 쓰세요.`,
           options: isMultipleChoice 
-            ? (body.questionType === '2지선다 객관식' ? ['선택지 1', '선택지 2'] :
-               body.questionType === '3지선다 객관식' ? ['선택지 1', '선택지 2', '선택지 3'] :
-               body.questionType === '4지선다 객관식' ? ['선택지 1', '선택지 2', '선택지 3', '선택지 4'] :
+            ? (body.questionType === '2개중 선택형' ? ['선택지 1', '선택지 2'] :
+               body.questionType === '3개중 선택형' ? ['선택지 1', '선택지 2', '선택지 3'] :
+               body.questionType === '낱말 골라 쓰기' ? ['선택지 1', '선택지 2', '선택지 3', '선택지 4'] :
                ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'])
             : undefined,
           answer: isMultipleChoice ? '선택지 1' : termName,

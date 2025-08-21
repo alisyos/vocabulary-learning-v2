@@ -40,7 +40,7 @@ async function updateVocabularySystemPrompt() {
   "explanation": "'{termName}'는 {정확한 정의}를 의미합니다."
 }
 
-**2지선다/3지선다/4지선다 객관식:**
+**2개중 선택형/3개중 선택형/낱말 골라 쓰기 객관식:**
 {
   "type": "요청된 유형명",
   "question": "'{termName}'의 뜻으로 가장 적절한 것은?",
@@ -61,9 +61,9 @@ async function updateVocabularySystemPrompt() {
   "explanation": "'{termName}'는 {정확한 정의}를 의미합니다."
 }
 
-**단답형 설명 문제:**
+**응용형 문장완성:**
 {
-  "type": "단답형 설명 문제",
+  "type": "응용형 문장완성",
   "question": "'{termName}'의 뜻을 간단히 설명하시오.",
   "answer": "{termDescription의 핵심 내용}",
   "answerInitials": "{정답의 초성}",
@@ -87,12 +87,12 @@ async function updateVocabularySystemPrompt() {
 3. 해설:
    - "'{용어}'는 {정확한 정의}를 의미합니다." 형식 사용
 
-**2/3/4지선다 객관식 상세 지침:**
+**2개중 선택형/3개중 선택형/낱말 골라 쓰기 상세 지침:**
 1. 질문 구성: 5지선다와 동일
 2. 선택지 구성: 요청된 개수에 맞춰 구성
-   - 2지선다: 정답 + 가장 혼동하기 쉬운 오답 1개
-   - 3지선다: 정답 + 오답 2개 (비슷한 의미 + 관련 개념)
-   - 4지선다: 정답 + 오답 3개 (비슷한 의미 + 관련 개념 + 혼동 가능한 내용)
+   - 2개중 선택형: 정답 + 가장 혼동하기 쉬운 오답 1개
+   - 3개중 선택형: 정답 + 오답 2개 (비슷한 의미 + 관련 개념)
+   - 낱말 골라 쓰기: 정답 + 오답 3개 (비슷한 의미 + 관련 개념 + 혼동 가능한 내용)
 
 **단답형 초성 문제 상세 지침:**
 1. 질문 구성:
@@ -109,7 +109,7 @@ async function updateVocabularySystemPrompt() {
    - 예: "병원체" → "ㅂㅇㅊ"
    - 예: "감염병" → "ㄱㅇㅂ"
 
-**단답형 설명 문제 상세 지침:**
+**응용형 문장완성 상세 지침:**
 1. 질문 구성:
    - "'{용어}'의 뜻을 간단히 설명하시오." 형식 사용
    - 용어명을 제시하고 그 뜻을 묻는 형식
@@ -166,9 +166,9 @@ async function updateVocabularySystemPrompt() {
         console.log('  - 업데이트 시간:', updated.updated_at);
         console.log('  - 6가지 문제 유형 지원:');
         console.log('    • 5지선다 객관식:', updated.prompt_text.includes('5지선다 객관식') ? '✅' : '❌');
-        console.log('    • 2/3/4지선다 객관식:', updated.prompt_text.includes('2지선다/3지선다/4지선다') ? '✅' : '❌');
+        console.log('    • 2개중 선택형/3개중 선택형/낱말 골라 쓰기:', updated.prompt_text.includes('2지선다/3지선다/4지선다') ? '✅' : '❌');
         console.log('    • 단답형 초성 문제:', updated.prompt_text.includes('단답형 초성 문제') ? '✅' : '❌');
-        console.log('    • 단답형 설명 문제:', updated.prompt_text.includes('단답형 설명 문제') ? '✅' : '❌');
+        console.log('    • 응용형 문장완성:', updated.prompt_text.includes('단답형 설명 문제') ? '✅' : '❌');
         
         console.log('');
         console.log('🎯 주요 개선 사항:');

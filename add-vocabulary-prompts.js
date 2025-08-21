@@ -79,9 +79,9 @@ async function addVocabularyTypePrompts() {
       prompt_id: 'vocabulary-type-multiple-2',
       category: 'vocabulary',
       sub_category: 'vocabularyType',
-      name: '2지선다 객관식 문제',
-      key: '2지선다 객관식',
-      prompt_text: `다음 지문의 어휘 용어들을 바탕으로 2지선다 객관식 문제를 생성하세요.
+      name: '2개중 선택형 문제',
+      key: '2개중 선택형',
+      prompt_text: `다음 지문의 어휘 용어들을 바탕으로 2개중 선택형 문제를 생성하세요.
 
 ### 문제 생성 원칙
 1. 각 용어마다 1개의 문제를 생성합니다
@@ -94,7 +94,7 @@ async function addVocabularyTypePrompts() {
   "vocabularyQuestions": [
     {
       "term": "용어명",
-      "questionType": "2지선다 객관식",
+      "questionType": "2개중 선택형",
       "question": "문제 텍스트",
       "options": ["선택지1", "선택지2"],
       "answer": "정답 선택지",
@@ -102,7 +102,7 @@ async function addVocabularyTypePrompts() {
     }
   ]
 }`,
-      description: '2개 선택지를 제공하는 객관식 문제 생성',
+      description: '2개 선택지를 제공하는 선택형 문제 생성',
       is_active: true,
       is_default: false,
       version: 1,
@@ -113,9 +113,9 @@ async function addVocabularyTypePrompts() {
       prompt_id: 'vocabulary-type-multiple-3',
       category: 'vocabulary',
       sub_category: 'vocabularyType',
-      name: '3지선다 객관식 문제',
-      key: '3지선다 객관식',
-      prompt_text: `다음 지문의 어휘 용어들을 바탕으로 3지선다 객관식 문제를 생성하세요.
+      name: '3개중 선택형 문제',
+      key: '3개중 선택형',
+      prompt_text: `다음 지문의 어휘 용어들을 바탕으로 3개중 선택형 문제를 생성하세요.
 
 ### 문제 생성 원칙
 1. 각 용어마다 1개의 문제를 생성합니다
@@ -128,7 +128,7 @@ async function addVocabularyTypePrompts() {
   "vocabularyQuestions": [
     {
       "term": "용어명",
-      "questionType": "3지선다 객관식",
+      "questionType": "3개중 선택형",
       "question": "문제 텍스트",
       "options": ["선택지1", "선택지2", "선택지3"],
       "answer": "정답 선택지",
@@ -136,7 +136,7 @@ async function addVocabularyTypePrompts() {
     }
   ]
 }`,
-      description: '3개 선택지를 제공하는 객관식 문제 생성',
+      description: '3개 선택지를 제공하는 선택형 문제 생성',
       is_active: true,
       is_default: false,
       version: 1,
@@ -147,9 +147,9 @@ async function addVocabularyTypePrompts() {
       prompt_id: 'vocabulary-type-multiple-4',
       category: 'vocabulary',
       sub_category: 'vocabularyType',
-      name: '4지선다 객관식 문제',
-      key: '4지선다 객관식',
-      prompt_text: `다음 지문의 어휘 용어들을 바탕으로 4지선다 객관식 문제를 생성하세요.
+      name: '낱말 골라 쓰기 문제',
+      key: '낱말 골라 쓰기',
+      prompt_text: `다음 지문의 어휘 용어들을 바탕으로 낱말 골라 쓰기 문제를 생성하세요.
 
 ### 문제 생성 원칙
 1. 각 용어마다 1개의 문제를 생성합니다
@@ -162,7 +162,7 @@ async function addVocabularyTypePrompts() {
   "vocabularyQuestions": [
     {
       "term": "용어명",
-      "questionType": "4지선다 객관식",
+      "questionType": "낱말 골라 쓰기",
       "question": "문제 텍스트",
       "options": ["선택지1", "선택지2", "선택지3", "선택지4"],
       "answer": "정답 선택지",
@@ -170,7 +170,7 @@ async function addVocabularyTypePrompts() {
     }
   ]
 }`,
-      description: '4개 선택지를 제공하는 객관식 문제 생성',
+      description: '4개 선택지에서 알맞은 낱말을 고르는 문제 생성',
       is_active: true,
       is_default: false,
       version: 1,
@@ -181,9 +181,9 @@ async function addVocabularyTypePrompts() {
       prompt_id: 'vocabulary-type-short-definition',
       category: 'vocabulary',
       sub_category: 'vocabularyType',
-      name: '단답형 설명 문제',
-      key: '단답형 설명 문제',
-      prompt_text: `다음 지문의 어휘 용어들을 바탕으로 단답형 설명 문제를 생성하세요.
+      name: '응용형 문장완성 문제',
+      key: '응용형 문장완성',
+      prompt_text: `다음 지문의 어휘 용어들을 바탕으로 응용형 문장완성 문제를 생성하세요.
 
 ### 문제 생성 원칙
 1. 각 용어마다 1개의 문제를 생성합니다
@@ -197,7 +197,7 @@ async function addVocabularyTypePrompts() {
   "vocabularyQuestions": [
     {
       "term": "용어명",
-      "questionType": "단답형 설명 문제",
+      "questionType": "응용형 문장완성",
       "question": "용어 설명에서 핵심 단어를 빈칸으로 만든 문제 텍스트",
       "answer": "설명에서 빠진 핵심 단어",
       "answerInitials": "초성힌트 (예: ㅈㄹㅎㅁ)",
@@ -205,7 +205,7 @@ async function addVocabularyTypePrompts() {
     }
   ]
 }`,
-      description: '어휘 설명에서 핵심 단어를 묻는 단답형 문제 생성',
+      description: '어휘를 활용한 문장 완성 응용 문제 생성',
       is_active: true,
       is_default: false,
       version: 1,

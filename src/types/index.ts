@@ -185,19 +185,19 @@ export type ComprehensiveQuestion = ComprehensiveQuestionWorkflow;
 export type VocabularyQuestionType = 
   | '5지선다 객관식'         // 기존 유형
   | '단답형 초성 문제'       // 주관식 단답형 + 초성 힌트
-  | '2지선다 객관식'         // 2개 선택지
-  | '3지선다 객관식'         // 3개 선택지  
-  | '4지선다 객관식'         // 4개 선택지
-  | '단답형 설명 문제';       // 어휘 설명의 단어가 정답
+  | '2개중 선택형'          // 2개 선택지
+  | '3개중 선택형'          // 3개 선택지  
+  | '낱말 골라 쓰기'        // 4개 선택지
+  | '응용형 문장완성';       // 어휘 설명의 단어가 정답
 
 // 어휘 문제 유형별 상수
 export const VOCABULARY_QUESTION_TYPES = {
   MULTIPLE_CHOICE_5: '5지선다 객관식',
   SHORT_ANSWER_WITH_INITIAL: '단답형 초성 문제', 
-  MULTIPLE_CHOICE_2: '2지선다 객관식',
-  MULTIPLE_CHOICE_3: '3지선다 객관식',
-  MULTIPLE_CHOICE_4: '4지선다 객관식',
-  SHORT_ANSWER_FROM_DEFINITION: '단답형 설명 문제'
+  MULTIPLE_CHOICE_2: '2개중 선택형',
+  MULTIPLE_CHOICE_3: '3개중 선택형',
+  MULTIPLE_CHOICE_4: '낱말 골라 쓰기',
+  SHORT_ANSWER_FROM_DEFINITION: '응용형 문장완성'
 } as const;
 
 // 워크플로우 전체 데이터

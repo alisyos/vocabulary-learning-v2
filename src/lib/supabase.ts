@@ -885,11 +885,11 @@ export function getVocabularyQuestionTypeLabel(questionType: string, detailedQue
   if (detailedQuestionType) {
     const detailedTypeMap: { [key: string]: string } = {
       '5지선다 객관식': '5지선다',
-      '4지선다 객관식': '4지선다',
-      '3지선다 객관식': '3지선다',
-      '2지선다 객관식': '2지선다',
+      '낱말 골라 쓰기': '4지선다',
+      '3개중 선택형': '3지선다',
+      '2개중 선택형': '2지선다',
       '단답형 초성 문제': '단답형(초성)',
-      '단답형 설명 문제': '단답형(설명)'
+      '응용형 문장완성': '단답형(설명)'
     };
     
     if (detailedTypeMap[detailedQuestionType]) {
@@ -902,11 +902,11 @@ export function getVocabularyQuestionTypeLabel(questionType: string, detailedQue
     '객관식': '객관식',
     '주관식': '주관식',
     '5지선다 객관식': '5지선다',
-    '4지선다 객관식': '4지선다', 
-    '3지선다 객관식': '3지선다',
-    '2지선다 객관식': '2지선다',
+    '낱말 골라 쓰기': '4지선다', 
+    '3개중 선택형': '3지선다',
+    '2개중 선택형': '2지선다',
     '단답형 초성 문제': '단답형(초성)',
-    '단답형 설명 문제': '단답형(설명)'
+    '응용형 문장완성': '단답형(설명)'
   };
 
   return typeMap[questionType] || questionType;
