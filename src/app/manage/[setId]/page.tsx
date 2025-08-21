@@ -1385,8 +1385,32 @@ ${editablePassage.paragraphs
               
               <!-- 문제 유형별 추가 정보 (어절들, 선택지) -->
               ${(q.question_type || q.questionType) === '어절 순서 맞추기' ? `
-                <div style="margin: 15px 0; padding: 10px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
-                  <strong>어절 목록:</strong> ${(q.wordSegments || q.word_segments || []).join(', ')}
+                <div style="margin: 15px 0; padding: 15px; background-color: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
+                  <div style="font-weight: bold; color: #495057; margin-bottom: 12px; font-size: 0.95em;">
+                    어절 목록:
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${(q.wordSegments || q.word_segments || []).map((segment, idx) => `
+                      <span style="
+                        display: inline-block;
+                        padding: 8px 14px;
+                        background-color: white;
+                        color: #495057;
+                        border: 1px solid #dee2e6;
+                        border-radius: 5px;
+                        font-size: 0.95em;
+                        position: relative;
+                      ">
+                        <span style="
+                          display: inline-block;
+                          margin-right: 6px;
+                          color: #6c757d;
+                          font-size: 0.85em;
+                        ">${idx + 1}.</span>
+                        ${segment}
+                      </span>
+                    `).join('')}
+                  </div>
                 </div>
               ` : ''}
               
@@ -1395,8 +1419,8 @@ ${editablePassage.paragraphs
                   <div class="options" style="margin: 15px 0;">
                     <div style="font-weight: bold; margin-bottom: 10px;">선택지:</div>
                     ${q.options.slice(0, 2).map((option, optIndex) => `
-                      <div class="option" style="margin-bottom: 8px; padding: 8px 12px; background-color: white; border: 1px solid #dee2e6; border-radius: 4px;">
-                        ${optIndex + 1}. ${option}
+                      <div class="option ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? 'correct-answer' : ''}" style="margin-bottom: 8px; padding: 8px 12px; background-color: ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 4px;">
+                        ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? ' ✓' : ''}
                       </div>
                     `).join('')}
                   </div>
@@ -1404,18 +1428,22 @@ ${editablePassage.paragraphs
                   <div class="options" style="margin: 15px 0;">
                     <div style="font-weight: bold; margin-bottom: 10px;">선택지:</div>
                     ${q.options.map((option, optIndex) => `
-                      <div class="option" style="margin-bottom: 8px; padding: 8px 12px; background-color: white; border: 1px solid #dee2e6; border-radius: 4px;">
-                        ${optIndex + 1}. ${option}
+                      <div class="option ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? 'correct-answer' : ''}" style="margin-bottom: 8px; padding: 8px 12px; background-color: ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 4px;">
+                        ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? ' ✓' : ''}
                       </div>
                     `).join('')}
                   </div>
                 `
-              ) : ''}
-              
-              <!-- 정답 -->
-              <div class="correct-answer" style="margin: 15px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8; border-left: 4px solid #28a745;">
-                <strong>정답:</strong> ${q.correct_answer || q.correctAnswer}
-              </div>
+              ) : `
+                <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8;">
+                  <strong>정답:</strong> ${q.correct_answer || q.correctAnswer}
+                  ${q.answer_initials || q.answerInitials ? `
+                    <span style="margin-left: 15px; color: #666; font-size: 0.9em;">
+                      (초성 힌트: ${q.answer_initials || q.answerInitials})
+                    </span>
+                  ` : ''}
+                </div>
+              `}
               
               <!-- 해설 -->
               <div class="answer-section">
@@ -1454,16 +1482,16 @@ ${editablePassage.paragraphs
                   (mainQuestion.questionType || mainQuestion.type) === 'OX문제' ? `
                     <div class="options">
                       ${mainQuestion.options.slice(0, 2).map((option, optIndex) => `
-                        <div class="option ${(optIndex + 1).toString() === (mainQuestion.correctAnswer || mainQuestion.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${(optIndex + 1).toString() === (mainQuestion.correctAnswer || mainQuestion.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
-                          ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (mainQuestion.correctAnswer || mainQuestion.answer) ? ' ✓' : ''}
+                        <div class="option ${option === (mainQuestion.correctAnswer || mainQuestion.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${option === (mainQuestion.correctAnswer || mainQuestion.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
+                          ${optIndex + 1}. ${option} ${option === (mainQuestion.correctAnswer || mainQuestion.answer) ? ' ✓' : ''}
                         </div>
                       `).join('')}
                     </div>
                   ` : `
                     <div class="options">
                       ${mainQuestion.options.map((option, optIndex) => `
-                        <div class="option ${(optIndex + 1).toString() === (mainQuestion.correctAnswer || mainQuestion.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${(optIndex + 1).toString() === (mainQuestion.correctAnswer || mainQuestion.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
-                          ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (mainQuestion.correctAnswer || mainQuestion.answer) ? ' ✓' : ''}
+                        <div class="option ${option === (mainQuestion.correctAnswer || mainQuestion.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${option === (mainQuestion.correctAnswer || mainQuestion.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
+                          ${optIndex + 1}. ${option} ${option === (mainQuestion.correctAnswer || mainQuestion.answer) ? ' ✓' : ''}
                         </div>
                       `).join('')}
                     </div>
@@ -1471,6 +1499,11 @@ ${editablePassage.paragraphs
                 ) : `
                   <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8;">
                     <strong>정답:</strong> ${mainQuestion.correctAnswer || mainQuestion.answer}
+                    ${mainQuestion.answer_initials || mainQuestion.answerInitials ? `
+                      <span style="margin-left: 15px; color: #666; font-size: 0.9em;">
+                        (초성 힌트: ${mainQuestion.answer_initials || mainQuestion.answerInitials})
+                      </span>
+                    ` : ''}
                   </div>
                 `}
                 <div class="answer-section">
@@ -1495,16 +1528,16 @@ ${editablePassage.paragraphs
                       (q.questionType || q.type) === 'OX문제' ? `
                         <div class="options">
                           ${q.options.slice(0, 2).map((option, optIndex) => `
-                            <div class="option ${(optIndex + 1).toString() === (q.correctAnswer || q.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${(optIndex + 1).toString() === (q.correctAnswer || q.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
-                              ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (q.correctAnswer || q.answer) ? ' ✓' : ''}
+                            <div class="option ${option === (q.correctAnswer || q.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${option === (q.correctAnswer || q.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
+                              ${optIndex + 1}. ${option} ${option === (q.correctAnswer || q.answer) ? ' ✓' : ''}
                             </div>
                           `).join('')}
                         </div>
                       ` : `
                         <div class="options">
                           ${q.options.map((option, optIndex) => `
-                            <div class="option ${(optIndex + 1).toString() === (q.correctAnswer || q.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${(optIndex + 1).toString() === (q.correctAnswer || q.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
-                              ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (q.correctAnswer || q.answer) ? ' ✓' : ''}
+                            <div class="option ${option === (q.correctAnswer || q.answer) ? 'correct-answer' : ''}" style="margin-bottom: 10px; padding: 10px 15px; background-color: ${option === (q.correctAnswer || q.answer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 5px;">
+                              ${optIndex + 1}. ${option} ${option === (q.correctAnswer || q.answer) ? ' ✓' : ''}
                             </div>
                           `).join('')}
                         </div>
@@ -1512,6 +1545,11 @@ ${editablePassage.paragraphs
                     ) : `
                       <div class="correct-answer" style="margin: 10px 0; padding: 10px; border-radius: 6px; background-color: #e8f5e8;">
                         <strong>정답:</strong> ${q.correctAnswer || q.answer}
+                        ${q.answer_initials || q.answerInitials ? `
+                          <span style="margin-left: 15px; color: #666; font-size: 0.9em;">
+                            (초성 힌트: ${q.answer_initials || q.answerInitials})
+                          </span>
+                        ` : ''}
                       </div>
                     `}
                     <div class="answer-section">
@@ -2847,7 +2885,18 @@ ${editablePassage.paragraphs
                                       <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
                                         <select
-                                          value={question.correctAnswer || question.answer}
+                                          value={(() => {
+                                            const currentAnswer = question.correctAnswer || question.answer;
+                                            // 이미 번호 형식인지 확인 (1-5)
+                                            if (['1', '2', '3', '4', '5'].includes(currentAnswer)) {
+                                              return currentAnswer;
+                                            }
+                                            // 텍스트 형식이면 해당 옵션 찾아서 번호로 변환
+                                            const matchingIndex = question.options?.findIndex(option => 
+                                              option === currentAnswer
+                                            );
+                                            return matchingIndex >= 0 ? (matchingIndex + 1).toString() : '';
+                                          })()}
                                           onChange={(e) => handleComprehensiveChange(globalIndex, 'correctAnswer', e.target.value)}
                                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         >
