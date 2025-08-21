@@ -1,13 +1,16 @@
 {
   "functions": {
-    "src/app/api/generate-comprehensive/route.ts": {
+    "src/app/api/generate-passage/route.ts": {
       "maxDuration": 60
     },
     "src/app/api/generate-vocabulary/route.ts": {
-      "maxDuration": 30
+      "maxDuration": 60
     },
-    "src/app/api/generate-passage/route.ts": {
-      "maxDuration": 30
+    "src/app/api/generate-paragraph/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/generate-comprehensive/route.ts": {
+      "maxDuration": 60
     }
   }
 }
