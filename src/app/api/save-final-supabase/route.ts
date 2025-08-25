@@ -42,7 +42,10 @@ export async function POST(request: NextRequest) {
       // 새로운 2개 지문 형식 확인
       passages: editablePassage?.passages,
       passagesType: typeof editablePassage?.passages,
-      passagesLength: editablePassage?.passages?.length
+      passagesLength: editablePassage?.passages?.length,
+      // 도입 질문 확인
+      introduction_question: editablePassage?.introduction_question,
+      introduction_question_type: typeof editablePassage?.introduction_question
     });
 
     // 2개 지문 형식인지 확인하고 데이터 처리
@@ -112,7 +115,9 @@ export async function POST(request: NextRequest) {
       status: '검수 전',
       // 지문 길이와 유형 정보 (스키마에 컬럼 추가 완료)
       passage_length: input.length || null,
-      text_type: input.textType || null
+      text_type: input.textType || null,
+      // 도입 질문 (2개 지문 형식에서 사용)
+      introduction_question: editablePassage?.introduction_question || null
     };
 
     console.log('📊 ContentSet 데이터 변환 완료:', contentSetData);
@@ -405,8 +410,8 @@ export async function POST(request: NextRequest) {
           wordSegments: safeQ.wordSegments
         });
         
-        // 문제 유형 검증 - 새로운 4가지 유형으로 업데이트
-        const validTypes = ['빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제'];
+        // 문제 유형 검증 - 5가지 유형으로 업데이트 (객관식 일반형 추가)
+        const validTypes = ['빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제', '객관식 일반형'];
         if (!validTypes.includes(safeQ.type)) {
           console.warn(`⚠️ 유효하지 않은 문제 유형: ${safeQ.type}, 기본값으로 변경`);
           safeQ.type = '빈칸 채우기';

@@ -627,6 +627,33 @@ export const DEFAULT_PROMPTS_V2: SystemPrompt[] = [
     isDefault: false,
     version: 1,
   },
+  {
+    promptId: 'paragraph-type-multiple-choice-general',
+    category: 'paragraph',
+    subCategory: 'paragraphType',
+    name: '객관식 일반형',
+    key: 'type_multiple_choice_general',
+    promptText: `객관식 일반형: 문단의 내용을 종합적으로 이해했는지 확인하는 일반적인 5지선다 객관식 문제입니다. 문단의 핵심 내용, 주제, 세부 사항 등을 묻는 문제로 구성됩니다.
+
+출력 형식:
+{
+  "type": "객관식 일반형",
+  "question": "문단의 내용에 대한 질문을 제시합니다.",
+  "options": [
+    "첫 번째 선택지",
+    "두 번째 선택지", 
+    "세 번째 선택지",
+    "네 번째 선택지",
+    "다섯 번째 선택지"
+  ],
+  "answer": "정답 번호 (1~5 중 하나)",
+  "explanation": "정답인 이유와 문단에서의 근거 설명"
+}`,
+    description: '객관식 일반형 문제 형식 (5지선다)',
+    isActive: true,
+    isDefault: false,
+    version: 1,
+  },
 
   // ============== 4. 종합 문제 생성 ==============
   // 전체 시스템 프롬프트

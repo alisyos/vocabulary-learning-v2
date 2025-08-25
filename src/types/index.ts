@@ -119,6 +119,8 @@ export interface EditablePassage {
     paragraphs: string[];
     footnote: string[];
   }[];
+  // 도입 질문 (선택적) - 2개 지문을 아우르는 흥미 유발 질문
+  introduction_question?: string;
 }
 
 // 어휘 문제 (각 용어당 1개씩) - 워크플로우용 (업데이트)
@@ -135,11 +137,12 @@ export interface VocabularyQuestionWorkflow {
 
 // 문단 문제 유형
 export type ParagraphQuestionType = 
-  | 'Random'           // 랜덤 (4가지 유형 1개씩)
+  | 'Random'           // 랜덤 (5가지 유형 1개씩)
   | '빈칸 채우기'       // 객관식 - 빈칸 채우기
   | '주관식 단답형'     // 주관식 - 단답형 (초성 포함)
   | '어절 순서 맞추기'   // 객관식 - 어절 순서 맞추기
-  | 'OX문제';          // 객관식 - OX문제
+  | 'OX문제'          // 객관식 - OX문제
+  | '객관식 일반형';    // 객관식 - 일반형
 
 // 문단 문제 개별 문제 (워크플로우용)
 export interface ParagraphQuestionWorkflow {

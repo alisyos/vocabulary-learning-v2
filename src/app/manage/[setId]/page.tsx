@@ -17,6 +17,7 @@ interface SetDetails {
   keywords?: string; // 키워드
   passage_length?: string; // DB 필드명 - 지문 길이
   text_type?: string; // DB 필드명 - 지문 유형
+  introduction_question?: string; // 도입 질문
   total_passages: number;
   total_vocabulary_terms: number;
   total_vocabulary_questions: number;
@@ -414,6 +415,14 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
 
     const { contentSet } = data.data;
     
+    // 모든 지문을 하나로 연결 (제목은 첫 번째 지문 것만 사용)
+    const firstTitle = editablePassages[0]?.title || '제목 없음';
+    const allParagraphs = editablePassages.flatMap(passage => 
+      passage.paragraphs
+        .map(paragraph => paragraph.trim())
+        .filter(p => p)
+    ).join('\n');
+    
     // TXT 내용 생성
     const txtContent = `콘텐츠 세트 ID
 ${String(contentSet.setId || contentSet.id || 'N/A')}
@@ -437,14 +446,8 @@ ${contentSet.keywords || contentSet.keyword || 'N/A'}
 ${contentSet.text_type || contentSet.textType || 'N/A'}
 
 지문
-${editablePassage.title || '제목 없음'}
-${editablePassage.paragraphs
-  .map((paragraph, index) => {
-    if (!paragraph.trim()) return '';
-    return paragraph.trim();
-  })
-  .filter(p => p)
-  .join(' ')}`;
+${firstTitle}
+${allParagraphs}`;
 
     // TXT 파일 다운로드
     const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
@@ -2088,6 +2091,25 @@ ${editablePassage.paragraphs
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
+                
+                {/* 도입 질문 표시 섹션 */}
+                {setDetails?.introduction_question && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-blue-600 font-medium text-sm">Q</span>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-blue-800 mb-2">도입 질문</h4>
+                        <p className="text-sm text-blue-700 leading-relaxed">
+                          {setDetails.introduction_question}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div>
                   <div className="flex justify-between items-center mb-4">

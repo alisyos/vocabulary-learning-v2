@@ -182,17 +182,17 @@ export async function POST(request: NextRequest) {
     const paragraphQuestions: ParagraphQuestionWorkflow[] = [];
     let lastUsedPrompt = '';
     
-    // Random인 경우 각 문단별로 4가지 유형 1개씩 생성
+    // Random인 경우 각 문단별로 5가지 유형 1개씩 생성
     if (body.questionType === 'Random') {
       const questionTypes: Exclude<ParagraphQuestionType, 'Random'>[] = [
-        '빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제'
+        '빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제', '객관식 일반형'
       ];
       
       // 각 선택된 문단에 대해
       for (const paragraphNumber of body.selectedParagraphs) {
         const paragraphText = body.paragraphs[paragraphNumber - 1];
         
-        // 4가지 유형의 문제를 각각 생성
+        // 5가지 유형의 문제를 각각 생성
         for (let typeIndex = 0; typeIndex < questionTypes.length; typeIndex++) {
           const questionType = questionTypes[typeIndex];
           try {
@@ -396,7 +396,8 @@ async function generateParagraphPrompt(
       '빈칸 채우기': 'type_blank',
       '주관식 단답형': 'type_short_answer',
       '어절 순서 맞추기': 'type_order',
-      'OX문제': 'type_ox'
+      'OX문제': 'type_ox',
+      '객관식 일반형': 'type_objective-general'
     };
     
     const typeKey = typeKeyMap[questionType];

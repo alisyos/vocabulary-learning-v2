@@ -190,7 +190,7 @@ export default function ParagraphQuestions({
   const getQuestionTypeDescription = (type: ParagraphQuestionType) => {
     switch (type) {
       case 'Random':
-        return '4가지 유형의 문제를 1개씩 생성합니다.';
+        return '5가지 유형의 문제를 1개씩 생성합니다.';
       case '빈칸 채우기':
         return '문맥에 맞는 적절한 단어를 선택하는 문제입니다.';
       case '주관식 단답형':
@@ -199,6 +199,8 @@ export default function ParagraphQuestions({
         return '문장의 어절들을 올바른 순서로 배열하는 문제입니다.';
       case 'OX문제':
         return '문단의 내용이 맞는지 틀린지 판단하는 문제입니다.';
+      case '객관식 일반형':
+        return '지문의 핵심 내용을 이해했는지 확인하는 5지선다 문제입니다.';
       default:
         return '';
     }
@@ -297,7 +299,7 @@ export default function ParagraphQuestions({
                 onChange={(e) => setSelectedQuestionType(e.target.value as ParagraphQuestionType)}
                 className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
-                {(['Random', '빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제'] as ParagraphQuestionType[]).map((type) => (
+                {(['Random', '빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제', '객관식 일반형'] as ParagraphQuestionType[]).map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>
@@ -308,7 +310,7 @@ export default function ParagraphQuestions({
                 <p><strong>선택된 유형:</strong> {selectedQuestionType}</p>
                 <p>• {getQuestionTypeDescription(selectedQuestionType)}</p>
                 {selectedQuestionType === 'Random' ? (
-                  <p>• 선택된 문단 별로 4가지 유형을 1개씩 4개 문제가 생성됩니다.</p>
+                  <p>• 선택된 문단 별로 5가지 유형을 1개씩 5개 문제가 생성됩니다.</p>
                 ) : (
                   <p>• 선택된 문단 별로 {selectedQuestionType} 유형의 문제를 4개 생성됩니다.</p>
                 )}

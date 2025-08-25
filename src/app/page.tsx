@@ -84,6 +84,7 @@ export default function Home() {
       // 생성된 지문을 편집 가능한 형태로 변환
       console.log('🔍 GPT 응답 변환 시작:', result);
       console.log('📊 result.passages 길이:', result.passages?.length);
+      console.log('💬 introduction_question 값:', result.introduction_question);
       console.log('📝 GPT 응답 전체 구조:', JSON.stringify(result, null, 2));
       
       const editablePassage: EditablePassage = (() => {
@@ -113,7 +114,8 @@ export default function Home() {
             title: '', // 2개 지문 형식에서는 개별 제목 사용
             paragraphs: [], // 2개 지문 형식에서는 개별 단락 사용
             footnote: [], // 2개 지문 형식에서는 개별 용어 사용
-            passages: convertedPassages
+            passages: convertedPassages,
+            introduction_question: result.introduction_question // GPT 응답에서 도입 질문 추출
           };
           console.log('🎯 변환된 editablePassage:', converted);
           return converted;
@@ -123,7 +125,8 @@ export default function Home() {
           return {
             title: result.passages[0]?.title || result.title || '',
             paragraphs: result.passages[0]?.content ? [result.passages[0].content] : (result.passages[0]?.paragraphs || []),
-            footnote: result.passages[0]?.footnote || result.footnote || []
+            footnote: result.passages[0]?.footnote || result.footnote || [],
+            introduction_question: result.introduction_question // GPT 응답에서 도입 질문 추출
           };
         } else {
           // 예외 처리: 빈 구조 반환

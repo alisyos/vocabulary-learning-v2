@@ -117,7 +117,8 @@ export default function FinalSave({
       '빈칸 채우기': paragraphQuestions.filter(q => q.type === '빈칸 채우기').length,
       '주관식 단답형': paragraphQuestions.filter(q => q.type === '주관식 단답형').length,
       '어절 순서 맞추기': paragraphQuestions.filter(q => q.type === '어절 순서 맞추기').length,
-      'OX문제': paragraphQuestions.filter(q => q.type === 'OX문제').length
+      'OX문제': paragraphQuestions.filter(q => q.type === 'OX문제').length,
+      '객관식 일반형': paragraphQuestions.filter(q => q.type === '객관식 일반형').length
     } : null,
     typeDistribution: comprehensiveQuestions && comprehensiveQuestions.length > 0 ? {
       '정보 확인': comprehensiveQuestions.filter(q => q.type === '정보 확인').length,

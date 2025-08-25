@@ -216,15 +216,26 @@ export async function POST(request: NextRequest) {
         // 결과 파싱 및 ComprehensiveQuestion 형태로 변환
         let questionSet: GeneratedQuestionSet | null = null;
         let singleQuestion: any = null;
+        let directQuestionArray: any[] | null = null;
         
         // raw 응답 처리
         if (result && typeof result === 'object' && 'raw' in result) {
           try {
             // raw 텍스트에서 JSON 추출 시도
             const rawText = result.raw as string;
-            const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
+            // 먼저 배열 형식 찾기 시도
+            const arrayMatch = rawText.match(/\[[\s\S]*\]/);
+            // 그 다음 객체 형식 찾기 시도
+            const objectMatch = rawText.match(/\{[\s\S]*\}/);
+            
+            if (arrayMatch) {
+              const parsed = JSON.parse(arrayMatch[0]);
+              if (Array.isArray(parsed)) {
+                directQuestionArray = parsed;
+                console.log(`Found direct question array with ${parsed.length} questions for ${currentType}`);
+              }
+            } else if (objectMatch) {
+              const parsed = JSON.parse(objectMatch[0]);
               if (parsed.questions && Array.isArray(parsed.questions)) {
                 questionSet = parsed as GeneratedQuestionSet;
               } else if (parsed.question) {
@@ -235,7 +246,11 @@ export async function POST(request: NextRequest) {
             console.error(`Failed to parse raw response for ${currentType}:`, parseError);
           }
         } else if (result && typeof result === 'object') {
-          if ('questions' in result) {
+          // 직접 배열인지 확인
+          if (Array.isArray(result)) {
+            directQuestionArray = result;
+            console.log(`Found direct question array (no raw) with ${result.length} questions for ${currentType}`);
+          } else if ('questions' in result) {
             questionSet = result as GeneratedQuestionSet;
           } else if ('question' in result) {
             singleQuestion = result;
@@ -246,6 +261,24 @@ export async function POST(request: NextRequest) {
         if (questionSet && questionSet.questions && Array.isArray(questionSet.questions)) {
           const questionsToAdd = questionSet.questions.slice(0, count);
           console.log(`Adding ${questionsToAdd.length} questions of type ${currentType} from questions array`);
+          
+          questionsToAdd.forEach((q, index) => {
+            comprehensiveQuestions.push({
+              id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${index + 1}_${Date.now()}`,
+              type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
+              question: q.question || '',
+              options: q.options || undefined,
+              answer: q.answer || '',
+              answerInitials: q.answerInitials || undefined,
+              explanation: q.explanation || '',
+              isSupplementary: false
+            });
+          });
+        } 
+        // 직접 배열 형식인 경우 (GPT가 배열로 바로 반환한 경우)
+        else if (directQuestionArray && Array.isArray(directQuestionArray) && directQuestionArray.length > 0) {
+          const questionsToAdd = directQuestionArray.slice(0, count);
+          console.log(`Adding ${questionsToAdd.length} questions of type ${currentType} from direct question array`);
           
           questionsToAdd.forEach((q, index) => {
             comprehensiveQuestions.push({

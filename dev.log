@@ -12,5 +12,26 @@
    - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 21.6s
+ ✓ Ready in 29s
+ ○ Compiling / ...
+ ✓ Compiled / in 22.2s (818 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 2s (805 modules)
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 5.2s (1119 modules)
+ ○ Compiling /prompts ...
+ ✓ Compiled /prompts in 1013ms (1021 modules)
+ GET /prompts 200 in 1648ms
+ ○ Compiling /api/prompts ...
+ ✓ Compiled /api/prompts in 2.4s (1125 modules)
+🗄️ 데이터베이스에서 46개 프롬프트를 로드했습니다 (필터링 후).
+📚 로드된 프롬프트 수: 46개
+🔍 첫 번째 프롬프트 확인: 생명
+🔧 데이터베이스 사용 여부: true
+ GET /api/prompts 200 in 4262ms
+🗄️ 데이터베이스에서 46개 프롬프트를 로드했습니다 (필터링 후).
+📚 로드된 프롬프트 수: 46개
+🔍 첫 번째 프롬프트 확인: 생명
+🔧 데이터베이스 사용 여부: true
+ GET /api/prompts 200 in 234ms
 [?25h

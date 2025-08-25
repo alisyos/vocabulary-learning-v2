@@ -97,6 +97,12 @@ export default function PassageReview({
   };
 
   // === 2개 지문 형식 함수들 (새로운 기능) ===
+  const handleIntroductionQuestionChange = (newQuestion: string) => {
+    const updated = { ...localPassage, introduction_question: newQuestion };
+    setLocalPassage(updated);
+    onUpdate(updated);
+  };
+
   const handlePassageTitleChange = (passageIndex: number, newTitle: string) => {
     if (!localPassage.passages) return;
     
@@ -232,6 +238,27 @@ export default function PassageReview({
               📚 연관된 2개 지문 형식 | 총 {getTotalCharCount()}자
             </p>
           </div>
+
+          {/* 도입 질문 섹션 - 2개 지문 형식 */}
+          {localPassage.introduction_question !== undefined && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-semibold text-blue-900">
+                  도입 질문
+                </label>
+                <span className="text-xs text-blue-600 bg-white px-2 py-1 rounded">
+                  2개 지문을 아우르는 흥미 유발 질문
+                </span>
+              </div>
+              <textarea
+                value={localPassage.introduction_question || ''}
+                onChange={(e) => handleIntroductionQuestionChange(e.target.value)}
+                placeholder="예: 우리 몸은 어떻게 음식을 소화시킬까요?"
+                className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white"
+                rows={2}
+              />
+            </div>
+          )}
 
           {localPassage.passages!.map((passage, passageIndex) => (
             <div key={passageIndex} className="border border-gray-200 rounded-lg p-6">
