@@ -302,10 +302,25 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
   };
 
   const handleDivisionChange = (division: DivisionType) => {
+    // 구분에 따른 유형 자동 설정
+    const getTextTypeForDivision = (division: DivisionType): TextType => {
+      switch (division) {
+        case '초등학교 중학년(3-4학년)':
+          return '기행문';
+        case '초등학교 고학년(5-6학년)':
+          return '논설문';
+        case '중학생(1-3학년)':
+          return '설명문';
+        default:
+          return '설명문';
+      }
+    };
+
     setFormData({
       ...formData,
       division,
       length: lengthOptions[division][0],
+      textType: getTextTypeForDivision(division),
     });
   };
 

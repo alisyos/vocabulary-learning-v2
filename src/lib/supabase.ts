@@ -438,6 +438,15 @@ export const db = {
     if (error) throw error
   },
 
+  async deleteComprehensiveQuestionsByContentSetId(contentSetId: string) {
+    const { error } = await supabase
+      .from('comprehensive_questions')
+      .delete()
+      .eq('content_set_id', contentSetId)
+    
+    if (error) throw error
+  },
+
   // Paragraph Questions
   async createParagraphQuestion(data: any) {
     const { data: result, error } = await supabase

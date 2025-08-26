@@ -163,33 +163,121 @@ export async function PUT(request: NextRequest) {
       console.log('❓ VocabularyQuestions 업데이트 완료');
     }
 
-    // 5. ComprehensiveQuestions 업데이트
+    // 5. ComprehensiveQuestions 업데이트 (유니크 제약조건 회피를 위한 단계별 처리)
+    console.log('🧠 ComprehensiveQuestions 업데이트 시작');
+    
+    // 기존 종합문제 조회
+    const existingCompQuestions = await db.getComprehensiveQuestionsByContentSetId(contentSetId);
+    console.log('🧠 기존 종합문제 수:', existingCompQuestions.length);
+    console.log('🧠 수정된 종합문제 수:', editableComprehensive?.length || 0);
+    
+    // 현재 남아있는 문제의 ID 목록 생성
+    const remainingQuestionIds = new Set<string>();
+    const questionsToUpdate: any[] = [];
+    const questionsToCreate: any[] = [];
+    
     if (editableComprehensive && editableComprehensive.length > 0) {
-      console.log('🧠 ComprehensiveQuestions 업데이트 시작');
-      const existingCompQuestions = await db.getComprehensiveQuestionsByContentSetId(contentSetId);
-      
       for (let i = 0; i < editableComprehensive.length; i++) {
         const question = editableComprehensive[i];
-        const updateData = {
-          question_text: question.question,
-          option_1: question.options?.[0],
-          option_2: question.options?.[1],
-          option_3: question.options?.[2],
-          option_4: question.options?.[3],
-          option_5: question.options?.[4],
-          correct_answer: question.answer || question.correctAnswer,
-          answer_initials: question.answerInitials, // 초성 힌트 필드 추가
-          explanation: question.explanation,
-          question_type: question.type || question.questionType || '단답형',
-          question_format: (question.options ? '객관식' : '주관식') as '객관식' | '주관식'
-        };
         
-        if (existingCompQuestions[i]?.id) {
-          await db.updateComprehensiveQuestion(existingCompQuestions[i].id!, updateData);
+        console.log(`🧠 문제 ${i + 1} 처리:`, { 
+          id: question.id, 
+          questionId: question.questionId,
+          hasId: !!question.id,
+          questionType: question.type || question.questionType
+        });
+        
+        if (question.id) {
+          // 기존 문제 업데이트 (question_number는 나중에 일괄 처리)
+          remainingQuestionIds.add(question.id);
+          questionsToUpdate.push({
+            id: question.id,
+            data: {
+              question_text: question.question,
+              question_type: question.type || question.questionType || '정보 확인',
+              question_format: (question.options && question.options.length > 0 ? '객관식' : '주관식') as '객관식' | '주관식',
+              difficulty: (question.isSupplementary ? '보완' : '일반') as '일반' | '보완',
+              option_1: question.options?.[0] || null,
+              option_2: question.options?.[1] || null,
+              option_3: question.options?.[2] || null,
+              option_4: question.options?.[3] || null,
+              option_5: question.options?.[4] || null,
+              correct_answer: question.answer || question.correctAnswer || '',
+              answer_initials: question.answerInitials || null,
+              explanation: question.explanation || '',
+              is_supplementary: question.isSupplementary || false,
+              original_question_id: question.originalQuestionId || null,
+              question_set_number: question.questionSetNumber || Math.floor(i / 3) + 1
+            },
+            newQuestionNumber: i + 1
+          });
+        } else {
+          // 새 문제 추가
+          questionsToCreate.push({
+            content_set_id: contentSetId,
+            question_number: i + 1,
+            question_text: question.question,
+            question_type: question.type || question.questionType || '정보 확인',
+            question_format: (question.options && question.options.length > 0 ? '객관식' : '주관식') as '객관식' | '주관식',
+            difficulty: (question.isSupplementary ? '보완' : '일반') as '일반' | '보완',
+            option_1: question.options?.[0] || null,
+            option_2: question.options?.[1] || null,
+            option_3: question.options?.[2] || null,
+            option_4: question.options?.[3] || null,
+            option_5: question.options?.[4] || null,
+            correct_answer: question.answer || question.correctAnswer || '',
+            answer_initials: question.answerInitials || null,
+            explanation: question.explanation || '',
+            is_supplementary: question.isSupplementary || false,
+            original_question_id: question.originalQuestionId || null,
+            question_set_number: question.questionSetNumber || Math.floor(i / 3) + 1
+          });
         }
       }
-      console.log('🧠 ComprehensiveQuestions 업데이트 완료');
     }
+    
+    // 1단계: 삭제된 문제들 제거 (유니크 제약조건 해제)
+    for (const existingQuestion of existingCompQuestions) {
+      if (!remainingQuestionIds.has(existingQuestion.id!)) {
+        try {
+          await db.deleteComprehensiveQuestion(existingQuestion.id!);
+          console.log(`🧠 종합문제 삭제 성공: ${existingQuestion.id}`);
+        } catch (error) {
+          console.error(`🧠 종합문제 삭제 실패: ${existingQuestion.id}`, error);
+          throw error;
+        }
+      }
+    }
+    
+    // 2단계: 기존 문제들 업데이트 (question_number 포함)
+    for (const updateItem of questionsToUpdate) {
+      try {
+        const updateDataWithNumber = {
+          ...updateItem.data,
+          question_number: updateItem.newQuestionNumber
+        };
+        console.log(`🧠 업데이트 데이터 (번호 ${updateItem.newQuestionNumber}):`, updateDataWithNumber);
+        await db.updateComprehensiveQuestion(updateItem.id, updateDataWithNumber);
+        console.log(`🧠 종합문제 업데이트 성공: ${updateItem.id}`);
+      } catch (error) {
+        console.error(`🧠 종합문제 업데이트 실패: ${updateItem.id}`, error);
+        throw error;
+      }
+    }
+    
+    // 3단계: 새 문제들 생성
+    if (questionsToCreate.length > 0) {
+      try {
+        console.log(`🧠 새 종합문제 ${questionsToCreate.length}개 생성 시작`);
+        await db.createComprehensiveQuestions(questionsToCreate);
+        console.log(`🧠 새 종합문제 ${questionsToCreate.length}개 생성 완료`);
+      } catch (error) {
+        console.error(`🧠 새 종합문제 생성 실패:`, error);
+        throw error;
+      }
+    }
+    
+    console.log('🧠 ComprehensiveQuestions 업데이트 완료');
 
     // 6. ParagraphQuestions 재생성 (기존 삭제 후 새로 생성)
     if (editableParagraphQuestions && editableParagraphQuestions.length > 0) {
