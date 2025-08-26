@@ -33,6 +33,9 @@ export default function VocabularyQuestions({
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<VocabularyQuestionType[]>(['5지선다 객관식']);
   const [selectedTerm, setSelectedTerm] = useState<string>('');
   
+  // 초기 용어 순서를 기억하기 위한 state
+  const [termOrder, setTermOrder] = useState<string[]>([]);
+  
   // 2개 지문 형식에서 모든 footnote 통합하여 가져오기
   const getAllFootnotes = () => {
     // 2개 지문 형식인 경우
@@ -248,11 +251,27 @@ export default function VocabularyQuestions({
   // 문제 삭제
   const removeQuestion = (index: number) => {
     if (localQuestions.length <= 1) {
-      alert('최소 1개의 문제는 있어야 합니다.');
+      // 최소 1개의 문제는 있어야 하므로 삭제하지 않음
       return;
     }
     
+    const questionToDelete = localQuestions[index];
     const updated = localQuestions.filter((_, i) => i !== index);
+    
+    // 현재 선택된 용어의 마지막 문제를 삭제하는 경우
+    if (currentStep === 'review' && questionToDelete.term === selectedTerm) {
+      const remainingQuestionsForTerm = updated.filter(q => q.term === selectedTerm);
+      
+      // 해당 용어의 문제가 모두 삭제된 경우
+      if (remainingQuestionsForTerm.length === 0) {
+        // 남은 용어 중 첫 번째 용어로 이동
+        const remainingTerms = termOrder.filter(term => updated.some(q => q.term === term));
+        if (remainingTerms.length > 0) {
+          setSelectedTerm(remainingTerms[0]);
+        }
+      }
+    }
+    
     setLocalQuestions(updated);
     onUpdate(updated);
   };
@@ -266,17 +285,29 @@ export default function VocabularyQuestions({
     onUpdate(updated);
   };
 
-  // 고유한 용어 목록 추출 (review 단계에서 사용)
-  const uniqueTerms = currentStep === 'review' 
-    ? Array.from(new Set(localQuestions.map(q => q.term || '').filter(Boolean)))
-    : [];
-  
-  // 선택된 용어가 없으면 첫 번째 용어 선택 (review 단계에서만)
+  // 초기 용어 순서 설정 (review 단계 진입 시 한 번만)
   useEffect(() => {
-    if (currentStep === 'review' && !selectedTerm && uniqueTerms.length > 0) {
-      setSelectedTerm(uniqueTerms[0]);
+    if (currentStep === 'review' && termOrder.length === 0 && localQuestions.length > 0) {
+      const initialOrder = localQuestions
+        .map(q => q.term || '')
+        .filter(Boolean)
+        .reduce((acc: string[], term) => {
+          if (!acc.includes(term)) {
+            acc.push(term);
+          }
+          return acc;
+        }, []);
+      setTermOrder(initialOrder);
+      if (!selectedTerm && initialOrder.length > 0) {
+        setSelectedTerm(initialOrder[0]);
+      }
     }
-  }, [currentStep, uniqueTerms.length, selectedTerm]);
+  }, [currentStep, localQuestions.length]);
+  
+  // 고유한 용어 목록 - 저장된 순서 유지
+  const uniqueTerms = currentStep === 'review' 
+    ? termOrder.filter(term => localQuestions.some(q => q.term === term)) // termOrder 순서를 유지하면서 현재 존재하는 용어만 필터링
+    : [];
   
   // 선택된 용어의 문제들만 필터링 (review 단계에서만)
   const filteredQuestions = currentStep === 'review' && selectedTerm 

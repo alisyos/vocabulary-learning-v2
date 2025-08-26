@@ -157,14 +157,30 @@ export default function ComprehensiveQuestions({
     onUpdate(updated);
   };
 
-  // 문제 삭제
+  // 문제 삭제 (기본 문제 삭제 시 보완 문제도 함께 삭제)
   const removeQuestion = (index: number) => {
     if (localQuestions.length <= 1) {
-      alert('최소 1개의 문제는 있어야 합니다.');
+      // 최소 1개의 문제는 있어야 하므로 삭제하지 않음
       return;
     }
     
-    const updated = localQuestions.filter((_, i) => i !== index);
+    const questionToDelete = localQuestions[index];
+    let updated = [...localQuestions];
+    
+    // 기본 문제인 경우, 해당 문제의 보완 문제들도 함께 삭제
+    if (!questionToDelete.isSupplementary) {
+      updated = localQuestions.filter((q, i) => {
+        // 삭제하려는 문제 자체 제거
+        if (i === index) return false;
+        // 삭제하려는 문제의 보완 문제들 제거
+        if (q.isSupplementary && q.originalQuestionId === questionToDelete.id) return false;
+        return true;
+      });
+    } else {
+      // 보완 문제인 경우, 해당 문제만 삭제
+      updated = localQuestions.filter((_, i) => i !== index);
+    }
+    
     setLocalQuestions(updated);
     onUpdate(updated);
   };

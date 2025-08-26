@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ParagraphQuestionWorkflow, EditablePassage, ParagraphQuestionType } from '@/types';
 import PromptModal from './PromptModal';
 
@@ -28,6 +28,7 @@ export default function ParagraphQuestions({
   const [localQuestions, setLocalQuestions] = useState<ParagraphQuestionWorkflow[]>(paragraphQuestions);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [generatingParagraph, setGeneratingParagraph] = useState(false);
+  const [selectedParagraphTab, setSelectedParagraphTab] = useState<number | null>(null); // 선택된 문단 탭 (null 시 첫 번째 문단 선택)
   
   // 2개 지문 형식에서 모든 paragraphs 통합하여 가져오기
   const getAllParagraphs = () => {
@@ -179,11 +180,9 @@ export default function ParagraphQuestions({
 
   // 문제 삭제
   const handleQuestionDelete = (questionId: string) => {
-    if (confirm('이 문제를 삭제하시겠습니까?')) {
-      const updatedQuestions = localQuestions.filter(q => q.id !== questionId);
-      setLocalQuestions(updatedQuestions);
-      onUpdate(updatedQuestions);
-    }
+    const updatedQuestions = localQuestions.filter(q => q.id !== questionId);
+    setLocalQuestions(updatedQuestions);
+    onUpdate(updatedQuestions);
   };
 
   // 문제 유형별 설명
@@ -205,6 +204,23 @@ export default function ParagraphQuestions({
         return '';
     }
   };
+
+  // 고유한 문단 번호들 추출 (정렬된 상태로) - 조건부 렌더링 전에 계산
+  const uniqueParagraphNumbers = Array.from(
+    new Set(localQuestions.map(q => q.paragraphNumber).filter(Boolean))
+  ).sort((a, b) => a - b);
+
+  // 선택된 탭이 없으면 첫 번째 문단 선택 - Hook은 항상 호출되어야 함
+  useEffect(() => {
+    if (currentStep === 'review' && selectedParagraphTab === null && uniqueParagraphNumbers.length > 0) {
+      setSelectedParagraphTab(uniqueParagraphNumbers[0]);
+    }
+  }, [currentStep, uniqueParagraphNumbers.length, selectedParagraphTab]);
+
+  // 선택된 탭에 따라 문제 필터링
+  const filteredQuestions = currentStep === 'review' && selectedParagraphTab !== null
+    ? localQuestions.filter(q => q.paragraphNumber === selectedParagraphTab)
+    : localQuestions;
 
   if (currentStep === 'generation') {
     return (
@@ -361,6 +377,17 @@ export default function ParagraphQuestions({
     );
   }
 
+  // 검토 단계에서 문단별 문제 수 계산
+  const getQuestionCountByParagraph = () => {
+    const counts: { [key: number]: number } = {};
+    localQuestions.forEach(q => {
+      if (q.paragraphNumber) {
+        counts[q.paragraphNumber] = (counts[q.paragraphNumber] || 0) + 1;
+      }
+    });
+    return counts;
+  };
+
   // 검토 단계
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
@@ -392,20 +419,63 @@ export default function ParagraphQuestions({
         </div>
       </div>
 
+      {/* 문단별 탭 네비게이션 */}
+      {uniqueParagraphNumbers.length > 0 && (
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-2 overflow-x-auto">
+              {/* 각 문단별 탭 */}
+              {uniqueParagraphNumbers.map((paragraphNum) => {
+                const questionCount = localQuestions.filter(q => q.paragraphNumber === paragraphNum).length;
+                const isSelected = selectedParagraphTab === paragraphNum;
+                
+                return (
+                  <button
+                    key={paragraphNum}
+                    onClick={() => setSelectedParagraphTab(paragraphNum)}
+                    className={`
+                      whitespace-nowrap py-2 px-4 border-b-2 font-medium text-sm transition-colors
+                      ${isSelected 
+                        ? 'border-orange-500 text-orange-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <span>문단 {paragraphNum}</span>
+                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                      {questionCount}
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+      )}
+
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-gray-800">
-            문단 문제 ({localQuestions.length}개)
+            {selectedParagraphTab !== null && `문단 ${selectedParagraphTab} 문제 (${filteredQuestions.length}개)`}
+            <span className="ml-2 text-sm text-gray-500">
+              전체 {localQuestions.length}개 중
+            </span>
           </h3>
         </div>
 
         <div className="space-y-6">
-          {localQuestions.map((question, qIndex) => (
-            <div key={question.id} className="border border-gray-200 rounded-lg p-4">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h4 className="text-md font-medium text-gray-800">문제 {qIndex + 1} - {question.type}</h4>
-                  <p className="text-sm text-gray-600">문단 {question.paragraphNumber}</p>
+          {filteredQuestions.map((question, displayIndex) => {
+            // 실제 문제의 인덱스 찾기 (삭제를 위해)
+            const qIndex = localQuestions.findIndex(q => q.id === question.id);
+            
+            return (
+              <div key={question.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className="text-md font-medium text-gray-800">
+                      문제 {displayIndex + 1} - {question.type}
+                    </h4>
+                    <p className="text-sm text-gray-600">문단 {question.paragraphNumber}</p>
                 </div>
                 <button
                   onClick={() => handleQuestionDelete(question.id)}
@@ -545,9 +615,10 @@ export default function ParagraphQuestions({
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm min-h-[80px] resize-vertical"
                   placeholder="해설을 입력하세요"
                 />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
