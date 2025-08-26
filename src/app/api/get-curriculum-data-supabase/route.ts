@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
               passageLength: setDetails.passage_length, // camelCase 별칭
               text_type: setDetails.text_type, // DB 필드명 그대로
               textType: setDetails.text_type, // camelCase 별칭
+              introduction_question: setDetails.introduction_question, // 도입 질문 추가
               total_passages: setDetails.total_passages,
               total_vocabulary_terms: setDetails.total_vocabulary_terms,
               total_vocabulary_questions: setDetails.total_vocabulary_questions,

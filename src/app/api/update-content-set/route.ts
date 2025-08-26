@@ -15,6 +15,7 @@ export async function PUT(request: NextRequest) {
     
     const {
       contentSetId,
+      editableIntroductionQuestion,
       editablePassage,
       editableVocabulary,
       editableVocabQuestions,
@@ -46,6 +47,7 @@ export async function PUT(request: NextRequest) {
     // 1. ContentSet 업데이트
     const contentSetUpdateData = {
       title: editablePassage.title,
+      introduction_question: editableIntroductionQuestion || null,
       total_passages: actualParagraphCount,
       total_vocabulary_terms: editableVocabulary?.length || 0,
       total_vocabulary_questions: editableVocabQuestions?.length || 0,

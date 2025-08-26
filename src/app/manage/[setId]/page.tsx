@@ -140,6 +140,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   const [editableVocabQuestions, setEditableVocabQuestions] = useState<VocabularyQuestion[]>([]);
   const [editableParagraphQuestions, setEditableParagraphQuestions] = useState<ParagraphQuestion[]>([]);
   const [editableComprehensive, setEditableComprehensive] = useState<ComprehensiveQuestion[]>([]);
+  const [editableIntroductionQuestion, setEditableIntroductionQuestion] = useState<string>('');
   
   const fetchSetDetails = useCallback(async (id: string) => {
     setLoading(true);
@@ -153,6 +154,11 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       
       if (result.success && result.data) {
         setData(result);
+        
+        // 도입 질문 초기화
+        if (result.data?.contentSet?.introduction_question) {
+          setEditableIntroductionQuestion(result.data.contentSet.introduction_question);
+        }
         
         // 편집 가능한 상태로 초기화
         if (result.data?.passages && result.data.passages.length > 0) {
@@ -340,6 +346,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     try {
       console.log('수정사항 저장 시작...', {
         contentSetId: setId,
+        editableIntroductionQuestion,
         editablePassage,
         editablePassages,
         editableVocabulary,
@@ -355,6 +362,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
         },
         body: JSON.stringify({
           contentSetId: setId,
+          editableIntroductionQuestion,
           editablePassage,
           editablePassages, // 여러 지문 배열도 전송
           editableVocabulary,
@@ -1072,6 +1080,25 @@ ${allParagraphs}`;
           result += `<h2 class="passage-title" style="text-align: center; margin-bottom: 40px;">${editablePassages[0].title}</h2>`;
         }
         
+        // 도입 질문 표시 (제목과 지문 사이)
+        if (editableIntroductionQuestion && editableIntroductionQuestion.trim()) {
+          result += `
+            <div style="background-color: #f0f9ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+              <div style="display: flex; align-items: flex-start; gap: 15px;">
+                <div style="width: 40px; height: 40px; background-color: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <span style="color: white; font-weight: bold; font-size: 18px;">Q</span>
+                </div>
+                <div style="flex: 1;">
+                  <h3 style="color: #1e40af; font-size: 1.1em; margin: 0 0 10px 0; font-weight: bold;">도입 질문</h3>
+                  <p style="color: #1e40af; font-size: 1em; line-height: 1.6; margin: 0;">
+                    ${editableIntroductionQuestion}
+                  </p>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+        
         // 각 지문 표시
         result += editablePassages.map((passage, passageIndex) => `
           <div class="passage-section" style="margin-bottom: ${passageIndex < editablePassages.length - 1 ? '50px' : '30px'};">
@@ -1122,6 +1149,21 @@ ${allParagraphs}`;
         return result;
       })() : `
         <div class="passage-section">
+          ${editableIntroductionQuestion && editableIntroductionQuestion.trim() ? `
+            <div style="background-color: #f0f9ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+              <div style="display: flex; align-items: flex-start; gap: 15px;">
+                <div style="width: 40px; height: 40px; background-color: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <span style="color: white; font-weight: bold; font-size: 18px;">Q</span>
+                </div>
+                <div style="flex: 1;">
+                  <h3 style="color: #1e40af; font-size: 1.1em; margin: 0 0 10px 0; font-weight: bold;">도입 질문</h3>
+                  <p style="color: #1e40af; font-size: 1em; line-height: 1.6; margin: 0;">
+                    ${editableIntroductionQuestion}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ` : ''}
           <h2 class="passage-title">${editablePassage.title}</h2>
           ${editablePassage.paragraphs
             .map((paragraph, index) => {
@@ -2055,95 +2097,103 @@ ${allParagraphs}`;
             {/* 지문 탭 */}
             {activeTab === 'passage' && (
               <div className="space-y-6">
-                {/* 지문 선택 버튼 (여러 지문이 있을 경우만 표시) */}
-                {editablePassages.length > 1 && (
-                  <div className="flex gap-2 mb-4">
-                    {editablePassages.map((_, index) => (
-                      <button
-                        key={index}
-                        onClick={() => {
-                          setCurrentPassageIndex(index);
-                          setEditablePassage({
-                            title: editablePassages[index].title,
-                            paragraphs: [...editablePassages[index].paragraphs]
-                          });
-                        }}
-                        className={`px-4 py-2 rounded-md ${
-                          currentPassageIndex === index
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        지문 {index + 1}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                
+                {/* 도입 질문 편집 섹션 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    제목 {editablePassages.length > 1 ? `(지문 ${currentPassageIndex + 1})` : ''}
+                    도입 질문
                   </label>
-                  <input
-                    type="text"
-                    value={editablePassage.title}
-                    onChange={(e) => handleTitleChange(e.target.value)}
+                  <textarea
+                    value={editableIntroductionQuestion}
+                    onChange={(e) => setEditableIntroductionQuestion(e.target.value)}
+                    placeholder="학생들의 흥미를 유발하고 주제에 대한 호기심을 자극하는 도입 질문을 입력하세요."
+                    rows={3}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                
-                {/* 도입 질문 표시 섹션 */}
-                {setDetails?.introduction_question && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-600 font-medium text-sm">Q</span>
-                        </div>
+
+                {/* 모든 지문을 순서대로 표시 */}
+                {editablePassages.map((passage, passageIndex) => (
+                  <div key={passageIndex} className="border-t pt-6">
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        제목 {editablePassages.length > 1 ? `(지문 ${passageIndex + 1})` : ''}
+                      </label>
+                      <input
+                        type="text"
+                        value={passage.title}
+                        onChange={(e) => {
+                          const updatedPassages = [...editablePassages];
+                          updatedPassages[passageIndex].title = e.target.value;
+                          setEditablePassages(updatedPassages);
+                          if (passageIndex === currentPassageIndex) {
+                            setEditablePassage({
+                              ...editablePassage,
+                              title: e.target.value
+                            });
+                          }
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    
+                    <div>
+                      <div className="flex justify-between items-center mb-4">
+                        <label className="block text-sm font-medium text-gray-700">
+                          단락 {editablePassages.length > 1 ? `(지문 ${passageIndex + 1})` : ''}
+                        </label>
+                        <button
+                          onClick={() => {
+                            setCurrentPassageIndex(passageIndex);
+                            setEditablePassage({
+                              title: passage.title,
+                              paragraphs: [...passage.paragraphs]
+                            });
+                            addParagraph();
+                          }}
+                          className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
+                        >
+                          + 단락 추가
+                        </button>
                       </div>
-                      <div className="flex-1">
-                        <h4 className="text-sm font-medium text-blue-800 mb-2">도입 질문</h4>
-                        <p className="text-sm text-blue-700 leading-relaxed">
-                          {setDetails.introduction_question}
-                        </p>
+                      
+                      <div className="space-y-4">
+                        {passage.paragraphs.map((paragraph, paragraphIndex) => (
+                          <div key={paragraphIndex} className="relative">
+                            <div className="flex justify-between items-start mb-2">
+                              <label className="text-sm font-medium text-gray-600">단락 {paragraphIndex + 1}</label>
+                              <button
+                                onClick={() => {
+                                  const updatedPassages = [...editablePassages];
+                                  updatedPassages[passageIndex].paragraphs = updatedPassages[passageIndex].paragraphs.filter((_, i) => i !== paragraphIndex);
+                                  setEditablePassages(updatedPassages);
+                                  if (passageIndex === currentPassageIndex) {
+                                    removeParagraph(paragraphIndex);
+                                  }
+                                }}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                            <textarea
+                              value={paragraph}
+                              onChange={(e) => {
+                                const updatedPassages = [...editablePassages];
+                                updatedPassages[passageIndex].paragraphs[paragraphIndex] = e.target.value;
+                                setEditablePassages(updatedPassages);
+                                if (passageIndex === currentPassageIndex) {
+                                  handleParagraphChange(paragraphIndex, e.target.value);
+                                }
+                              }}
+                              rows={4}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
-                )}
-                
-                <div>
-                  <div className="flex justify-between items-center mb-4">
-                    <label className="block text-sm font-medium text-gray-700">단락</label>
-                    <button
-                      onClick={addParagraph}
-                      className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
-                    >
-                      + 단락 추가
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {editablePassage.paragraphs.map((paragraph, index) => (
-                      <div key={index} className="relative">
-                        <div className="flex justify-between items-start mb-2">
-                          <label className="text-sm font-medium text-gray-600">단락 {index + 1}</label>
-                          <button
-                            onClick={() => removeParagraph(index)}
-                            className="text-red-600 hover:text-red-800 text-sm"
-                          >
-                            삭제
-                          </button>
-                        </div>
-                        <textarea
-                          value={paragraph}
-                          onChange={(e) => handleParagraphChange(index, e.target.value)}
-                          rows={4}
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                ))}
               </div>
             )}
             
