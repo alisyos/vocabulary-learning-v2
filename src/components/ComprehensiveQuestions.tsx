@@ -43,6 +43,9 @@ export default function ComprehensiveQuestions({
   const [generatingComp, setGeneratingComp] = useState(false);
   const [includeSupplementary, setIncludeSupplementary] = useState(true);
   const [questionCount, setQuestionCount] = useState<number>(4);
+  const [fastGeneration, setFastGeneration] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<string>('');
+  const [generatingSupplementary, setGeneratingSupplementary] = useState(false);
 
   // props가 변경될 때 localQuestions 업데이트
   useEffect(() => {
@@ -63,27 +66,128 @@ export default function ComprehensiveQuestions({
 
   const questionCountOptions = [4, 8, 12];
 
-  // 종합 문제 생성
+  // 종합 문제 생성 (기존 방식 또는 빠른 생성)
   const handleGenerateComprehensive = async () => {
+    if (fastGeneration && includeSupplementary) {
+      await handleFastGenerationWithBackground();
+    } else {
+      await handleTraditionalGeneration();
+    }
+  };
+
+  // 🚀 빠른 생성: 기본 문제만 먼저, 보완 문제는 백그라운드
+  const handleFastGenerationWithBackground = async () => {
     setGeneratingComp(true);
+    setGenerationProgress('기본 문제 생성 중...');
     
     try {
-      // 로컬 스토리지에서 선택된 모델 가져오기
       const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
       
-      // 2개 지문 형식과 단일 지문 형식 모두 처리
+      // 지문 텍스트 준비
       let passageText = '';
       if (editablePassage.passages && editablePassage.passages.length > 0) {
-        // 2개 지문 형식: 모든 지문 통합
         editablePassage.passages.forEach((passage, index) => {
           passageText += `${passage.title}\n\n`;
           passageText += passage.paragraphs.join('\n\n');
           if (index < editablePassage.passages.length - 1) {
-            passageText += '\n\n---\n\n'; // 지문 구분선
+            passageText += '\n\n---\n\n';
           }
         });
       } else {
-        // 단일 지문 형식
+        passageText = `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`;
+      }
+      
+      // 1단계: 기본 문제만 빠르게 생성
+      const basicResponse = await fetch('/api/generate-comprehensive-basic', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          passage: passageText,
+          division: division,
+          questionType: selectedQuestionType,
+          questionCount: questionCount,
+          model: selectedModel
+        }),
+      });
+
+      if (!basicResponse.ok) {
+        throw new Error('기본 문제 생성에 실패했습니다.');
+      }
+
+      const basicResult = await basicResponse.json();
+      const basicQuestions = basicResult.comprehensiveQuestions || [];
+      
+      console.log('⚡ Fast basic questions generated:', basicQuestions.length);
+      
+      // 기본 문제 먼저 표시
+      setLocalQuestions(basicQuestions);
+      onUpdate(basicQuestions, basicResult._metadata?.usedPrompt);
+      
+      setGenerationProgress('기본 문제 완료! 보완 문제 백그라운드 생성 중...');
+      setGeneratingComp(false);
+      setGeneratingSupplementary(true);
+      
+      // 2단계: 보완 문제 백그라운드 생성
+      const supplementaryResponse = await fetch('/api/generate-comprehensive-supplementary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          passage: passageText,
+          division: division,
+          basicQuestions: basicQuestions,
+          model: selectedModel
+        }),
+      });
+
+      if (supplementaryResponse.ok) {
+        const supplementaryResult = await supplementaryResponse.json();
+        const supplementaryQuestions = supplementaryResult.supplementaryQuestions || [];
+        
+        console.log('🔄 Background supplementary questions generated:', supplementaryQuestions.length);
+        
+        // 기본 문제 + 보완 문제 합쳐서 업데이트
+        const allQuestions = [...basicQuestions, ...supplementaryQuestions];
+        setLocalQuestions(allQuestions);
+        onUpdate(allQuestions, basicResult._metadata?.usedPrompt);
+        
+        setGenerationProgress(`완료! 기본 ${basicQuestions.length}개 + 보완 ${supplementaryQuestions.length}개 생성됨`);
+      } else {
+        console.error('보완 문제 생성 실패');
+        setGenerationProgress(`기본 ${basicQuestions.length}개 완료 (보완 문제 생성 실패)`);
+      }
+      
+    } catch (error) {
+      console.error('Fast generation error:', error);
+      alert('빠른 생성 중 오류가 발생했습니다.');
+      setGenerationProgress('');
+    } finally {
+      setGeneratingSupplementary(false);
+      setTimeout(() => setGenerationProgress(''), 3000); // 3초 후 메시지 제거
+    }
+  };
+
+  // 📋 기존 방식 생성 (한 번에 모든 문제)
+  const handleTraditionalGeneration = async () => {
+    setGeneratingComp(true);
+    setGenerationProgress(includeSupplementary ? '기본 + 보완 문제 생성 중...' : '기본 문제 생성 중...');
+    
+    try {
+      const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
+      
+      let passageText = '';
+      if (editablePassage.passages && editablePassage.passages.length > 0) {
+        editablePassage.passages.forEach((passage, index) => {
+          passageText += `${passage.title}\n\n`;
+          passageText += passage.paragraphs.join('\n\n');
+          if (index < editablePassage.passages.length - 1) {
+            passageText += '\n\n---\n\n';
+          }
+        });
+      } else {
         passageText = `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`;
       }
       
@@ -109,27 +213,23 @@ export default function ComprehensiveQuestions({
       const result = await response.json();
       const questions = result.comprehensiveQuestions || [];
       
-      // API 응답 디버깅
-      console.log('API Response received:', {
+      console.log('📋 Traditional generation completed:', {
         totalQuestions: questions.length,
         basicQuestions: questions.filter((q: any) => !q.isSupplementary).length,
-        supplementaryQuestions: questions.filter((q: any) => q.isSupplementary).length,
-        firstFewQuestions: questions.slice(0, 3).map((q: any) => ({
-          id: q.id,
-          type: q.type,
-          isSupplementary: q.isSupplementary,
-          question: q.question?.substring(0, 30) + '...'
-        }))
+        supplementaryQuestions: questions.filter((q: any) => q.isSupplementary).length
       });
       
       setLocalQuestions(questions);
       onUpdate(questions, result._metadata?.usedPrompt);
+      setGenerationProgress(`완료! 총 ${questions.length}개 문제 생성됨`);
       
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Traditional generation error:', error);
       alert('종합 문제 생성 중 오류가 발생했습니다.');
+      setGenerationProgress('');
     } finally {
       setGeneratingComp(false);
+      setTimeout(() => setGenerationProgress(''), 3000);
     }
   };
 
@@ -225,14 +325,16 @@ export default function ComprehensiveQuestions({
               <h2 className="text-xl font-bold text-gray-800">7단계: 종합 문제 생성</h2>
               <button
                 onClick={handleGenerateComprehensive}
-                disabled={generatingComp}
+                disabled={generatingComp || generatingSupplementary}
                 className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
               >
                 {generatingComp 
-                  ? '생성 중...' 
-                  : includeSupplementary 
-                    ? `${questionCount + (questionCount * 2)}개 생성`
-                    : `${questionCount}개 생성`
+                  ? (fastGeneration && includeSupplementary ? '기본 문제 생성 중...' : '생성 중...') 
+                  : generatingSupplementary 
+                    ? '보완 문제 생성 중...'
+                    : includeSupplementary 
+                      ? (fastGeneration ? `⚡ ${questionCount}개 빠른 생성` : `${questionCount + (questionCount * 2)}개 생성`)
+                      : `${questionCount}개 생성`
                 }
               </button>
             </div>
@@ -318,47 +420,117 @@ export default function ComprehensiveQuestions({
                 </div>
               </div>
             </div>
+
+            {/* 🚀 빠른 생성 옵션 (보완 문제가 체크된 경우만 표시) */}
+            {includeSupplementary && (
+              <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-400">
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    id="fastGeneration"
+                    checked={fastGeneration}
+                    onChange={(e) => setFastGeneration(e.target.checked)}
+                    className="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="fastGeneration" className="text-sm font-medium text-gray-800 cursor-pointer flex items-center gap-2">
+                      <span>⚡ 빠른 생성 (권장)</span>
+                      <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">NEW</span>
+                    </label>
+                    <div className="mt-1 text-xs text-gray-600">
+                      <p className="text-green-700 font-medium">• 기본 문제를 먼저 빠르게 생성하여 즉시 확인 가능</p>
+                      <p>• 보완 문제는 백그라운드에서 생성 (타임아웃 방지)</p>
+                      <p>• 예상 대기시간: 15-20초 (기존 60초+ → 대폭 단축)</p>
+                      <p className="text-orange-600">• Vercel 타임아웃 문제 해결을 위한 최적화된 방식</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 진행 상황 표시 */}
+            {(generationProgress || generatingSupplementary) && (
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-800">
+                      {generationProgress || '처리 중...'}
+                    </p>
+                    {generatingSupplementary && (
+                      <p className="text-xs text-yellow-600 mt-1">
+                        보완 문제는 백그라운드에서 생성 중입니다. 기본 문제부터 검토하실 수 있습니다.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-center">
             <button
               onClick={handleGenerateComprehensive}
-              disabled={generatingComp}
+              disabled={generatingComp || generatingSupplementary}
               className="bg-orange-600 text-white px-8 py-3 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
               {generatingComp 
-                ? '종합 문제 생성 중...' 
-                : includeSupplementary 
-                  ? `${questionCount + (questionCount * 2)}개 종합 문제 생성하기 (보완 문제 포함)`
-                  : `${questionCount}개 종합 문제 생성하기`
+                ? (fastGeneration && includeSupplementary ? '기본 문제 생성 중...' : '종합 문제 생성 중...') 
+                : generatingSupplementary 
+                  ? '보완 문제 백그라운드 생성 중...'
+                  : includeSupplementary 
+                    ? (fastGeneration 
+                        ? `⚡ ${questionCount}개 종합 문제 빠르게 생성하기`
+                        : `${questionCount + (questionCount * 2)}개 종합 문제 생성하기 (보완 문제 포함)`)
+                    : `${questionCount}개 종합 문제 생성하기`
               }
             </button>
           </div>
         </div>
 
         {/* 종합 문제 생성 로딩 모달 */}
-        {generatingComp && (
+        {(generatingComp || generatingSupplementary) && (
           <div 
             className="fixed inset-0 flex items-center justify-center z-50"
             style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
           >
-            <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
+            <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center max-w-md">
               {/* 로딩 스피너 */}
-              <div className="w-12 h-12 border-3 border-gray-200 border-t-orange-600 rounded-full animate-spin mx-auto mb-4"></div>
+              <div className={`w-12 h-12 border-3 border-gray-200 ${generatingSupplementary ? 'border-t-green-600' : 'border-t-orange-600'} rounded-full animate-spin mx-auto mb-4`}></div>
               
               {/* 메시지 */}
-              <h3 className="text-lg font-medium text-gray-800 mb-1">
-                종합 문제 생성 중
+              <h3 className={`text-lg font-medium mb-1 ${generatingSupplementary ? 'text-green-800' : 'text-gray-800'}`}>
+                {generatingComp 
+                  ? (fastGeneration && includeSupplementary ? '⚡ 기본 문제 빠른 생성 중' : '종합 문제 생성 중')
+                  : '🔄 보완 문제 백그라운드 생성 중'
+                }
               </h3>
+              
               <p className="text-sm text-gray-500 mb-2">
-                {includeSupplementary 
-                  ? `${questionCount}개 기본 문제 + ${questionCount * 2}개 보완 문제를 생성하고 있습니다`
-                  : `${questionCount}개 종합 문제를 생성하고 있습니다`
+                {generatingComp 
+                  ? (fastGeneration && includeSupplementary 
+                      ? `${questionCount}개 기본 문제를 먼저 빠르게 생성합니다`
+                      : includeSupplementary 
+                        ? `${questionCount}개 기본 문제 + ${questionCount * 2}개 보완 문제를 생성하고 있습니다`
+                        : `${questionCount}개 종합 문제를 생성하고 있습니다`)
+                  : `${questionCount * 2}개 보완 문제를 배경에서 생성하고 있습니다`
                 }
               </p>
+              
               <p className="text-xs text-gray-400">
-                잠시만 기다려주세요
+                {generatingComp 
+                  ? (fastGeneration && includeSupplementary 
+                      ? '잠시만 기다려주세요 (예상: 15-20초)'
+                      : '잠시만 기다려주세요')
+                  : '기본 문제는 이미 완성되었습니다. 백그라운드에서 보완 문제를 추가 생성 중입니다.'
+                }
               </p>
+              
+              {generationProgress && (
+                <div className="mt-3 p-2 bg-yellow-50 rounded-md">
+                  <p className="text-sm text-yellow-800">{generationProgress}</p>
+                </div>
+              )}
             </div>
           </div>
         )}

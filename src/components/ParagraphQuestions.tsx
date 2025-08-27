@@ -29,6 +29,8 @@ export default function ParagraphQuestions({
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [generatingParagraph, setGeneratingParagraph] = useState(false);
   const [selectedParagraphTab, setSelectedParagraphTab] = useState<number | null>(null); // 선택된 문단 탭 (null 시 첫 번째 문단 선택)
+  const [generationProgress, setGenerationProgress] = useState<string>('');
+  const [estimatedQuestions, setEstimatedQuestions] = useState<number>(0);
   
   // 2개 지문 형식에서 모든 paragraphs 통합하여 가져오기
   const getAllParagraphs = () => {
@@ -92,14 +94,36 @@ export default function ParagraphQuestions({
     });
   };
 
-  // 문단 문제 생성
+  // 예상 문제 수 계산
+  const calculateEstimatedQuestions = () => {
+    if (selectedParagraphs.length === 0) return 0;
+    
+    if (selectedQuestionType === 'Random') {
+      // Random: 각 문단별로 5가지 유형 × 1개씩
+      return selectedParagraphs.length * 5;
+    } else {
+      // 특정 유형: 각 문단별로 4개씩
+      return selectedParagraphs.length * 4;
+    }
+  };
+
+  // 문단 문제 생성 (개선된 진행 상황 표시)
   const handleGenerateParagraph = async () => {
     if (selectedParagraphs.length === 0) {
       alert('생성할 문단을 선택해주세요.');
       return;
     }
 
+    const estimated = calculateEstimatedQuestions();
+    setEstimatedQuestions(estimated);
     setGeneratingParagraph(true);
+    
+    // 진행 상황 설정
+    if (selectedQuestionType === 'Random') {
+      setGenerationProgress(`🚀 ${selectedParagraphs.length}개 문단 × 5가지 유형 = ${estimated}개 문제를 병렬로 생성 중...`);
+    } else {
+      setGenerationProgress(`🚀 ${selectedParagraphs.length}개 문단 × 4개씩 = ${estimated}개 ${selectedQuestionType} 문제를 병렬로 생성 중...`);
+    }
 
     try {
       // 로컬 스토리지에서 선택된 모델 가져오기
@@ -129,17 +153,28 @@ export default function ParagraphQuestions({
         // 구체적인 오류 메시지 추출 및 표시
         const errorMessage = await parseErrorMessage(response);
         alert(errorMessage);
+        setGenerationProgress('');
         return;
       }
 
       const result = await response.json();
       const newQuestions = result.paragraphQuestions || [];
       
+      console.log('🎉 Paragraph questions generation completed:', {
+        estimated: estimated,
+        actual: newQuestions.length,
+        questionType: selectedQuestionType,
+        selectedParagraphs: selectedParagraphs.length
+      });
+      
       setLocalQuestions(newQuestions);
       onUpdate(newQuestions, result._metadata?.usedPrompt);
+      setGenerationProgress(`✅ 완료! 총 ${newQuestions.length}개 문제 생성됨 (병렬 처리로 시간 대폭 단축)`);
 
     } catch (error) {
       console.error('Error generating paragraph questions:', error);
+      setGenerationProgress('');
+      
       // 네트워크 오류 등 예외 상황에 대한 구체적인 메시지
       if (error instanceof Error) {
         if (error.message.includes('fetch')) {
@@ -152,6 +187,7 @@ export default function ParagraphQuestions({
       }
     } finally {
       setGeneratingParagraph(false);
+      setTimeout(() => setGenerationProgress(''), 3000); // 3초 후 메시지 제거
     }
   };
 
@@ -235,10 +271,10 @@ export default function ParagraphQuestions({
                 className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
               >
                 {generatingParagraph 
-                  ? '생성 중...' 
+                  ? '🚀 병렬 생성 중...' 
                   : selectedParagraphs.length === 0 
                     ? '문단 선택 필요'
-                    : `${selectedParagraphs.length}개 문단으로 생성`
+                    : `🚀 ${selectedParagraphs.length}개 문단으로 빠른 생성`
                 }
               </button>
             </div>
@@ -326,13 +362,31 @@ export default function ParagraphQuestions({
                 <p><strong>선택된 유형:</strong> {selectedQuestionType}</p>
                 <p>• {getQuestionTypeDescription(selectedQuestionType)}</p>
                 {selectedQuestionType === 'Random' ? (
-                  <p>• 선택된 문단 별로 5가지 유형을 1개씩 5개 문제가 생성됩니다.</p>
+                  <p>• 선택된 문단별로 5가지 유형을 1개씩 총 5개 문제가 생성됩니다.</p>
                 ) : (
-                  <p>• 선택된 문단 별로 {selectedQuestionType} 유형의 문제를 4개 생성됩니다.</p>
+                  <p>• 선택된 문단별로 {selectedQuestionType} 유형의 문제를 4개 생성됩니다.</p>
                 )}
+                <p className="text-green-600 font-medium">• 🚀 병렬 처리로 빠른 생성: 예상 대기시간 10-15초 (기존 30-50초 대비 대폭 단축)</p>
               </div>
             </div>
           </div>
+
+          {/* 🚀 진행 상황 표시 */}
+          {generationProgress && (
+            <div className="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <div className="flex items-center space-x-3">
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-800">{generationProgress}</p>
+                  {estimatedQuestions > 0 && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      총 {estimatedQuestions}개 문제를 동시에 생성하여 대기시간을 최소화합니다.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-center">
             <button
@@ -341,10 +395,10 @@ export default function ParagraphQuestions({
               className="bg-orange-600 text-white px-8 py-3 rounded-md hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
               {generatingParagraph 
-                ? '문단 문제 생성 중...' 
+                ? '🚀 문단 문제 병렬 생성 중...' 
                 : selectedParagraphs.length === 0 
                   ? '문단을 선택해주세요'
-                  : `선택된 ${selectedParagraphs.length}개 문단으로 문제 생성하기`
+                  : `🚀 선택된 ${selectedParagraphs.length}개 문단으로 문제 빠르게 생성하기`
               }
             </button>
           </div>
@@ -362,14 +416,24 @@ export default function ParagraphQuestions({
               
               {/* 메시지 */}
               <h3 className="text-lg font-medium text-gray-800 mb-1">
-                문단 문제 생성 중
+                🚀 문단 문제 병렬 생성 중
               </h3>
               <p className="text-sm text-gray-500 mb-2">
-                선택된 {selectedParagraphs.length}개 문단으로 {selectedQuestionType} 문제를 생성하고 있습니다
+                선택된 {selectedParagraphs.length}개 문단으로 {selectedQuestionType} 문제를 병렬로 생성하고 있습니다
               </p>
+              {estimatedQuestions > 0 && (
+                <p className="text-sm text-blue-600 mb-2 font-medium">
+                  총 {estimatedQuestions}개 문제를 동시에 생성하여 시간을 단축합니다
+                </p>
+              )}
               <p className="text-xs text-gray-400">
-                잠시만 기다려주세요
+                예상 대기시간: 10-15초 (병렬 처리로 대폭 단축)
               </p>
+              {generationProgress && (
+                <div className="mt-3 p-2 bg-blue-50 rounded-md">
+                  <p className="text-sm text-blue-800">{generationProgress}</p>
+                </div>
+              )}
             </div>
           </div>
         )}

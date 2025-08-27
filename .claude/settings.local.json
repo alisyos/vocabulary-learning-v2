@@ -24,7 +24,8 @@
       "Bash(timeout 60 npm run build:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "WebSearch"
     ],
     "deny": []
   }

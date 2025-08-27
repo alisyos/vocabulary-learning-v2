@@ -187,9 +187,10 @@ export async function POST(request: NextRequest) {
 
     console.log('Type groups to generate:', typeGroups);
 
-    // 각 유형별로 정확한 개수만큼 문제 생성
-    let isFirstType = true;
-    for (const [currentType, count] of Object.entries(typeGroups)) {
+    // 🚀 병렬 처리: 각 유형별 문제를 동시에 생성
+    console.log('🚀 Starting parallel generation for basic questions:', typeGroups);
+    
+    const generationPromises = Object.entries(typeGroups).map(async ([currentType, count], index) => {
       try {
         // 해당 유형의 문제 생성 (DB에서 조회, 실패 시 기본값 사용)
         const { generateComprehensivePromptFromDB } = await import('@/lib/prompts');
@@ -200,18 +201,12 @@ export async function POST(request: NextRequest) {
           count
         );
 
-        // 첫 번째 유형의 프롬프트를 저장 (대표 프롬프트로 사용)
-        if (isFirstType) {
-          lastUsedPrompt = prompt;
-          isFirstType = false;
-        }
-
-        console.log(`Generating ${count} ${currentType} questions`);
+        console.log(`🔄 Generating ${count} ${currentType} questions in parallel`);
 
         // GPT API 호출 (모델 파라미터 포함)
         const model = body.model || 'gpt-4.1';
         const result = await generateQuestion(prompt, model);
-        console.log(`API Response for ${currentType}:`, JSON.stringify(result, null, 2));
+        console.log(`✅ API Response for ${currentType}:`, JSON.stringify(result, null, 2));
 
         // 결과 파싱 및 ComprehensiveQuestion 형태로 변환
         let questionSet: GeneratedQuestionSet | null = null;
@@ -257,14 +252,16 @@ export async function POST(request: NextRequest) {
           }
         }
         
+        const generatedQuestions: ComprehensiveQuestion[] = [];
+        
         // questions 배열이 있는 경우
         if (questionSet && questionSet.questions && Array.isArray(questionSet.questions)) {
           const questionsToAdd = questionSet.questions.slice(0, count);
           console.log(`Adding ${questionsToAdd.length} questions of type ${currentType} from questions array`);
           
-          questionsToAdd.forEach((q, index) => {
-            comprehensiveQuestions.push({
-              id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${index + 1}_${Date.now()}`,
+          questionsToAdd.forEach((q, qIndex) => {
+            generatedQuestions.push({
+              id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${qIndex + 1}_${Date.now()}_${index}`,
               type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
               question: q.question || '',
               options: q.options || undefined,
@@ -280,9 +277,9 @@ export async function POST(request: NextRequest) {
           const questionsToAdd = directQuestionArray.slice(0, count);
           console.log(`Adding ${questionsToAdd.length} questions of type ${currentType} from direct question array`);
           
-          questionsToAdd.forEach((q, index) => {
-            comprehensiveQuestions.push({
-              id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${index + 1}_${Date.now()}`,
+          questionsToAdd.forEach((q, qIndex) => {
+            generatedQuestions.push({
+              id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${qIndex + 1}_${Date.now()}_${index}`,
               type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
               question: q.question || '',
               options: q.options || undefined,
@@ -297,8 +294,8 @@ export async function POST(request: NextRequest) {
         else if (singleQuestion && singleQuestion.question) {
           console.log(`Adding 1 question of type ${currentType} from single question object`);
           
-          comprehensiveQuestions.push({
-            id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_1_${Date.now()}`,
+          generatedQuestions.push({
+            id: `comp_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_1_${Date.now()}_${index}`,
             type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
             question: singleQuestion.question || '',
             options: singleQuestion.options || undefined,
@@ -312,13 +309,16 @@ export async function POST(request: NextRequest) {
           throw new Error('Invalid question format in API response');
         }
 
+        return { type: currentType, questions: generatedQuestions, prompt };
+
       } catch (setError) {
-        console.error(`Error generating ${currentType} questions:`, setError);
+        console.error(`❌ Error generating ${currentType} questions:`, setError);
         
         // 실패 시 기본 문제 생성 (요청한 개수만큼)
+        const fallbackQuestions: ComprehensiveQuestion[] = [];
         for (let j = 0; j < count; j++) {
-          comprehensiveQuestions.push({
-            id: `comp_fallback_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${j + 1}_${Date.now()}`,
+          fallbackQuestions.push({
+            id: `comp_fallback_${currentType.replace(/[^a-zA-Z0-9]/g, '_')}_${j + 1}_${Date.now()}_${index}`,
             type: currentType as Exclude<ComprehensiveQuestionType, 'Random'>,
             question: `${currentType} 문제 ${j + 1}`,
             options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
@@ -328,18 +328,37 @@ export async function POST(request: NextRequest) {
             isSupplementary: false // 기본 문제임을 명시
           });
         }
+        
+        return { type: currentType, questions: fallbackQuestions, prompt: '', error: setError };
       }
-    }
+    });
 
-    // 보완 문제 생성 (선택사항)
+    // 🎯 모든 기본 문제를 병렬로 생성하고 결과 수집
+    const generationResults = await Promise.all(generationPromises);
+    console.log(`✅ Parallel generation completed. Results:`, generationResults.map(r => ({ 
+      type: r.type, 
+      count: r.questions.length,
+      hasError: !!r.error
+    })));
+    
+    // 생성된 문제들을 comprehensiveQuestions 배열에 추가
+    generationResults.forEach(result => {
+      comprehensiveQuestions.push(...result.questions);
+      
+      // 첫 번째 결과의 프롬프트를 대표 프롬프트로 사용
+      if (!lastUsedPrompt && result.prompt) {
+        lastUsedPrompt = result.prompt;
+      }
+    });
+
+    // 🚀 보완 문제 생성 (병렬 처리)
     if (body.includeSupplementary) {
-      console.log('Generating supplementary questions...');
-      const supplementaryQuestions: ComprehensiveQuestion[] = [];
+      console.log('🚀 Starting parallel generation for supplementary questions...');
       const supplementaryModel = body.model || 'gpt-4.1'; // 보완 문제용 모델 설정
       
-      // 각 기본 문제당 2개의 보완 문제 생성
-      for (const originalQuestion of comprehensiveQuestions) {
-        for (let supIndex = 1; supIndex <= 2; supIndex++) {
+      // 🎯 각 기본 문제당 2개의 보완 문제를 병렬로 생성
+      const supplementaryPromises = comprehensiveQuestions.flatMap((originalQuestion, originalIndex) => {
+        return [1, 2].map(async (supIndex) => {
           try {
             // 보완 문제용 프롬프트 생성 (DB에서 필요한 프롬프트만 조회)
             const { getPromptFromDB, getDivisionSubCategory, getDivisionKey, getComprehensiveTypeKey } = await import('@/lib/prompts');
@@ -348,10 +367,7 @@ export async function POST(request: NextRequest) {
             const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(body.division), getDivisionKey(body.division));
             const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', getComprehensiveTypeKey(originalQuestion.type));
             
-            console.log(`🔧 Supplementary question ${supIndex} DB queries:`, {
-              divisionPrompt: divisionPrompt ? 'FROM DB' : 'FALLBACK',
-              typePrompt: typePrompt ? 'FROM DB' : 'FALLBACK'
-            });
+            console.log(`🔄 Generating supplementary question ${supIndex} for ${originalQuestion.type} in parallel`);
             
             // 보완 문제 전용 프롬프트 (단일 문제 생성에 특화)
             const supplementaryPrompt = `###지시사항
@@ -392,9 +408,6 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
 - 정답과 해설은 지문에 명확히 근거해야 합니다
 - 원본 문제와 중복되지 않는 새로운 관점의 문제를 생성하십시오`;
             
-            console.log(`✅ Using enhanced supplementary prompt for question ${supIndex}`);
-            console.log(`🔧 보완 문제 생성 - 모델: ${supplementaryModel}`);
-
             const supplementaryResult = await generateQuestion(supplementaryPrompt, supplementaryModel);
             
             // 보완 문제 결과 파싱
@@ -417,8 +430,8 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
             }
             
             if (supplementaryQuestion?.question) {
-              supplementaryQuestions.push({
-                id: `comp_sup_${originalQuestion.id}_${supIndex}_${Date.now()}`,
+              return {
+                id: `comp_sup_${originalQuestion.id}_${supIndex}_${Date.now()}_${originalIndex}`,
                 type: originalQuestion.type,
                 question: supplementaryQuestion.question,
                 options: supplementaryQuestion.options,
@@ -426,15 +439,19 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
                 answerInitials: supplementaryQuestion.answerInitials || undefined, // 초성 힌트 추가
                 explanation: supplementaryQuestion.explanation || '보완 문제입니다.',
                 isSupplementary: true, // 보완 문제 표시
-                originalQuestionId: originalQuestion.id // 원본 문제 ID 참조
-              });
+                originalQuestionId: originalQuestion.id, // 원본 문제 ID 참조
+                success: true
+              };
+            } else {
+              throw new Error('No valid supplementary question generated');
             }
+            
           } catch (supError) {
-            console.error(`Error generating supplementary question ${supIndex} for ${originalQuestion.id}:`, supError);
+            console.error(`❌ Error generating supplementary question ${supIndex} for ${originalQuestion.id}:`, supError);
             
             // 실패 시 기본 보완 문제 생성
-            supplementaryQuestions.push({
-              id: `comp_sup_fallback_${originalQuestion.id}_${supIndex}_${Date.now()}`,
+            return {
+              id: `comp_sup_fallback_${originalQuestion.id}_${supIndex}_${Date.now()}_${originalIndex}`,
               type: originalQuestion.type,
               question: `${originalQuestion.type} 보완 문제 ${supIndex}`,
               options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
@@ -442,15 +459,31 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
               answerInitials: undefined, // 새로운 유형은 모두 객관식
               explanation: '보완 문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.',
               isSupplementary: true,
-              originalQuestionId: originalQuestion.id // 원본 문제 ID 참조
-            });
+              originalQuestionId: originalQuestion.id, // 원본 문제 ID 참조
+              success: false,
+              error: supError
+            };
           }
-        }
-      }
+        });
+      });
+      
+      // 🎯 모든 보완 문제를 병렬로 생성하고 결과 수집
+      const supplementaryResults = await Promise.all(supplementaryPromises);
+      console.log(`✅ Parallel supplementary generation completed. Results:`, supplementaryResults.map(r => ({ 
+        id: r.id, 
+        type: r.type,
+        success: r.success
+      })));
+      
+      // 성공한 보완 문제들만 추가 (타입 안전성을 위해 필터링)
+      const validSupplementaryQuestions = supplementaryResults.filter(result => result.id).map(result => {
+        const { success, error, ...question } = result;
+        return question as ComprehensiveQuestion;
+      });
       
       // 기본 문제와 보완 문제 합치기
-      comprehensiveQuestions.push(...supplementaryQuestions);
-      console.log(`Generated ${supplementaryQuestions.length} supplementary questions`);
+      comprehensiveQuestions.push(...validSupplementaryQuestions);
+      console.log(`✅ Generated ${validSupplementaryQuestions.length} supplementary questions in parallel`);
     }
 
     // 디버깅 로그 추가

@@ -182,84 +182,301 @@ export async function POST(request: NextRequest) {
     const paragraphQuestions: ParagraphQuestionWorkflow[] = [];
     let lastUsedPrompt = '';
     
-    // Random인 경우 각 문단별로 5가지 유형 1개씩 생성
+    // 🚀 병렬 처리: Random인 경우 각 문단별로 5가지 유형 1개씩 생성
     if (body.questionType === 'Random') {
       const questionTypes: Exclude<ParagraphQuestionType, 'Random'>[] = [
         '빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제', '객관식 일반형'
       ];
       
-      // 각 선택된 문단에 대해
-      for (const paragraphNumber of body.selectedParagraphs) {
-        const paragraphText = body.paragraphs[paragraphNumber - 1];
-        
-        // 5가지 유형의 문제를 각각 생성
-        for (let typeIndex = 0; typeIndex < questionTypes.length; typeIndex++) {
-          const questionType = questionTypes[typeIndex];
+      console.log('🚀 Starting parallel generation for Random paragraph questions');
+      
+      // 🎯 모든 문단 × 유형 조합을 병렬로 생성 (Promise.allSettled 사용으로 일부 실패해도 계속 진행)
+      const generationPromises = body.selectedParagraphs.flatMap(paragraphNumber => 
+        questionTypes.map(async (questionType, typeIndex) => {
           try {
-            const { question, usedPrompt } = await generateSingleParagraphQuestion(
+            const paragraphText = body.paragraphs[paragraphNumber - 1];
+            
+            console.log(`🔄 Generating ${questionType} question for paragraph ${paragraphNumber} in parallel`);
+            
+            // 🔍 '빈칸 채우기' 유형에 대한 특별 처리
+            if (questionType === '빈칸 채우기') {
+              console.log(`🔍 [빈칸 채우기] 특별 처리 시작 - Paragraph ${paragraphNumber}`);
+            }
+            
+            const result = await generateSingleParagraphQuestion(
               paragraphText,
               paragraphNumber,
               questionType,
               body.division,
               body.title,
-              1,
+              1, // Random에서는 각 유형당 1개씩만 생성
               body.model || 'gpt-4.1'
             );
             
-            // 첫 번째 문제의 프롬프트를 저장 (대표 프롬프트로 사용)
-            if (paragraphNumber === body.selectedParagraphs[0] && typeIndex === 0) {
-              lastUsedPrompt = usedPrompt;
+            // 🔍 결과 검증
+            if (!result.question) {
+              console.error(`❌ ${questionType} question for paragraph ${paragraphNumber} returned null`);
+              throw new Error(`Question generation returned null for ${questionType}`);
             }
             
-            if (question) {
-              paragraphQuestions.push(question);
-            }
+            console.log(`✅ ${questionType} question for paragraph ${paragraphNumber} generated successfully`);
+            
+            return {
+              success: true,
+              question: result.question,
+              usedPrompt: result.usedPrompt,
+              paragraphNumber,
+              questionType,
+              typeIndex,
+              isFirst: paragraphNumber === body.selectedParagraphs[0] && typeIndex === 0
+            };
+            
           } catch (error) {
-            console.error(`Error generating ${questionType} question for paragraph ${paragraphNumber}:`, error);
+            console.error(`❌ Error generating ${questionType} question for paragraph ${paragraphNumber}:`, error);
+            
+            // 오류 발생 시에도 기본 문제를 생성해서 반환 (특히 '빈칸 채우기'용)
+            const fallbackQuestion = {
+              id: `paragraph_${paragraphNumber}_${questionType}_1_${Date.now()}`,
+              type: questionType,
+              paragraphNumber,
+              paragraphText: body.paragraphs[paragraphNumber - 1],
+              question: `다음 문단에 대한 ${questionType} 문제입니다.`,
+              options: questionType === '주관식 단답형' || questionType === '어절 순서 맞추기' ? undefined : ['선택지 1', '선택지 2', '선택지 3', '선택지 4'],
+              wordSegments: questionType === '어절 순서 맞추기' ? ['어절1', '어절2', '어절3', '어절4'] : undefined,
+              answer: questionType === '어절 순서 맞추기' ? '어절1 어절2 어절3 어절4' : (questionType === '주관식 단답형' ? '답변' : '1'),
+              answerInitials: questionType === '주관식 단답형' ? 'ㄷㅂ' : undefined,
+              explanation: `${questionType} 문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.`
+            };
+            
+            console.log(`✅ [FALLBACK] Generated fallback ${questionType} question for paragraph ${paragraphNumber}`);
+            
+            return {
+              success: true, // ⭐ fallback이지만 success: true로 처리
+              question: fallbackQuestion,
+              usedPrompt: '',
+              paragraphNumber,
+              questionType,
+              typeIndex,
+              isFirst: paragraphNumber === body.selectedParagraphs[0] && typeIndex === 0,
+              error
+            };
           }
+        })
+      );
+      
+      // 🎯 모든 문제를 병렬로 생성하고 결과 수집 (Promise.allSettled로 일부 실패해도 계속)
+      const generationSettledResults = await Promise.allSettled(generationPromises);
+      
+      // Promise.allSettled 결과를 기존 형식으로 변환
+      const generationResults = generationSettledResults.map((settledResult, index) => {
+        if (settledResult.status === 'fulfilled') {
+          return settledResult.value;
+        } else {
+          // 실패한 경우 기본 정보로 대체
+          const paragraphIndex = Math.floor(index / questionTypes.length);
+          const typeIndex = index % questionTypes.length;
+          const paragraphNumber = body.selectedParagraphs[paragraphIndex];
+          const questionType = questionTypes[typeIndex];
+          
+          console.error(`❌ Promise rejected for ${questionType} paragraph ${paragraphNumber}:`, settledResult.reason);
+          
+          return {
+            success: false,
+            question: null,
+            usedPrompt: '',
+            paragraphNumber,
+            questionType,
+            typeIndex,
+            isFirst: false,
+            error: settledResult.reason
+          };
+        }
+      });
+      
+      console.log(`✅ Parallel Random generation completed. Results:`, generationResults.map(r => ({ 
+        paragraphNumber: r.paragraphNumber,
+        questionType: r.questionType,
+        success: r.success,
+        hasQuestion: !!r.question,
+        error: r.success ? null : (r as any).error?.message || 'Unknown error'
+      })));
+      
+      // 🔍 문단별, 유형별 상세 분석
+      const resultsByParagraph: Record<number, Record<string, boolean>> = {};
+      generationResults.forEach(result => {
+        if (!resultsByParagraph[result.paragraphNumber]) {
+          resultsByParagraph[result.paragraphNumber] = {};
+        }
+        resultsByParagraph[result.paragraphNumber][result.questionType] = result.success && !!result.question;
+      });
+      
+      console.log('🔍 Random 생성 결과 문단별 분석:', resultsByParagraph);
+      
+      // 성공한 문제들 수집 + 실패한 문제들에 대해서는 fallback 문제 생성
+      let successCount = 0;
+      let fallbackCount = 0;
+      let totalExpected = body.selectedParagraphs.length * 5; // 2개 문단 × 5개 유형
+      
+      for (const result of generationResults) {
+        if (result.success && result.question) {
+          paragraphQuestions.push(result.question);
+          successCount++;
+          
+          // 첫 번째 문제의 프롬프트를 저장
+          if (result.isFirst && result.usedPrompt) {
+            lastUsedPrompt = result.usedPrompt;
+          }
+        } else {
+          console.error(`❌ Failed to generate ${result.questionType} for paragraph ${result.paragraphNumber}:`, {
+            success: result.success,
+            hasQuestion: !!result.question,
+            error: (result as any).error
+          });
+          
+          // 🔄 실패한 문제에 대해서는 즉시 fallback 문제 생성
+          console.log(`🔄 Generating fallback question for ${result.questionType} paragraph ${result.paragraphNumber}`);
+          
+          const paragraphText = body.paragraphs[result.paragraphNumber - 1];
+          const fallbackQuestion = {
+            id: `paragraph_${result.paragraphNumber}_${result.questionType}_fallback_${Date.now()}`,
+            type: result.questionType,
+            paragraphNumber: result.paragraphNumber,
+            paragraphText: paragraphText,
+            question: `[Fallback] 다음 문단에 대한 ${result.questionType} 문제입니다.`,
+            options: result.questionType === '주관식 단답형' || result.questionType === '어절 순서 맞추기' ? undefined : ['선택지 1', '선택지 2', '선택지 3', '선택지 4'],
+            wordSegments: result.questionType === '어절 순서 맞추기' ? ['어절1', '어절2', '어절3', '어절4'] : undefined,
+            answer: result.questionType === '어절 순서 맞추기' ? '어절1 어절2 어절3 어절4' : (result.questionType === '주관식 단답형' ? '답변' : '1'),
+            answerInitials: result.questionType === '주관식 단답형' ? 'ㄷㅂ' : undefined,
+            explanation: `${result.questionType} 문제 생성 중 오류가 발생하여 fallback 문제로 대체되었습니다.`
+          };
+          
+          paragraphQuestions.push(fallbackQuestion);
+          fallbackCount++;
+          
+          console.log(`✅ Fallback question generated for ${result.questionType} paragraph ${result.paragraphNumber}`);
         }
       }
+      
+      console.log(`📊 Random 생성 통계: ${successCount}개 성공 + ${fallbackCount}개 fallback = ${successCount + fallbackCount}/${totalExpected}개 총 생성`);
+      
+      // 특히 '빈칸 채우기' 유형 실패 체크
+      const blankQuestionResults = generationResults.filter(r => r.questionType === '빈칸 채우기');
+      const blankQuestionsGenerated = paragraphQuestions.filter(q => q.type === '빈칸 채우기');
+      
+      console.log('🔍 빈칸 채우기 문제 생성 결과:', blankQuestionResults.map(r => ({
+        paragraphNumber: r.paragraphNumber,
+        success: r.success,
+        hasQuestion: !!r.question,
+        error: r.success ? null : (r as any).error?.message
+      })));
+      
+      console.log(`🔍 최종 생성된 빈칸 채우기 문제: ${blankQuestionsGenerated.length}개`);
+      blankQuestionsGenerated.forEach(q => {
+        console.log(`   - 문단 ${q.paragraphNumber}: ${q.question.includes('[Fallback]') ? 'Fallback' : 'Original'} 문제`);
+      });
+      
+      // ✅ 모든 유형이 모든 문단에 대해 생성되었는지 최종 확인
+      const finalCheck: Record<number, string[]> = {};
+      paragraphQuestions.forEach(q => {
+        if (!finalCheck[q.paragraphNumber]) {
+          finalCheck[q.paragraphNumber] = [];
+        }
+        finalCheck[q.paragraphNumber].push(q.type);
+      });
+      
+      console.log('✅ 최종 생성 확인 - 문단별 유형:', finalCheck);
+      
+      let allTypesGenerated = true;
+      const expectedTypes = ['빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제', '객관식 일반형'];
+      body.selectedParagraphs.forEach(paragraphNum => {
+        const generatedTypes = finalCheck[paragraphNum] || [];
+        const missingTypes = expectedTypes.filter(type => !generatedTypes.includes(type));
+        if (missingTypes.length > 0) {
+          console.error(`❌ 문단 ${paragraphNum} 누락 유형: [${missingTypes.join(', ')}]`);
+          allTypesGenerated = false;
+        }
+      });
+      
+      if (allTypesGenerated) {
+        console.log('🎉 모든 문단에 대해 모든 유형이 성공적으로 생성되었습니다!');
+      }
+      
     } else {
-      // 특정 유형인 경우 각 문단별로 해당 유형 4개씩 생성
-      for (const paragraphNumber of body.selectedParagraphs) {
-        const paragraphText = body.paragraphs[paragraphNumber - 1];
-        
-        // 각 문단에 대해 해당 유형의 문제를 4개 생성
-        for (let questionIndex = 1; questionIndex <= 4; questionIndex++) {
-          try {
-            const { question, usedPrompt } = await generateSingleParagraphQuestion(
-              paragraphText,
-              paragraphNumber,
-              body.questionType as Exclude<ParagraphQuestionType, 'Random'>,
-              body.division,
-              body.title,
-              questionIndex,
-              body.model || 'gpt-4.1'
-            );
-            
-            // 첫 번째 문단의 첫 번째 문제의 프롬프트를 저장
-            if (paragraphNumber === body.selectedParagraphs[0] && questionIndex === 1) {
-              lastUsedPrompt = usedPrompt;
+      // 🚀 병렬 처리: 특정 유형인 경우 각 문단별로 해당 유형 4개씩 생성
+      console.log('🚀 Starting parallel generation for specific paragraph question type:', body.questionType);
+      
+      const generationPromises = body.selectedParagraphs.flatMap(paragraphNumber => 
+        Array.from({ length: 4 }, (_, questionIndex) => {
+          const actualQuestionIndex = questionIndex + 1;
+          
+          return (async () => {
+            try {
+              const paragraphText = body.paragraphs[paragraphNumber - 1];
+              
+              console.log(`🔄 Generating ${body.questionType} question ${actualQuestionIndex} for paragraph ${paragraphNumber} in parallel`);
+              
+              const result = await generateSingleParagraphQuestion(
+                paragraphText,
+                paragraphNumber,
+                body.questionType as Exclude<ParagraphQuestionType, 'Random'>,
+                body.division,
+                body.title,
+                actualQuestionIndex,
+                body.model || 'gpt-4.1'
+              );
+              
+              return {
+                success: true,
+                question: result.question,
+                usedPrompt: result.usedPrompt,
+                paragraphNumber,
+                questionIndex: actualQuestionIndex,
+                isFirst: paragraphNumber === body.selectedParagraphs[0] && actualQuestionIndex === 1
+              };
+              
+            } catch (error) {
+              const classifiedError = classifyError(error);
+              console.error(`❌ Error generating ${body.questionType} question ${actualQuestionIndex} for paragraph ${paragraphNumber}:`, {
+                error: error,
+                errorType: classifiedError,
+                paragraphNumber,
+                questionIndex: actualQuestionIndex,
+                questionType: body.questionType
+              });
+              
+              return {
+                success: false,
+                question: null,
+                usedPrompt: '',
+                paragraphNumber,
+                questionIndex: actualQuestionIndex,
+                isFirst: false,
+                error
+              };
             }
-            
-            if (question) {
-              paragraphQuestions.push(question);
-            }
-          } catch (error) {
-            const classifiedError = classifyError(error);
-            console.error(`Error generating ${body.questionType} question ${questionIndex} for paragraph ${paragraphNumber}:`, {
-              error: error,
-              errorType: classifiedError,
-              paragraphNumber,
-              questionIndex,
-              questionType: body.questionType
-            });
-            
-            // 개별 문제 생성 실패는 전체 프로세스를 중단하지 않고 로그만 남김
-            // 하지만 모든 문제 생성이 실패한 경우를 대비해 추후 체크
+          })();
+        })
+      );
+      
+      // 🎯 모든 문제를 병렬로 생성하고 결과 수집
+      const generationResults = await Promise.all(generationPromises);
+      console.log(`✅ Parallel specific type generation completed. Results:`, generationResults.map(r => ({ 
+        paragraphNumber: r.paragraphNumber,
+        questionIndex: r.questionIndex,
+        success: r.success
+      })));
+      
+      // 성공한 문제들만 수집하고 첫 번째 프롬프트 저장
+      generationResults.forEach(result => {
+        if (result.success && result.question) {
+          paragraphQuestions.push(result.question);
+          
+          // 첫 번째 문단의 첫 번째 문제의 프롬프트를 저장
+          if (result.isFirst && result.usedPrompt) {
+            lastUsedPrompt = result.usedPrompt;
           }
         }
-      }
+      });
     }
 
     console.log(`Generated ${paragraphQuestions.length} paragraph questions`);
@@ -355,12 +572,19 @@ async function generateSingleParagraphQuestion(
     return { question: null, usedPrompt: prompt };
 
   } catch (error) {
-    console.error(`Error generating single paragraph question:`, error);
+    console.error(`❌ Error generating single paragraph question (${questionType} for paragraph ${paragraphNumber}):`, {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      questionType,
+      paragraphNumber,
+      questionIndex
+    });
     
     // 실패한 경우 기본 문제로 대체
-    const prompt = await generateParagraphPrompt(paragraphText, questionType, division, title, questionIndex);
-    return {
-      question: {
+    try {
+      const prompt = await generateParagraphPrompt(paragraphText, questionType, division, title, questionIndex);
+      
+      const fallbackQuestion = {
         id: `paragraph_${paragraphNumber}_${questionType}_${questionIndex}_${Date.now()}`,
         type: questionType,
         paragraphNumber,
@@ -371,9 +595,22 @@ async function generateSingleParagraphQuestion(
         answer: questionType === '어절 순서 맞추기' ? '어절1 어절2 어절3 어절4' : '1',
         answerInitials: questionType === '주관식 단답형' ? 'ㄱㄴㄷㄹ' : undefined,
         explanation: '문제 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.'
-      },
-      usedPrompt: prompt
-    };
+      };
+      
+      console.log(`✅ Fallback question generated for ${questionType} paragraph ${paragraphNumber}:`, {
+        questionId: fallbackQuestion.id,
+        hasOptions: !!fallbackQuestion.options,
+        hasWordSegments: !!fallbackQuestion.wordSegments
+      });
+      
+      return {
+        question: fallbackQuestion,
+        usedPrompt: prompt
+      };
+    } catch (fallbackError) {
+      console.error(`❌ Failed to generate fallback question for ${questionType} paragraph ${paragraphNumber}:`, fallbackError);
+      return { question: null, usedPrompt: '' };
+    }
   }
 }
 
@@ -406,8 +643,28 @@ async function generateParagraphPrompt(
     }
     
     console.log('🔍 문제 유형별 프롬프트 조회 시작:', { category: 'paragraph', subCategory: 'paragraphType', key: typeKey });
+    
+    // 🔍 특별히 '빈칸 채우기' 유형에 대해서는 상세 로깅
+    if (questionType === '빈칸 채우기') {
+      console.log('🔍 [빈칸 채우기] 상세 디버깅:', {
+        questionType,
+        typeKey,
+        category: 'paragraph',
+        subCategory: 'paragraphType'
+      });
+    }
+    
     const typePrompt = await db.getPromptByKey('paragraph', 'paragraphType', typeKey);
     console.log('✅ 문제 유형별 프롬프트 조회 완료:', typePrompt.name);
+    
+    // 🔍 '빈칸 채우기' 프롬프트 내용도 확인
+    if (questionType === '빈칸 채우기') {
+      console.log('🔍 [빈칸 채우기] 프롬프트 내용 확인:', {
+        promptName: typePrompt.name,
+        promptLength: typePrompt.promptText.length,
+        promptPreview: typePrompt.promptText.substring(0, 200) + '...'
+      });
+    }
     
     // 3. 구분별 프롬프트 가져오기
     let divisionPromptText = '';

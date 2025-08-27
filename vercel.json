@@ -10,7 +10,13 @@
       "maxDuration": 60
     },
     "src/app/api/generate-comprehensive/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/generate-comprehensive-basic/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/generate-comprehensive-supplementary/route.ts": {
+      "maxDuration": 300
     }
   }
 }
