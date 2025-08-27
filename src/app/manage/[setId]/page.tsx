@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import { getComprehensiveQuestionTypeLabel, getVocabularyQuestionTypeLabel } from '@/lib/supabase';
+import ComprehensiveCSVUploadModal from '@/components/ComprehensiveCSVUploadModal';
 
 interface SetDetails {
   id: string; // UUID
@@ -141,6 +142,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   const [editableParagraphQuestions, setEditableParagraphQuestions] = useState<ParagraphQuestion[]>([]);
   const [editableComprehensive, setEditableComprehensive] = useState<ComprehensiveQuestion[]>([]);
   const [editableIntroductionQuestion, setEditableIntroductionQuestion] = useState<string>('');
+  const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
   
   const fetchSetDetails = useCallback(async (id: string) => {
     setLoading(true);
@@ -1845,7 +1847,13 @@ ${allParagraphs}`;
 
   const addComprehensiveQuestion = () => {
     const baseId = `comp_${Date.now()}`;
-
+    
+    // 기존 문제들의 최대 questionSetNumber 찾기
+    const maxExistingSetNumber = editableComprehensive.reduce((max, q) => {
+      return Math.max(max, q.questionSetNumber || 0);
+    }, 0);
+    
+    const newSetNumber = maxExistingSetNumber + 1;
     
     // 기본 문제 생성 (original_question_id를 자신의 questionId로 설정)
     const mainQuestion: ComprehensiveQuestion = {
@@ -1859,7 +1867,7 @@ ${allParagraphs}`;
       explanation: '해설을 입력하세요.',
       isSupplementary: false,
       originalQuestionId: baseId, // 기본문제도 original_question_id 설정
-      questionSetNumber: 1
+      questionSetNumber: newSetNumber
     };
     
     // 보완 문제 2개 생성 (같은 original_question_id 사용)
@@ -1874,7 +1882,7 @@ ${allParagraphs}`;
       explanation: '해설을 입력하세요.',
       isSupplementary: true,
       originalQuestionId: baseId, // 기본문제와 같은 original_question_id
-      questionSetNumber: 1
+      questionSetNumber: newSetNumber
     };
     
     const supplementary2: ComprehensiveQuestion = {
@@ -1888,10 +1896,54 @@ ${allParagraphs}`;
       explanation: '해설을 입력하세요.',
       isSupplementary: true,
       originalQuestionId: baseId, // 기본문제와 같은 original_question_id
-      questionSetNumber: 1
+      questionSetNumber: newSetNumber
     };
     
     setEditableComprehensive(prev => [...prev, mainQuestion, supplementary1, supplementary2]);
+  };
+
+  const handleCSVUpload = (questions: any[]) => {
+    // 기존 문제들의 최대 questionSetNumber 찾기
+    const maxExistingSetNumber = editableComprehensive.reduce((max, q) => {
+      return Math.max(max, q.questionSetNumber || 0);
+    }, 0);
+    
+    // 문제 세트별로 그룹화하고 ID 할당
+    const now = Date.now();
+    const processedQuestions: ComprehensiveQuestion[] = [];
+    
+    let currentSetId = '';
+    let currentSetIndex = 0;
+    
+    questions.forEach((q, index) => {
+      if (!q.isSupplementary) {
+        // 새로운 세트 시작
+        currentSetIndex = Math.floor(index / 3);
+        currentSetId = `comp_${now}_${currentSetIndex}`;
+      }
+      
+      const questionId = q.isSupplementary 
+        ? `${currentSetId}_supp${processedQuestions.filter(pq => pq.originalQuestionId === currentSetId && pq.isSupplementary).length + 1}`
+        : currentSetId;
+      
+      processedQuestions.push({
+        id: '',
+        questionId: questionId,
+        questionType: q.questionType,
+        question: q.question,
+        questionFormat: q.questionFormat,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        answerInitials: q.questionFormat === 'short_answer' ? '' : undefined,
+        explanation: q.explanation,
+        isSupplementary: q.isSupplementary,
+        originalQuestionId: currentSetId,
+        questionSetNumber: maxExistingSetNumber + currentSetIndex + 1  // 기존 세트 번호 이후부터 시작
+      });
+    });
+    
+    setEditableComprehensive(prev => [...prev, ...processedQuestions]);
+    setIsCSVModalOpen(false);
   };
 
   const removeComprehensiveQuestion = (index: number) => {
@@ -2815,12 +2867,23 @@ ${allParagraphs}`;
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-medium text-gray-900">종합 문제</h3>
-                  <button
-                    onClick={addComprehensiveQuestion}
-                    className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
-                  >
-                    + 문제 세트 추가
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setIsCSVModalOpen(true)}
+                      className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 text-sm flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      CSV 업로드
+                    </button>
+                    <button
+                      onClick={addComprehensiveQuestion}
+                      className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
+                    >
+                      + 문제 세트 추가
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="space-y-8">
@@ -3063,6 +3126,14 @@ ${allParagraphs}`;
           </div>
         </div>
       </div>
+      
+      {/* CSV 업로드 모달 */}
+      <ComprehensiveCSVUploadModal
+        isOpen={isCSVModalOpen}
+        onClose={() => setIsCSVModalOpen(false)}
+        onUpload={handleCSVUpload}
+        contentSetId={setId}
+      />
     </div>
   );
 } 

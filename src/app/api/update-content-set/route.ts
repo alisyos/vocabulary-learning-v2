@@ -176,7 +176,22 @@ export async function PUT(request: NextRequest) {
     const questionsToUpdate: any[] = [];
     const questionsToCreate: any[] = [];
     
+    // 기존 문제들의 최대 question_number 찾기 (새 문제 추가 시 사용)
+    const maxExistingQuestionNumber = existingCompQuestions.reduce((max, q) => {
+      return Math.max(max, q.question_number || 0);
+    }, 0);
+    
+    // 기존 문제의 ID와 question_number 매핑 생성
+    const existingQuestionNumberMap = new Map<string, number>();
+    existingCompQuestions.forEach(q => {
+      if (q.id) {
+        existingQuestionNumberMap.set(q.id, q.question_number || 0);
+      }
+    });
+    
     if (editableComprehensive && editableComprehensive.length > 0) {
+      let nextNewQuestionNumber = maxExistingQuestionNumber + 1;
+      
       for (let i = 0; i < editableComprehensive.length; i++) {
         const question = editableComprehensive[i];
         
@@ -188,8 +203,10 @@ export async function PUT(request: NextRequest) {
         });
         
         if (question.id) {
-          // 기존 문제 업데이트 (question_number는 나중에 일괄 처리)
+          // 기존 문제 업데이트 - 기존 question_number 유지
           remainingQuestionIds.add(question.id);
+          const existingNumber = existingQuestionNumberMap.get(question.id) || (i + 1);
+          
           questionsToUpdate.push({
             id: question.id,
             data: {
@@ -209,13 +226,13 @@ export async function PUT(request: NextRequest) {
               original_question_id: question.originalQuestionId || null,
               question_set_number: question.questionSetNumber || Math.floor(i / 3) + 1
             },
-            newQuestionNumber: i + 1
+            newQuestionNumber: existingNumber  // 기존 번호 유지
           });
         } else {
-          // 새 문제 추가
+          // 새 문제 추가 - 새로운 question_number 할당
           questionsToCreate.push({
             content_set_id: contentSetId,
-            question_number: i + 1,
+            question_number: nextNewQuestionNumber++,  // 새로운 번호 할당
             question_text: question.question,
             question_type: question.type || question.questionType || '정보 확인',
             question_format: (question.options && question.options.length > 0 ? '객관식' : '주관식') as '객관식' | '주관식',
