@@ -4,13 +4,22 @@ import { useState, useEffect, useRef } from 'react';
 import { PassageInput, DivisionType, SubjectType, AreaType, PassageLengthType, TextType, FieldData, CurriculumData } from '@/types';
 import { ModelType } from '@/lib/openai';
 
+interface StreamingState {
+  isStreaming: boolean;
+  message: string;
+  progress: string;
+  error: string | null;
+  result: any | null;
+}
+
 interface PassageFormProps {
   onSubmit: (input: PassageInput & { model: ModelType }) => void;
   loading: boolean;
   initialData?: PassageInput;
+  streamingState?: StreamingState;
 }
 
-export default function PassageForm({ onSubmit, loading, initialData }: PassageFormProps) {
+export default function PassageForm({ onSubmit, loading, initialData, streamingState }: PassageFormProps) {
   const [selectedModel, setSelectedModel] = useState<ModelType>(() => {
     // 로컬 스토리지에서 저장된 모델 불러오기
     if (typeof window !== 'undefined') {
@@ -632,6 +641,76 @@ export default function PassageForm({ onSubmit, loading, initialData }: PassageF
           {loading ? '생성 중...' : '지문 생성'}
         </button>
       </form>
+
+      {/* 스트리밍 상태 표시 */}
+      {streamingState && (streamingState.isStreaming || streamingState.error || streamingState.message) && (
+        <div className="mt-4 p-4 bg-gray-50 border rounded-md">
+          <h4 className="text-sm font-medium text-gray-900 mb-2">🔄 실시간 진행 상황</h4>
+          
+          {/* 진행 메시지 */}
+          {streamingState.message && (
+            <div className="mb-2">
+              <div className="flex items-center">
+                {streamingState.isStreaming && (
+                  <div className="animate-spin mr-2">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                )}
+                <span className="text-sm text-gray-700">{streamingState.message}</span>
+              </div>
+            </div>
+          )}
+
+          {/* 에러 메시지 */}
+          {streamingState.error && (
+            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded">
+              <div className="flex items-center">
+                <svg className="w-4 h-4 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm text-red-700">{streamingState.error}</span>
+              </div>
+            </div>
+          )}
+
+          {/* 진행률 표시 (진행 중인 경우) */}
+          {streamingState.isStreaming && (
+            <div className="mb-2">
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="bg-blue-600 h-2 rounded-full transition-all duration-300 animate-pulse" style={{ width: '60%' }}></div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">AI 모델이 응답을 생성하고 있습니다...</p>
+            </div>
+          )}
+
+          {/* 실시간 내용 미리보기 (옵션) */}
+          {streamingState.progress && streamingState.progress.length > 0 && (
+            <div className="mt-2">
+              <details className="group">
+                <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                  실시간 생성 내용 미리보기 ({streamingState.progress.length}자)
+                </summary>
+                <div className="mt-2 p-2 bg-white border rounded text-xs text-gray-600 max-h-32 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap font-mono">{streamingState.progress.substring(0, 200)}</pre>
+                  {streamingState.progress.length > 200 && <span className="text-gray-400">...</span>}
+                </div>
+              </details>
+            </div>
+          )}
+
+          {/* 완료 상태 */}
+          {!streamingState.isStreaming && !streamingState.error && streamingState.result && (
+            <div className="flex items-center text-green-700">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-sm">생성 완료! 우측에서 결과를 확인하세요.</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

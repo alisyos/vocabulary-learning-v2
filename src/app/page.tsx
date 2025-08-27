@@ -54,101 +54,159 @@ export default function Home() {
     comprehensive?: string;
   }>({});
 
-  // 1단계: 지문 생성
+  // 스트리밍 상태 관리
+  const [streamingState, setStreamingState] = useState({
+    isStreaming: false,
+    message: '',
+    progress: '',
+    error: null as string | null,
+    result: null as any
+  });
+
+  // 1단계: 지문 생성 (스트리밍 버전)
   const handlePassageGeneration = async (input: PassageInput & { model?: any }) => {
     setWorkflowData(prev => ({ ...prev, loading: true, input }));
+    setStreamingState({
+      isStreaming: true,
+      message: '지문 생성 준비 중...',
+      progress: '',
+      error: null,
+      result: null
+    });
 
     try {
-      const response = await fetch('/api/generate-passage', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const { handleStreamingRequest } = await import('@/lib/streaming');
+      
+      await handleStreamingRequest('/api/generate-passage-stream', input, {
+        onStart: (message) => {
+          console.log('🚀 스트리밍 시작:', message);
+          setStreamingState(prev => ({
+            ...prev,
+            message: message.message || '지문 생성을 시작합니다...'
+          }));
         },
-        body: JSON.stringify(input),
+        
+        onProgress: (message) => {
+          console.log('📈 스트리밍 진행:', message);
+          setStreamingState(prev => ({
+            ...prev,
+            message: message.message || '지문 생성 진행 중...',
+            progress: message.content || prev.progress
+          }));
+        },
+        
+        onComplete: (message) => {
+          console.log('✅ 스트리밍 완료:', message);
+          
+          setStreamingState(prev => ({
+            ...prev,
+            isStreaming: false,
+            message: message.message || '지문 생성이 완료되었습니다!',
+            result: message.result
+          }));
+
+          if (message.result) {
+            const result = message.result;
+            
+            // 사용된 프롬프트 저장
+            if (result._metadata?.usedPrompt) {
+              setLastUsedPrompts(prev => ({
+                ...prev,
+                passage: result._metadata.usedPrompt
+              }));
+            }
+            
+            // 생성된 지문을 편집 가능한 형태로 변환
+            console.log('🔍 GPT 스트리밍 응답 변환 시작:', result);
+            console.log('📊 result.passages 길이:', result.passages?.length);
+            console.log('💬 introduction_question 값:', result.introduction_question);
+            console.log('📝 GPT 스트리밍 응답 전체 구조:', JSON.stringify(result, null, 2));
+            
+            const editablePassage: EditablePassage = (() => {
+              // GPT 응답 형식 감지 및 정규화
+              if (result.passages && result.passages.length === 2) {
+                console.log('✅ 2개 지문 형식으로 변환');
+                
+                // GPT 응답의 실제 구조에 맞게 변환
+                const convertedPassages = result.passages.map((passage: any, index: number) => {
+                  console.log(`📋 지문 ${index + 1} 변환 중:`, passage);
+                  
+                  // 각 지문에서 제목과 용어를 직접 추출
+                  const title = passage.title || `지문 ${index + 1}`;
+                  const paragraphs = passage.content ? [passage.content] : (passage.paragraphs || []);
+                  const footnote = passage.footnote || [];
+                  
+                  console.log(`✅ 변환 결과 - 제목: "${title}", 단락: ${paragraphs.length}개, 용어: ${footnote.length}개`);
+                  
+                  return {
+                    title,
+                    paragraphs,
+                    footnote
+                  };
+                });
+                
+                const converted = {
+                  title: '', // 2개 지문 형식에서는 개별 제목 사용
+                  paragraphs: [], // 2개 지문 형식에서는 개별 단락 사용
+                  footnote: [], // 2개 지문 형식에서는 개별 용어 사용
+                  passages: convertedPassages,
+                  introduction_question: result.introduction_question // GPT 응답에서 도입 질문 추출
+                };
+                console.log('🎯 변환된 editablePassage:', converted);
+                return converted;
+              } else if (result.passages && result.passages.length === 1) {
+                // 단일 지문 형식: 기존 구조 사용 (하위 호환성)
+                console.log('⚠️ 단일 지문 형식으로 변환');
+                return {
+                  title: result.passages[0]?.title || result.title || '',
+                  paragraphs: result.passages[0]?.content ? [result.passages[0].content] : (result.passages[0]?.paragraphs || []),
+                  footnote: result.passages[0]?.footnote || result.footnote || [],
+                  introduction_question: result.introduction_question // GPT 응답에서 도입 질문 추출
+                };
+              } else {
+                // 예외 처리: 빈 구조 반환
+                console.log('❌ 예외 처리: 빈 구조 반환');
+                return {
+                  title: '',
+                  paragraphs: [],
+                  footnote: []
+                };
+              }
+            })();
+
+            setWorkflowData(prev => ({
+              ...prev,
+              generatedPassage: result,
+              editablePassage,
+              currentStep: 'passage-review',
+              loading: false
+            }));
+          }
+        },
+        
+        onError: (message) => {
+          console.error('❌ 스트리밍 오류:', message);
+          
+          setStreamingState(prev => ({
+            ...prev,
+            isStreaming: false,
+            error: message.error || '알 수 없는 오류가 발생했습니다.'
+          }));
+
+          alert(`지문 생성 중 오류가 발생했습니다: ${message.error}`);
+          setWorkflowData(prev => ({ ...prev, loading: false }));
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('지문 생성에 실패했습니다.');
-      }
-
-      const result: Passage & { _metadata?: { usedPrompt: string } } = await response.json();
+    } catch (error) {
+      console.error('스트리밍 요청 오류:', error);
       
-      // 사용된 프롬프트 저장
-      if (result._metadata?.usedPrompt) {
-        setLastUsedPrompts(prev => ({
-          ...prev,
-          passage: result._metadata!.usedPrompt
-        }));
-      }
-      
-      // 생성된 지문을 편집 가능한 형태로 변환
-      console.log('🔍 GPT 응답 변환 시작:', result);
-      console.log('📊 result.passages 길이:', result.passages?.length);
-      console.log('💬 introduction_question 값:', result.introduction_question);
-      console.log('📝 GPT 응답 전체 구조:', JSON.stringify(result, null, 2));
-      
-      const editablePassage: EditablePassage = (() => {
-        // GPT 응답 형식 감지 및 정규화
-        if (result.passages && result.passages.length === 2) {
-          console.log('✅ 2개 지문 형식으로 변환');
-          
-          // GPT 응답의 실제 구조에 맞게 변환
-          const convertedPassages = result.passages.map((passage: any, index: number) => {
-            console.log(`📋 지문 ${index + 1} 변환 중:`, passage);
-            
-            // 각 지문에서 제목과 용어를 직접 추출
-            const title = passage.title || `지문 ${index + 1}`;
-            const paragraphs = passage.content ? [passage.content] : (passage.paragraphs || []);
-            const footnote = passage.footnote || [];
-            
-            console.log(`✅ 변환 결과 - 제목: "${title}", 단락: ${paragraphs.length}개, 용어: ${footnote.length}개`);
-            
-            return {
-              title,
-              paragraphs,
-              footnote
-            };
-          });
-          
-          const converted = {
-            title: '', // 2개 지문 형식에서는 개별 제목 사용
-            paragraphs: [], // 2개 지문 형식에서는 개별 단락 사용
-            footnote: [], // 2개 지문 형식에서는 개별 용어 사용
-            passages: convertedPassages,
-            introduction_question: result.introduction_question // GPT 응답에서 도입 질문 추출
-          };
-          console.log('🎯 변환된 editablePassage:', converted);
-          return converted;
-        } else if (result.passages && result.passages.length === 1) {
-          // 단일 지문 형식: 기존 구조 사용 (하위 호환성)
-          console.log('⚠️ 단일 지문 형식으로 변환');
-          return {
-            title: result.passages[0]?.title || result.title || '',
-            paragraphs: result.passages[0]?.content ? [result.passages[0].content] : (result.passages[0]?.paragraphs || []),
-            footnote: result.passages[0]?.footnote || result.footnote || [],
-            introduction_question: result.introduction_question // GPT 응답에서 도입 질문 추출
-          };
-        } else {
-          // 예외 처리: 빈 구조 반환
-          console.log('❌ 예외 처리: 빈 구조 반환');
-          return {
-            title: '',
-            paragraphs: [],
-            footnote: []
-          };
-        }
-      })();
-
-      setWorkflowData(prev => ({
+      setStreamingState(prev => ({
         ...prev,
-        generatedPassage: result,
-        editablePassage,
-        currentStep: 'passage-review',
-        loading: false
+        isStreaming: false,
+        error: error instanceof Error ? error.message : String(error)
       }));
 
-    } catch (error) {
-      console.error('Error:', error);
       alert('지문 생성 중 오류가 발생했습니다.');
       setWorkflowData(prev => ({ ...prev, loading: false }));
     }
@@ -353,6 +411,7 @@ export default function Home() {
                 onSubmit={handlePassageGeneration} 
                 loading={loading}
                 initialData={input}
+                streamingState={streamingState}
               />
             </div>
 
@@ -378,6 +437,7 @@ export default function Home() {
                 onSubmit={handlePassageGeneration} 
                 loading={loading}
                 initialData={input}
+                streamingState={streamingState}
               />
             </div>
 
