@@ -81,10 +81,12 @@ export async function PUT(request: NextRequest) {
       await db.updatePassage(existingPassages[0].id, passageData);
     }
 
-    // 3. VocabularyTerms 재생성 (기존 삭제 후 새로 생성)
+    // 3. VocabularyTerms 업데이트 (안전한 업데이트 방식)
     if (editableVocabulary && editableVocabulary.length > 0) {
-      console.log('📚 VocabularyTerms 재생성 시작');
-      await db.deleteVocabularyTermsByContentSetId(contentSetId);
+      console.log('📚 VocabularyTerms 업데이트 시작');
+      
+      // vocabularyTermsData가 함께 전달된 경우 (has_question_generated 정보 포함)
+      const vocabularyTermsData = data.vocabularyTermsData;
       
       const vocabularyTerms: Omit<VocabularyTerm, 'id' | 'created_at'>[] = 
         editableVocabulary.map((vocab: any, index: number) => {
@@ -97,44 +99,51 @@ export async function PUT(request: NextRequest) {
               
               // 예시 문장 추출 (예시: ... 패턴)
               const exampleMatch = restText.match(/(.+?)\s*\(예시:\s*(.+?)\)$/);
-              if (exampleMatch) {
-                const definition = exampleMatch[1].trim();
-                const example = exampleMatch[2].trim();
-                return {
-                  content_set_id: contentSetId,
-                  term: term,
-                  definition: definition,
-                  example_sentence: example
-                };
-              } else {
-                return {
-                  content_set_id: contentSetId,
-                  term: term,
-                  definition: restText,
-                  example_sentence: null
-                };
-              }
+              const definition = exampleMatch ? exampleMatch[1].trim() : restText;
+              const example = exampleMatch ? exampleMatch[2].trim() : null;
+              
+              // vocabularyTermsData에서 has_question_generated 정보 가져오기
+              const termData = vocabularyTermsData?.[index];
+              const hasQuestionGenerated = termData?.has_question_generated ?? false;
+              
+              return {
+                content_set_id: contentSetId,
+                term: term,
+                definition: definition,
+                example_sentence: example,
+                has_question_generated: hasQuestionGenerated
+              };
             } else {
+              // 기본값: 어려운 어휘 (has_question_generated = false)
+              const termData = vocabularyTermsData?.[index];
               return {
                 content_set_id: contentSetId,
                 term: `용어${index + 1}`,
                 definition: vocab,
-                example_sentence: null
+                example_sentence: null,
+                has_question_generated: termData?.has_question_generated ?? false
               };
             }
           } else {
             // vocab가 객체인 경우
+            const termData = vocabularyTermsData?.[index];
+            const hasQuestionGenerated = termData?.has_question_generated ?? 
+                                        vocab.has_question_generated ?? 
+                                        false;
+            
             return {
               content_set_id: contentSetId,
               term: vocab.term || '',
               definition: vocab.definition || '',
-              example_sentence: vocab.example_sentence || null
+              example_sentence: vocab.example_sentence || null,
+              has_question_generated: hasQuestionGenerated
             };
           }
         });
       
-      await db.createVocabularyTerms(vocabularyTerms);
-      console.log('📚 VocabularyTerms 재생성 완료:', vocabularyTerms.length, '개');
+      // 안전한 업데이트 함수 사용
+      await db.updateVocabularyTerms(contentSetId, vocabularyTerms);
+      console.log('📚 VocabularyTerms 업데이트 완료:', vocabularyTerms.length, '개');
     }
 
     // 4. VocabularyQuestions 업데이트

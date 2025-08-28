@@ -100,7 +100,7 @@ interface VocabularyTerm {
   definition: string;
   exampleSentence: string;
   orderIndex: number;
-  has_question_generated?: boolean; // 어휘 문제 생성 여부
+  has_question_generated?: boolean; // 어휘 문제 생성 여부 (true: 핵심어, false: 어려운 어휘)
 }
 
 interface PassageData {
@@ -368,6 +368,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
           editablePassage,
           editablePassages, // 여러 지문 배열도 전송
           editableVocabulary,
+          vocabularyTermsData, // 어휘 타입 정보 포함
           editableVocabQuestions,
           editableParagraphQuestions,
           editableComprehensive
@@ -2429,6 +2430,20 @@ ${allParagraphs}`;
                         }
                       };
                       
+                      const updateVocabularyType = (newType: '핵심어' | '어려운 어휘') => {
+                        const updatedTermsData = [...vocabularyTermsData];
+                        if (updatedTermsData[index]) {
+                          updatedTermsData[index] = {
+                            ...updatedTermsData[index],
+                            has_question_generated: newType === '핵심어' ? true : false
+                          };
+                          setVocabularyTermsData(updatedTermsData);
+                        }
+                      };
+                      
+                      // 현재 어휘 유형 결정 (has_question_generated 기반)
+                      const currentType = vocabularyTermsData[index]?.has_question_generated === true ? '핵심어' : '어려운 어휘';
+                      
                       return (
                         <div key={index} className="border border-gray-200 rounded-lg p-4">
                           <div className="flex justify-between items-start mb-3">
@@ -2441,33 +2456,70 @@ ${allParagraphs}`;
                             </button>
                           </div>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">용어</label>
-                              <input
-                                type="text"
-                                value={term}
-                                onChange={(e) => updateVocabulary(e.target.value, description, example)}
-                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              />
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">용어</label>
+                                <input
+                                  type="text"
+                                  value={term}
+                                  onChange={(e) => updateVocabulary(e.target.value, description, example)}
+                                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">설명</label>
+                                <input
+                                  type="text"
+                                  value={description}
+                                  onChange={(e) => updateVocabulary(term, e.target.value, example)}
+                                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">예시문장</label>
+                                <input
+                                  type="text"
+                                  value={example}
+                                  onChange={(e) => updateVocabulary(term, description, e.target.value)}
+                                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </div>
                             </div>
+                            
+                            {/* 어휘 유형 선택 */}
                             <div>
-                              <label className="block text-xs text-gray-500 mb-1">설명</label>
-                              <input
-                                type="text"
-                                value={description}
-                                onChange={(e) => updateVocabulary(term, e.target.value, example)}
-                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">예시문장</label>
-                              <input
-                                type="text"
-                                value={example}
-                                onChange={(e) => updateVocabulary(term, description, e.target.value)}
-                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              />
+                              <label className="block text-xs text-gray-500 mb-1">어휘 유형</label>
+                              <div className="flex gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => updateVocabularyType('핵심어')}
+                                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                                    currentType === '핵심어'
+                                      ? 'bg-blue-500 text-white'
+                                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                  }`}
+                                >
+                                  <span className="flex items-center justify-center">
+                                    <span className="mr-2">📌</span> 핵심어
+                                  </span>
+                                  <span className="text-xs opacity-80 mt-1 block">어휘 문제 출제 대상</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateVocabularyType('어려운 어휘')}
+                                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                                    currentType === '어려운 어휘'
+                                      ? 'bg-orange-500 text-white'
+                                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                  }`}
+                                >
+                                  <span className="flex items-center justify-center">
+                                    <span className="mr-2">📖</span> 어려운 어휘
+                                  </span>
+                                  <span className="text-xs opacity-80 mt-1 block">보조 설명용 용어</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>

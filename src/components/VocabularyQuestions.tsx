@@ -30,7 +30,7 @@ export default function VocabularyQuestions({
   const [localQuestions, setLocalQuestions] = useState<VocabularyQuestion[]>(vocabularyQuestions);
   const [generatingVocab, setGeneratingVocab] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
-  const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<VocabularyQuestionType[]>(['5지선다 객관식']);
+  const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<VocabularyQuestionType[]>(Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[]);
   const [selectedTerm, setSelectedTerm] = useState<string>('');
   
   // 🚀 병렬 처리 진행률 추적을 위한 state

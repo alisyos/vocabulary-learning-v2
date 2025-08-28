@@ -314,7 +314,7 @@ export interface VocabularyTerm {
   term: string;
   definition: string;
   example_sentence?: string | null; // 예시 문장
-  has_question_generated?: boolean; // 어휘 문제 생성 여부
+  has_question_generated?: boolean; // 어휘 문제 생성 여부 (true: 핵심어, false: 어려운 어휘)
   created_at?: string;
 }
 

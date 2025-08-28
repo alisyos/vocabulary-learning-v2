@@ -299,6 +299,83 @@ export const db = {
     
     if (error) throw error
   },
+  
+  async updateVocabularyTerms(contentSetId: string, terms: Omit<VocabularyTerm, 'id' | 'created_at'>[]) {
+    try {
+      // 1. 기존 어휘 조회
+      const { data: existingTerms, error: fetchError } = await supabase
+        .from('vocabulary_terms')
+        .select('*')
+        .eq('content_set_id', contentSetId)
+        .order('created_at')
+      
+      if (fetchError) throw fetchError
+      
+      // 2. 업데이트할 어휘와 새로 생성할 어휘 구분
+      const termsToUpdate: { id: string; data: Partial<VocabularyTerm> }[] = []
+      const termsToCreate: Omit<VocabularyTerm, 'id' | 'created_at'>[] = []
+      const processedIds = new Set<string>()
+      
+      // 3. 기존 어휘 업데이트 또는 새 어휘 생성
+      terms.forEach((newTerm, index) => {
+        const existingTerm = existingTerms?.[index]
+        
+        if (existingTerm?.id) {
+          // 기존 어휘 업데이트
+          termsToUpdate.push({
+            id: existingTerm.id,
+            data: {
+              term: newTerm.term,
+              definition: newTerm.definition,
+              example_sentence: newTerm.example_sentence,
+              has_question_generated: newTerm.has_question_generated
+            }
+          })
+          processedIds.add(existingTerm.id)
+        } else {
+          // 새 어휘 생성
+          termsToCreate.push(newTerm)
+        }
+      })
+      
+      // 4. 업데이트 실행
+      for (const updateItem of termsToUpdate) {
+        const { error: updateError } = await supabase
+          .from('vocabulary_terms')
+          .update(updateItem.data)
+          .eq('id', updateItem.id)
+        
+        if (updateError) throw updateError
+      }
+      
+      // 5. 새 어휘 생성
+      if (termsToCreate.length > 0) {
+        const { error: createError } = await supabase
+          .from('vocabulary_terms')
+          .insert(termsToCreate)
+        
+        if (createError) throw createError
+      }
+      
+      // 6. 남은 기존 어휘 삭제 (새 목록에 없는 것들)
+      const termsToDelete = existingTerms?.filter(t => t.id && !processedIds.has(t.id)) || []
+      for (const termToDelete of termsToDelete) {
+        if (termToDelete.id) {
+          const { error: deleteError } = await supabase
+            .from('vocabulary_terms')
+            .delete()
+            .eq('id', termToDelete.id)
+          
+          if (deleteError) throw deleteError
+        }
+      }
+      
+      return true
+    } catch (error) {
+      console.error('어휘 업데이트 실패:', error)
+      throw error
+    }
+  },
 
   // Vocabulary Questions
   async createVocabularyQuestions(questions: Omit<VocabularyQuestion, 'id' | 'created_at'>[]) {
