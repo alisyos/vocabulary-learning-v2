@@ -64,7 +64,8 @@ export default function PromptModal({
         <div className="flex-1 overflow-hidden flex flex-col">
           <div className="px-6 py-4 bg-blue-50 border-b border-blue-100">
             <p className="text-sm text-blue-800">
-              💡 아래는 GPT에게 전송된 완전한 프롬프트입니다. 생성 결과가 예상과 다를 때 프롬프트를 확인하여 문제점을 파악할 수 있습니다.
+              💡 아래는 GPT에게 전송된 <strong>실제 프롬프트</strong>입니다. 
+              템플릿의 모든 변수({'{termName}'}, {'{passage}'} 등)가 실제 값으로 치환된 상태입니다.
             </p>
           </div>
           <div className="flex-1 overflow-auto p-6">
@@ -73,6 +74,14 @@ export default function PromptModal({
                 {prompt}
               </pre>
             </div>
+            {/* 템플릿 변수 확인 */}
+            {prompt.includes('{') && prompt.includes('}') && (
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ 프롬프트에 치환되지 않은 템플릿 변수가 있습니다: {prompt.match(/\{[^}]+\}/g)?.join(', ')}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

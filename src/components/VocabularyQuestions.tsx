@@ -159,6 +159,24 @@ export default function VocabularyQuestions({
         setGenerationProgress(`${questionType} 문제 생성 중... (${index + 1}/${selectedQuestionTypes.length})`);
         
         try {
+          // 지문 데이터 구성 (2개 지문 형식 지원)
+          let passageText = '';
+          if (editablePassage.passages && editablePassage.passages.length > 0) {
+            // 2개 지문 형식
+            passageText = editablePassage.passages.map((passage, index) => 
+              `[지문 ${index + 1}]\n${passage.title}\n\n${passage.paragraphs.join('\n\n')}`
+            ).join('\n\n---\n\n');
+          } else {
+            // 단일 지문 형식 (기존)
+            passageText = `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`;
+          }
+          
+          console.log('📝 Sending passage to API:', {
+            passageLength: passageText.length,
+            hasMultiplePassages: !!(editablePassage.passages && editablePassage.passages.length > 0),
+            passagePreview: passageText.substring(0, 100) + '...'
+          });
+
           const response = await fetch('/api/generate-vocabulary', {
             method: 'POST',
             headers: {
@@ -166,7 +184,7 @@ export default function VocabularyQuestions({
             },
             body: JSON.stringify({
               terms: selectedTermsList,
-              passage: `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`,
+              passage: passageText,
               division: division,
               questionType: questionType,
               model: selectedModel
@@ -211,6 +229,10 @@ export default function VocabularyQuestions({
           // 첫 번째 성공한 유형의 프롬프트를 저장
           if (!lastUsedPrompt && result.usedPrompt) {
             lastUsedPrompt = result.usedPrompt;
+            console.log('📋 Received prompt from API:', {
+              promptLength: lastUsedPrompt.length,
+              promptPreview: lastUsedPrompt.substring(0, 200) + '...'
+            });
           }
         }
       }

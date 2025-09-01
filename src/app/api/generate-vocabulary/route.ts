@@ -140,8 +140,22 @@ export async function POST(request: NextRequest) {
     }
 
     if (!body.passage || !body.division) {
+      console.error('❌ Missing required fields:', {
+        hasPassage: !!body.passage,
+        passageLength: body.passage ? body.passage.length : 0,
+        hasDivision: !!body.division
+      });
       return NextResponse.json(
         { error: '지문 내용과 구분 정보가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+    
+    // 지문이 실제로 내용이 있는지 확인
+    if (body.passage.trim().length === 0) {
+      console.error('❌ Passage is empty or whitespace only');
+      return NextResponse.json(
+        { error: '지문 내용이 비어있습니다.' },
         { status: 400 }
       );
     }
@@ -170,6 +184,12 @@ export async function POST(request: NextRequest) {
 
         // 유형별 프롬프트 생성 (DB에서 조회, 실패 시 기본값 사용)
         const { generateVocabularyPromptFromDB } = await import('@/lib/prompts');
+        
+        console.log(`🔍 Generating prompt for term: ${termName}`, {
+          passageLength: body.passage.length,
+          passagePreview: body.passage.substring(0, 100) + '...'
+        });
+        
         const prompt = await generateVocabularyPromptFromDB(
           termName,
           termDescription,
@@ -183,6 +203,11 @@ export async function POST(request: NextRequest) {
         // 첫 번째 용어의 프롬프트를 저장 (대표 프롬프트로 사용)
         if (i === 0) {
           lastUsedPrompt = prompt;
+          console.log('📋 Saving prompt for UI display:', {
+            promptLength: prompt.length,
+            containsPassage: prompt.includes(body.passage),
+            promptPreview: prompt.substring(0, 200) + '...'
+          });
         }
 
         // GPT API 호출 (모델 파라미터 포함)

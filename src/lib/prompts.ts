@@ -1821,7 +1821,9 @@ export async function generateVocabularyPromptFromDB(
     console.log('🔧 Vocabulary prompt generation:', {
       basePrompt: basePrompt ? 'FROM DB (' + basePrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
       divisionPrompt: divisionPrompt ? 'FROM DB (' + divisionPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
-      typePrompt: typePrompt ? 'FROM DB (' + typePrompt.length + ' chars)' : questionType ? 'TYPE NOT FOUND IN DB' : 'NO TYPE SPECIFIED'
+      typePrompt: typePrompt ? 'FROM DB (' + typePrompt.length + ' chars)' : questionType ? 'TYPE NOT FOUND IN DB' : 'NO TYPE SPECIFIED',
+      passageLength: passage ? passage.length : 0,
+      passagePreview: passage ? passage.substring(0, 50) + '...' : 'NO PASSAGE'
     });
 
     // DB에서 가져온 프롬프트들을 조합하여 최종 프롬프트 생성
@@ -1854,6 +1856,13 @@ ${divisionPrompt || division}
       // 완전한 폴백
       return generateVocabularyPrompt(termName, termDescription, passage, division);
     }
+
+    // 최종 프롬프트에 지문이 포함되었는지 확인
+    console.log('📝 Final vocabulary prompt check:', {
+      finalPromptLength: finalPrompt.length,
+      containsPassage: finalPrompt.includes(passage),
+      remainingPlaceholders: finalPrompt.match(/\{[^}]+\}/g) || []
+    });
 
     return finalPrompt;
   } catch (error) {
