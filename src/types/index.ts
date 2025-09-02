@@ -480,6 +480,8 @@ export interface CurriculumData {
   main_topic: string;
   sub_topic: string;
   keywords: string;
+  keywords_for_passages?: string; // 지문용 키워드
+  keywords_for_questions?: string; // 문제용 키워드
   is_active: boolean;
   created_at?: string;
 }

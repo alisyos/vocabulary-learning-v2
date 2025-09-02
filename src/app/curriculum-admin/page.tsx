@@ -12,6 +12,8 @@ interface CsvRow {
   main_topic: string;
   sub_topic: string;
   keywords: string;
+  keywords_for_passages?: string;
+  keywords_for_questions?: string;
   is_active: string;
 }
 
@@ -37,6 +39,8 @@ export default function CurriculumAdminPage() {
     main_topic: '',
     sub_topic: '',
     keywords: '',
+    keywords_for_passages: '',
+    keywords_for_questions: '',
     is_active: true
   });
 
@@ -75,11 +79,11 @@ export default function CurriculumAdminPage() {
 
   // CSV 템플릿 다운로드
   const downloadCsvTemplate = () => {
-    const headers = ['subject', 'grade', 'area', 'main_topic', 'sub_topic', 'keywords', 'is_active'];
+    const headers = ['subject', 'grade', 'area', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
     const sampleData = [
-      ['사회', '5학년', '일반사회', '우리나라의 정치', '민주주의와 시민 참여', '민주주의, 시민 참여, 선거', 'true'],
-      ['과학', '6학년', '물리', '에너지와 생활', '전기 에너지', '전기, 에너지, 전자회로', 'true'],
-      ['사회', '4학년', '지리', '우리 지역의 모습', '지역의 특성과 생활', '지역, 지형, 기후', 'true']
+      ['사회', '5학년', '일반사회', '우리나라의 정치', '민주주의와 시민 참여', '민주주의, 시민 참여, 선거', '국회, 대통령, 삼권분립', '민주주의 원리, 시민 권리, 정치 참여', 'true'],
+      ['과학', '6학년', '물리', '에너지와 생활', '전기 에너지', '전기, 에너지, 전자회로', '전압, 전류, 저항', '전기 회로, 에너지 변환, 전기 안전', 'true'],
+      ['사회', '4학년', '지리', '우리 지역의 모습', '지역의 특성과 생활', '지역, 지형, 기후', '산맥, 평야, 하천', '지형 특징, 기후 영향, 생활 모습', 'true']
     ];
     
     const csvContent = [headers, ...sampleData]
@@ -90,6 +94,38 @@ export default function CurriculumAdminPage() {
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'curriculum_data_template.csv';
+    link.click();
+  };
+
+  // 전체 데이터 다운로드
+  const downloadAllData = () => {
+    if (data.length === 0) {
+      alert('다운로드할 데이터가 없습니다.');
+      return;
+    }
+
+    const headers = ['subject', 'grade', 'area', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
+    const csvRows = data.map(item => [
+      item.subject,
+      item.grade,
+      item.area,
+      item.main_topic,
+      item.sub_topic,
+      item.keywords,
+      item.keywords_for_passages || '',
+      item.keywords_for_questions || '',
+      item.is_active ? 'true' : 'false'
+    ]);
+    
+    const csvContent = [headers, ...csvRows]
+      .map(row => row.map(field => `"${field || ''}"`).join(','))
+      .join('\n');
+    
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    const date = new Date().toISOString().split('T')[0];
+    link.download = `curriculum_data_all_${date}.csv`;
     link.click();
   };
 
@@ -106,7 +142,7 @@ export default function CurriculumAdminPage() {
       }
       
       const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-      const expectedHeaders = ['subject', 'grade', 'area', 'main_topic', 'sub_topic', 'keywords', 'is_active'];
+      const expectedHeaders = ['subject', 'grade', 'area', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
       
       if (!expectedHeaders.every(h => headers.includes(h))) {
         alert('CSV 파일의 헤더가 올바르지 않습니다. 템플릿을 다운로드하여 확인해주세요.');
@@ -124,6 +160,8 @@ export default function CurriculumAdminPage() {
             main_topic: values[headers.indexOf('main_topic')] || '',
             sub_topic: values[headers.indexOf('sub_topic')] || '',
             keywords: values[headers.indexOf('keywords')] || '',
+            keywords_for_passages: values[headers.indexOf('keywords_for_passages')] || '',
+            keywords_for_questions: values[headers.indexOf('keywords_for_questions')] || '',
             is_active: values[headers.indexOf('is_active')] || 'true'
           };
           parsedData.push(row);
@@ -178,7 +216,14 @@ export default function CurriculumAdminPage() {
     try {
       const promises = csvData.map(row => {
         const item = {
-          ...row,
+          subject: row.subject,
+          grade: row.grade,
+          area: row.area,
+          main_topic: row.main_topic,
+          sub_topic: row.sub_topic,
+          keywords: row.keywords,
+          keywords_for_passages: row.keywords_for_passages || '',
+          keywords_for_questions: row.keywords_for_questions || '',
           is_active: row.is_active.toLowerCase() === 'true'
         };
         return fetch('/api/curriculum-admin', {
@@ -295,6 +340,8 @@ export default function CurriculumAdminPage() {
       main_topic: item.main_topic,
       sub_topic: item.sub_topic,
       keywords: item.keywords,
+      keywords_for_passages: item.keywords_for_passages || '',
+      keywords_for_questions: item.keywords_for_questions || '',
       is_active: item.is_active
     });
     setIsEditing(true);
@@ -317,6 +364,8 @@ export default function CurriculumAdminPage() {
       main_topic: '',
       sub_topic: '',
       keywords: '',
+      keywords_for_passages: '',
+      keywords_for_questions: '',
       is_active: true
     });
     setSelectedItem(null);
@@ -431,6 +480,12 @@ export default function CurriculumAdminPage() {
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                 >
                   📄 CSV 템플릿 다운로드
+                </button>
+                <button
+                  onClick={downloadAllData}
+                  className="px-4 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors"
+                >
+                  📥 전체 데이터 다운로드
                 </button>
                 <button
                   onClick={() => setShowCsvModal(true)}
@@ -675,8 +730,30 @@ export default function CurriculumAdminPage() {
                     value={formData.keywords}
                     onChange={(e) => setFormData({ ...formData, keywords: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
+                    rows={2}
                     placeholder="예: 민주주의, 시민 참여, 선거"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">지문용 키워드 (Keywords for passages)</label>
+                  <textarea
+                    value={formData.keywords_for_passages}
+                    onChange={(e) => setFormData({ ...formData, keywords_for_passages: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={2}
+                    placeholder="예: 국회, 대통령, 삼권분립"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">문제용 키워드 (Keywords for questions)</label>
+                  <textarea
+                    value={formData.keywords_for_questions}
+                    onChange={(e) => setFormData({ ...formData, keywords_for_questions: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={2}
+                    placeholder="예: 민주주의 원리, 시민 권리, 정치 참여"
                   />
                 </div>
 
@@ -765,6 +842,8 @@ export default function CurriculumAdminPage() {
                             <th className="px-2 py-1 text-left font-medium">대주제</th>
                             <th className="px-2 py-1 text-left font-medium">소주제</th>
                             <th className="px-2 py-1 text-left font-medium">키워드</th>
+                            <th className="px-2 py-1 text-left font-medium">지문용 키워드</th>
+                            <th className="px-2 py-1 text-left font-medium">문제용 키워드</th>
                             <th className="px-2 py-1 text-left font-medium">활성</th>
                           </tr>
                         </thead>
@@ -777,6 +856,8 @@ export default function CurriculumAdminPage() {
                               <td className="px-2 py-1">{row.main_topic}</td>
                               <td className="px-2 py-1">{row.sub_topic}</td>
                               <td className="px-2 py-1 max-w-xs truncate">{row.keywords}</td>
+                              <td className="px-2 py-1 max-w-xs truncate">{row.keywords_for_passages || ''}</td>
+                              <td className="px-2 py-1 max-w-xs truncate">{row.keywords_for_questions || ''}</td>
                               <td className="px-2 py-1">{row.is_active}</td>
                             </tr>
                           ))}

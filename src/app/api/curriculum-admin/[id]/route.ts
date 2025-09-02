@@ -29,6 +29,8 @@ export async function PUT(
       main_topic: body.main_topic,
       sub_topic: body.sub_topic,
       keywords: body.keywords,
+      keywords_for_passages: body.keywords_for_passages || '',
+      keywords_for_questions: body.keywords_for_questions || '',
       is_active: body.is_active !== false
     };
 
