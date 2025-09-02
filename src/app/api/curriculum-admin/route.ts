@@ -37,23 +37,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 중복 검사
-    const existingData = await db.getCurriculumData({
-      subject: body.subject,
-      grade: body.grade,
-      area: body.area
-    });
+    // 중복 검사 (CSV 업로드 시에는 건너뛰기)
+    if (!body.skipDuplicateCheck) {
+      const existingData = await db.getCurriculumData({
+        subject: body.subject,
+        grade: body.grade,
+        area: body.area
+      });
 
-    const isDuplicate = existingData.some(item => 
-      item.main_topic === body.main_topic && 
-      item.sub_topic === body.sub_topic
-    );
+      const isDuplicate = existingData.some(item => 
+        item.main_topic === body.main_topic && 
+        item.sub_topic === body.sub_topic
+      );
 
-    if (isDuplicate) {
-      return NextResponse.json({
-        success: false,
-        message: '동일한 주제의 데이터가 이미 존재합니다.'
-      }, { status: 400 });
+      if (isDuplicate) {
+        return NextResponse.json({
+          success: false,
+          message: '동일한 주제의 데이터가 이미 존재합니다.'
+        }, { status: 400 });
+      }
     }
 
     // 데이터 생성

@@ -881,7 +881,11 @@ export const db = {
   async getCurriculumData(filters: { subject?: string; grade?: string; area?: string } = {}) {
     let query = supabase
       .from('curriculum_data')
-      .select('*')
+      .select(`
+        *,
+        keywords_for_passages,
+        keywords_for_questions
+      `)
       .eq('is_active', true)
     
     if (filters.subject) query = query.eq('subject', filters.subject)
@@ -891,8 +895,35 @@ export const db = {
     query = query.order('subject').order('grade').order('area').order('main_topic').order('sub_topic')
     
     const { data, error } = await query
-    if (error) throw error
-    return data
+    if (error) {
+      console.error('getCurriculumData error:', error);
+      // 컬럼이 존재하지 않는 경우 기본 쿼리로 재시도
+      if (error.message?.includes('keywords_for_passages') || error.message?.includes('keywords_for_questions')) {
+        console.log('새 키워드 컬럼이 존재하지 않습니다. 기본 쿼리로 재시도합니다.');
+        let fallbackQuery = supabase
+          .from('curriculum_data')
+          .select('*')
+          .eq('is_active', true)
+        
+        if (filters.subject) fallbackQuery = fallbackQuery.eq('subject', filters.subject)
+        if (filters.grade) fallbackQuery = fallbackQuery.eq('grade', filters.grade)
+        if (filters.area) fallbackQuery = fallbackQuery.eq('area', filters.area)
+        
+        fallbackQuery = fallbackQuery.order('subject').order('grade').order('area').order('main_topic').order('sub_topic')
+        
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery
+        if (fallbackError) throw fallbackError
+        
+        // 기본값으로 빈 문자열 추가
+        return (fallbackData || []).map(item => ({
+          ...item,
+          keywords_for_passages: '',
+          keywords_for_questions: ''
+        }))
+      }
+      throw error
+    }
+    return data || []
   },
 
   async createCurriculumData(data: Omit<CurriculumData, 'id' | 'created_at'>[]) {

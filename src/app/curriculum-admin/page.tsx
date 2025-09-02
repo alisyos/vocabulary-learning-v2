@@ -86,8 +86,17 @@ export default function CurriculumAdminPage() {
       ['사회', '4학년', '지리', '우리 지역의 모습', '지역의 특성과 생활', '지역, 지형, 기후', '산맥, 평야, 하천', '지형 특징, 기후 영향, 생활 모습', 'true']
     ];
     
+    // CSV 필드 이스케이프 함수 (템플릿용)
+    const escapeCsvField = (field: string): string => {
+      const fieldStr = field || '';
+      if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n') || fieldStr.includes('\r')) {
+        return `"${fieldStr.replace(/"/g, '""')}"`;
+      }
+      return fieldStr;
+    };
+    
     const csvContent = [headers, ...sampleData]
-      .map(row => row.map(field => `"${field}"`).join(','))
+      .map(row => row.map(field => escapeCsvField(field)).join(','))
       .join('\n');
     
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -117,8 +126,18 @@ export default function CurriculumAdminPage() {
       item.is_active ? 'true' : 'false'
     ]);
     
+    // CSV 필드 이스케이프 함수
+    const escapeCsvField = (field: string): string => {
+      const fieldStr = field || '';
+      // 쉼표, 따옴표, 줄바꿈이 포함된 경우 따옴표로 감싸고 내부 따옴표는 두 개로 처리
+      if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n') || fieldStr.includes('\r')) {
+        return `"${fieldStr.replace(/"/g, '""')}"`;
+      }
+      return fieldStr;
+    };
+
     const csvContent = [headers, ...csvRows]
-      .map(row => row.map(field => `"${field || ''}"`).join(','))
+      .map(row => row.map(field => escapeCsvField(field)).join(','))
       .join('\n');
     
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -129,7 +148,7 @@ export default function CurriculumAdminPage() {
     link.click();
   };
 
-  // CSV 파일 파싱
+  // CSV 파일 파싱 (쉼표가 포함된 필드 지원)
   const parseCsvFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -141,7 +160,40 @@ export default function CurriculumAdminPage() {
         return;
       }
       
-      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      // CSV 라인을 올바르게 파싱하는 함수
+      const parseCsvLine = (line: string): string[] => {
+        const result: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          const nextChar = line[i + 1];
+          
+          if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+              // 연속된 따옴표는 하나의 따옴표로 처리
+              current += '"';
+              i++; // 다음 따옴표 건너뛰기
+            } else {
+              // 따옴표 시작/끝
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            // 따옴표 밖의 쉼표는 구분자
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        
+        // 마지막 필드 추가
+        result.push(current.trim());
+        return result;
+      };
+      
+      const headers = parseCsvLine(lines[0]).map(h => h.replace(/"/g, '').trim());
       const expectedHeaders = ['subject', 'grade', 'area', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
       
       if (!expectedHeaders.every(h => headers.includes(h))) {
@@ -151,8 +203,8 @@ export default function CurriculumAdminPage() {
       
       const parsedData: CsvRow[] = [];
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.replace(/"/g, '').trim());
-        if (values.length === headers.length) {
+        const values = parseCsvLine(lines[i]);
+        if (values.length >= headers.length - 2) { // 최소한의 필드 수 확인 (선택 필드 고려)
           const row: CsvRow = {
             subject: values[headers.indexOf('subject')] || '',
             grade: values[headers.indexOf('grade')] || '',
@@ -224,7 +276,8 @@ export default function CurriculumAdminPage() {
           keywords: row.keywords,
           keywords_for_passages: row.keywords_for_passages || '',
           keywords_for_questions: row.keywords_for_questions || '',
-          is_active: row.is_active.toLowerCase() === 'true'
+          is_active: row.is_active.toLowerCase() === 'true',
+          skipDuplicateCheck: true // CSV 업로드 시 중복 체크 건너뛰기
         };
         return fetch('/api/curriculum-admin', {
           method: 'POST',

@@ -39,7 +39,9 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
       maintopic: '',
       subtopic: '',
       keyword: '',
-      textType: '설명문' as TextType,
+      keywords_for_passages: '',
+      keywords_for_questions: '',
+      textType: '기행문' as TextType,
     };
     
     if (initialData && initialData.division) {
@@ -69,8 +71,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
   };
 
   const textTypeOptions: TextType[] = [
-    '생활문', '편지글', '기행문', '논설문', '설명문', 
-    '기사문', '과학탐구보고서', '실험보고서', '사회현상보고서'
+    '기행문', '논설문', '설명문'
   ];
 
   // 초기 데이터가 변경될 때 폼 데이터 업데이트
@@ -85,18 +86,52 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
         maintopic: '',
         subtopic: '',
         keyword: '',
-        textType: '설명문' as TextType,
+        keywords_for_passages: '',
+        keywords_for_questions: '',
+        textType: '기행문' as TextType,
       };
       
       // textType이 undefined인 경우 기본값 유지
       const mergedData = { ...defaultData, ...initialData };
       if (initialData.textType === undefined) {
-        mergedData.textType = '설명문' as TextType;
+        mergedData.textType = '기행문' as TextType;
       }
       
       setFormData(mergedData);
     }
   }, [initialData]);
+
+  // 페이지 초기 로드 시 구분에 맞는 유형 자동 설정
+  useEffect(() => {
+    const getTextTypeForDivision = (division: DivisionType): TextType => {
+      switch (division) {
+        case '초등학교 중학년(3-4학년)':
+          return '기행문';
+        case '초등학교 고학년(5-6학년)':
+          return '논설문';
+        case '중학생(1-3학년)':
+          return '설명문';
+        default:
+          return '기행문';
+      }
+    };
+
+    // 항상 올바른 유형으로 설정 (강제 설정)
+    const correctTextType = getTextTypeForDivision(formData.division);
+    console.log('🔍 DEBUG: Current division:', formData.division);
+    console.log('🔍 DEBUG: Current textType:', formData.textType);
+    console.log('🔍 DEBUG: Correct textType should be:', correctTextType);
+    
+    if (formData.textType !== correctTextType) {
+      console.log('🔄 Updating textType from', formData.textType, 'to', correctTextType);
+      setFormData(prev => ({
+        ...prev,
+        textType: correctTextType
+      }));
+    } else {
+      console.log('✅ TextType is already correct:', correctTextType);
+    }
+  }, [formData.division]); // division이 변경될 때마다 실행
 
   // Supabase에서 필드 데이터 가져오기
   useEffect(() => {
@@ -127,14 +162,16 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
             // fallback 데이터 사용
             setAvailableOptions(prev => ({ ...prev, subjects: ['사회', '과학'] }));
           } else {
-            // CurriculumData를 FieldData 형태로 변환
+            // CurriculumData를 FieldData 형태로 변환 (새 키워드 필드 포함)
             const mappedData = data.map((item: CurriculumData) => ({
               subject: item.subject,
               grade: item.grade,
               area: item.area,
               maintopic: item.main_topic,
               subtopic: item.sub_topic,
-              keyword: item.keywords
+              keyword: item.keywords,
+              keywords_for_passages: item.keywords_for_passages || '',
+              keywords_for_questions: item.keywords_for_questions || ''
             }));
             
             setFieldData(mappedData);
@@ -188,14 +225,16 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
         if (response.ok) {
           const data = await response.json();
           
-          // CurriculumData를 FieldData 형태로 변환
+          // CurriculumData를 FieldData 형태로 변환 (새 키워드 필드 포함)
           const mappedData = data.map((item: CurriculumData) => ({
             subject: item.subject,
             grade: item.grade,
             area: item.area,
             maintopic: item.main_topic,
             subtopic: item.sub_topic,
-            keyword: item.keywords
+            keyword: item.keywords,
+            keywords_for_passages: item.keywords_for_passages || '',
+            keywords_for_questions: item.keywords_for_questions || ''
           }));
           
           setFieldData(mappedData);
@@ -273,7 +312,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
     }
   }, [formData.subject, formData.grade, formData.area, formData.maintopic, fieldData]);
 
-  // 소주제 변경 시 핵심 개념어 자동 설정
+  // 소주제 변경 시 핵심 개념어 및 새 키워드 필드들 자동 설정
   useEffect(() => {
     if (formData.subject && formData.grade && formData.area && formData.maintopic && formData.subtopic && fieldData.length > 0) {
       const matchedItem = fieldData.find(item => 
@@ -285,7 +324,12 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
       );
       
       if (matchedItem) {
-        setFormData(prev => ({ ...prev, keyword: matchedItem.keyword }));
+        setFormData(prev => ({ 
+          ...prev, 
+          keyword: matchedItem.keyword,
+          keywords_for_passages: matchedItem.keywords_for_passages || '',
+          keywords_for_questions: matchedItem.keywords_for_questions || ''
+        }));
       }
     }
   }, [formData.subject, formData.grade, formData.area, formData.maintopic, formData.subtopic, fieldData]);
@@ -321,7 +365,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
         case '중학생(1-3학년)':
           return '설명문';
         default:
-          return '설명문';
+          return '기행문';
       }
     };
 
@@ -342,6 +386,8 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
       maintopic: '',
       subtopic: '',
       keyword: '',
+      keywords_for_passages: '',
+      keywords_for_questions: '',
     });
   };
 
@@ -499,7 +545,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
           <select
             value={formData.grade}
             onChange={(e) => {
-              setFormData({ ...formData, grade: e.target.value, area: '', maintopic: '', subtopic: '', keyword: '' });
+              setFormData({ ...formData, grade: e.target.value, area: '', maintopic: '', subtopic: '', keyword: '', keywords_for_passages: '', keywords_for_questions: '' });
             }}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             required
@@ -522,7 +568,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
           <select
             value={formData.area}
             onChange={(e) => {
-              setFormData({ ...formData, area: e.target.value as AreaType, maintopic: '', subtopic: '', keyword: '' });
+              setFormData({ ...formData, area: e.target.value as AreaType, maintopic: '', subtopic: '', keyword: '', keywords_for_passages: '', keywords_for_questions: '' });
             }}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             required
@@ -545,7 +591,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
           <select
             value={formData.maintopic}
             onChange={(e) => {
-              setFormData({ ...formData, maintopic: e.target.value, subtopic: '', keyword: '' });
+              setFormData({ ...formData, maintopic: e.target.value, subtopic: '', keyword: '', keywords_for_passages: '', keywords_for_questions: '' });
             }}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             required
@@ -568,7 +614,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
           <select
             value={formData.subtopic}
             onChange={(e) => {
-              setFormData({ ...formData, subtopic: e.target.value, keyword: '' });
+              setFormData({ ...formData, subtopic: e.target.value, keyword: '', keywords_for_passages: '', keywords_for_questions: '' });
             }}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             required
@@ -597,28 +643,50 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
           />
         </div>
 
+        {/* 지문용 키워드 (자동 설정) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            지문용 키워드
+          </label>
+          <input
+            type="text"
+            value={formData.keywords_for_passages || ''}
+            readOnly
+            className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
+            placeholder="소주제 선택 시 자동으로 설정됩니다"
+          />
+        </div>
+
+        {/* 문제용 키워드 (자동 설정) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            어휘문제용 키워드
+          </label>
+          <input
+            type="text"
+            value={formData.keywords_for_questions || ''}
+            readOnly
+            className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
+            placeholder="소주제 선택 시 자동으로 설정됩니다"
+          />
+        </div>
+
         {/* 유형 선택 (선택사항) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             유형 (선택사항)
           </label>
           <select
-            value={formData.textType || '설명문'}
+            value={formData.textType || '기행문'}
             onChange={(e) => setFormData({ ...formData, textType: e.target.value as TextType })}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           >
             {textTypeOptions.map((type) => {
               const getDisplayText = (type: string) => {
                 switch (type) {
-                  case '생활문': return '생활문(3학년 한정)';
-                  case '편지글': return '편지글(3학년 한정)';
-                  case '기행문': return '기행문';
-                  case '논설문': return '논설문';
-                  case '설명문': return '설명문';
-                  case '기사문': return '기사문';
-                  case '과학탐구보고서': return '과학탐구보고서(과학 한정)';
-                  case '실험보고서': return '실험보고서(과학 한정)';
-                  case '사회현상보고서': return '사회현상보고서(사회 한정)';
+                  case '기행문': return '기행문 (초등 중학년 기본값)';
+                  case '논설문': return '논설문 (초등 고학년 기본값)';
+                  case '설명문': return '설명문 (중학생 기본값)';
                   default: return type;
                 }
               };

@@ -50,10 +50,16 @@ export async function POST(request: NextRequest) {
       body.maintopic,
       body.subtopic,
       body.keyword,
-      body.textType
+      body.textType,
+      body.keywords_for_passages,
+      body.keywords_for_questions
     );
 
     console.log('Generated prompt for streaming:', prompt);
+    console.log('🔍 프롬프트 변수 치환 상태 확인:');
+    console.log('- keywords_for_passages:', body.keywords_for_passages);
+    console.log('- keywords_for_questions:', body.keywords_for_questions);
+    console.log('- 치환된 프롬프트 내용 확인:', prompt.includes('{keywords_for_passages}') ? '❌ 미치환' : '✅ 치환완료');
 
     // 스트리밍 응답 생성
     const stream = new ReadableStream({

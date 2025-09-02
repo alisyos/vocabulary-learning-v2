@@ -345,7 +345,9 @@ export function generatePassagePrompt(
   maintopic: string,
   subtopic: string,
   keyword: string,
-  textType?: TextType
+  textType?: TextType,
+  keywords_for_passages?: string,
+  keywords_for_questions?: string
 ): string {
   let prompt = `###지시사항
 다음 입력값을 받아 학습 지문(passage)을 생성하십시오. 출력은 하나의 영역으로 구분합니다.
@@ -1502,6 +1504,35 @@ export function clearPromptCache(category: string, subCategory: string, key: str
   promptCache.delete(cacheKey);
 }
 
+// DB 프롬프트 업데이트 함수
+export async function updatePromptInDB(category: string, subCategory: string, key: string, promptText: string, changeReason?: string): Promise<boolean> {
+  try {
+    console.log(`🔧 DB 프롬프트 업데이트 시도: ${category}/${subCategory}/${key}`);
+    
+    const { db } = await import('./supabase');
+    
+    // 현재 프롬프트 정보 조회
+    const currentPrompt = await db.getPromptByKey(category, subCategory, key);
+    
+    if (!currentPrompt) {
+      console.error(`❌ 업데이트할 프롬프트를 찾을 수 없음: ${category}/${subCategory}/${key}`);
+      return false;
+    }
+    
+    // updateSystemPrompt 함수는 promptId를 사용하므로 promptId를 가져와야 함
+    await db.updateSystemPrompt(currentPrompt.promptId, promptText, changeReason);
+    
+    // 캐시 업데이트
+    updatePromptCache(category, subCategory, key, promptText);
+    
+    console.log(`✅ DB 프롬프트 업데이트 성공: ${category}/${subCategory}/${key}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ DB 프롬프트 업데이트 실패: ${category}/${subCategory}/${key}`, error);
+    return false;
+  }
+}
+
 // 지문 길이에 대한 기본 프롬프트를 반환하는 함수
 function getDefaultLengthPrompt(length: string): string {
   // 새로운 2개 지문 형식 프롬프트로 변환
@@ -1590,7 +1621,9 @@ export async function generatePassagePromptFromDB(
   maintopic: string,
   subtopic: string,
   keyword: string,
-  textType?: TextType
+  textType?: TextType,
+  keywords_for_passages?: string,
+  keywords_for_questions?: string
 ): Promise<string> {
   try {
     // DB에서 각 프롬프트 조회
@@ -1629,7 +1662,17 @@ export async function generatePassagePromptFromDB(
         console.log(`📄 Text type prompt found: ${textTypePrompt ? 'YES (' + textTypePrompt.length + ' chars)' : 'NO - using default'}`);
         
         if (textTypePrompt) {
-          textTypePromptText = textTypePrompt;
+          // textType 프롬프트에도 변수 치환 적용
+          textTypePromptText = textTypePrompt
+            .replace('{keywords_for_passages}', keywords_for_passages || '')
+            .replace('{keywords_for_questions}', keywords_for_questions || '')
+            .replace('{keyword}', keyword)
+            .replace('{maintopic}', maintopic)
+            .replace('{subtopic}', subtopic)
+            .replace('{area}', area)
+            .replace('{subject}', subject)
+            .replace('{grade}', grade);
+          console.log('✅ Text type prompt에 변수 치환 적용됨');
         } else {
           console.log(`⚠️ No server prompt for text type '${textType}', using hardcoded fallback`);
           textTypePromptText = getDefaultTextTypePrompt(textType);
@@ -1647,6 +1690,8 @@ export async function generatePassagePromptFromDB(
         .replace('{maintopic}', maintopic)
         .replace('{subtopic}', subtopic)
         .replace('{keyword}', keyword)
+        .replace('{keywords_for_passages}', keywords_for_passages || '')
+        .replace('{keywords_for_questions}', keywords_for_questions || '')
         .replace('{text_type_prompt}', textTypePromptText)
         .replace('{output_format}', outputFormatPrompt || `다음 JSON 형식으로만 출력하십시오:
 {
@@ -1728,10 +1773,22 @@ ${keyword}
         console.log(`📄 Text type prompt found: ${textTypePrompt ? 'YES (' + textTypePrompt.length + ' chars)' : 'NO - using default'}`);
         
         if (textTypePrompt) {
+          // 폴백 경우에도 textType 프롬프트에 변수 치환 적용
+          const processedTextTypePrompt = textTypePrompt
+            .replace('{keywords_for_passages}', keywords_for_passages || '')
+            .replace('{keywords_for_questions}', keywords_for_questions || '')
+            .replace('{keyword}', keyword)
+            .replace('{maintopic}', maintopic)
+            .replace('{subtopic}', subtopic)
+            .replace('{area}', area)
+            .replace('{subject}', subject)
+            .replace('{grade}', grade);
+          
           prompt += `
 
 ###글의 유형
-${textTypePrompt}`;
+${processedTextTypePrompt}`;
+          console.log('✅ Fallback text type prompt에 변수 치환 적용됨');
         } else {
           console.log(`⚠️ No server prompt for text type '${textType}', using hardcoded fallback`);
           const defaultTextTypePrompt = getDefaultTextTypePrompt(textType);
@@ -1759,11 +1816,18 @@ ${outputFormatPrompt || `다음 JSON 형식으로만 출력하십시오:
 }`}`;
     }
 
+    // 최종 프롬프트 변수 치환 확인
+    console.log('🎯 최종 생성된 프롬프트 변수 치환 확인:');
+    console.log('- {keywords_for_passages} 포함여부:', prompt.includes('{keywords_for_passages}') ? '❌ 미치환' : '✅ 치환완료');
+    console.log('- {keywords_for_questions} 포함여부:', prompt.includes('{keywords_for_questions}') ? '❌ 미치환' : '✅ 치환완료');
+    console.log('- keywords_for_passages 값:', keywords_for_passages || 'undefined');
+    console.log('- keywords_for_questions 값:', keywords_for_questions || 'undefined');
+
     return prompt;
   } catch (error) {
     console.error('DB 프롬프트 생성 실패, 기본 함수 사용:', error);
     // 실패 시 기존 함수 사용
-    return generatePassagePrompt(division, length, subject, grade, area, maintopic, subtopic, keyword, textType);
+    return generatePassagePrompt(division, length, subject, grade, area, maintopic, subtopic, keyword, textType, keywords_for_passages, keywords_for_questions);
   }
 }
 

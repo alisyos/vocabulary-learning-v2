@@ -37,6 +37,8 @@ export interface FieldData {
   maintopic: string;
   subtopic: string;
   keyword: string;
+  keywords_for_passages?: string;
+  keywords_for_questions?: string;
 }
 
 // 지문 생성 입력값 (업데이트됨)
@@ -49,6 +51,8 @@ export interface PassageInput {
   maintopic: string;        // 대주제
   subtopic: string;         // 소주제
   keyword: string;          // 핵심 개념어
+  keywords_for_passages?: string; // 지문용 키워드
+  keywords_for_questions?: string; // 문제용 키워드
   textType?: TextType;      // 유형 (선택사항)
 }
 

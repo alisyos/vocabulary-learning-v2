@@ -137,10 +137,16 @@ export async function POST(request: NextRequest) {
       body.maintopic,
       body.subtopic,
       body.keyword,
-      body.textType
+      body.textType,
+      body.keywords_for_passages,
+      body.keywords_for_questions
     );
 
     console.log('Generated prompt:', prompt);
+    console.log('🔍 프롬프트 변수 치환 상태 확인:');
+    console.log('- keywords_for_passages:', body.keywords_for_passages);
+    console.log('- keywords_for_questions:', body.keywords_for_questions);
+    console.log('- 치환된 프롬프트 내용 확인:', prompt.includes('{keywords_for_passages}') ? '❌ 미치환' : '✅ 치환완료');
     console.log(`🎯 선택된 모델: ${model}`);
 
     // GPT API 호출 (모델 파라미터 포함)
