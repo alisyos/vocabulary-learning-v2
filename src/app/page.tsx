@@ -472,6 +472,7 @@ export default function Home() {
                   editablePassage={editablePassage}
                   division={input.division || ''}
                   keywords={input.keyword}
+                  keywords_for_questions={input.keywords_for_questions}
                   vocabularyQuestions={vocabularyQuestions}
                   onUpdate={handleVocabularyGenerated}
                   onNext={() => {}} // 생성 단계에서는 사용 안함
@@ -491,6 +492,7 @@ export default function Home() {
                 editablePassage={editablePassage}
                 division={input.division || ''}
                 keywords={input.keyword}
+                keywords_for_questions={input.keywords_for_questions}
                 vocabularyQuestions={vocabularyQuestions}
                 onUpdate={handleVocabularyUpdate}
                 onNext={handleMoveToParagraphGeneration}

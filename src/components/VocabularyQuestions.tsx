@@ -8,6 +8,7 @@ interface VocabularyQuestionsProps {
   editablePassage: EditablePassage;
   division: string;
   keywords?: string; // 1단계에서 입력한 핵심 개념어
+  keywords_for_questions?: string; // 어휘문제용 키워드
   vocabularyQuestions: VocabularyQuestion[];
   onUpdate: (questions: VocabularyQuestion[], usedPrompt?: string) => void;
   onNext: () => void;
@@ -20,6 +21,7 @@ export default function VocabularyQuestions({
   editablePassage,
   division,
   keywords,
+  keywords_for_questions,
   vocabularyQuestions,
   onUpdate,
   onNext,
@@ -57,22 +59,26 @@ export default function VocabularyQuestions({
     return editablePassage.footnote || [];
   };
 
-  // 핵심 개념어와 매칭되는 용어들 찾기
+  // 어휘문제용 키워드와 매칭되는 용어들 찾기
   const getMatchedTerms = () => {
-    console.log('=== 핵심 개념어 매칭 디버깅 ===');
-    console.log('keywords:', keywords);
+    console.log('=== 어휘문제용 키워드 매칭 디버깅 ===');
+    console.log('keywords_for_questions:', keywords_for_questions);
+    console.log('keywords (fallback):', keywords);
     
     const allFootnotes = getAllFootnotes();
     console.log('allFootnotes:', allFootnotes);
     
-    if (!keywords || keywords.trim() === '') {
-      console.log('keywords가 없어서 빈 배열 반환');
+    // keywords_for_questions가 있으면 우선 사용, 없으면 기존 keywords 사용
+    const targetKeywords = keywords_for_questions || keywords;
+    
+    if (!targetKeywords || targetKeywords.trim() === '') {
+      console.log('어휘문제용 키워드가 없어서 빈 배열 반환');
       return [];
     }
     
     // keywords를 쉼표 또는 슬래시로 분리하고 정규화
-    const keywordList = keywords.split(/[,/]/).map(k => k.trim().toLowerCase()).filter(k => k.length > 0);
-    console.log('keywordList:', keywordList);
+    const keywordList = targetKeywords.split(/[,/]/).map(k => k.trim().toLowerCase()).filter(k => k.length > 0);
+    console.log('keywordList (어휘문제용):', keywordList);
     
     if (keywordList.length === 0) {
       console.log('유효한 키워드가 없어서 빈 배열 반환');
