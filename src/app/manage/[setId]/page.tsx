@@ -478,6 +478,18 @@ ${allParagraphs}`;
 
     const { contentSet } = data.data;
     
+    // 문단 문제 유형명 매핑 함수
+    const getParagraphQuestionTypeLabel = (type: string): string => {
+      const typeMap: { [key: string]: string } = {
+        '빈칸 채우기': '빈칸 채우기',
+        '주관식 단답형': '주관식',
+        '어절 순서 맞추기': '문장 완성하기',
+        'OX문제': 'OX퀴즈',
+        '객관식 일반형': '객관식'
+      };
+      return typeMap[type] || type;
+    };
+    
     // 종합문제를 세트별로 그룹화 (HTML ver.1과 동일한 방식)
     const questionSets: { [key: string]: typeof editableComprehensive } = {};
     
@@ -613,8 +625,9 @@ ${allParagraphs}`;
     // 문단문제 유형별 분포 계산 (HTML ver.1과 동일한 방식)
     const paragraphTypeStats = editableParagraphQuestions.reduce((acc, question) => {
       // 여러 필드명을 시도해서 실제 유형을 찾음
-      const type = question.questionType || question.question_type || question.type || '기타';
-      console.log('문단 문제 유형 디버깅:', { question, type }); // 디버깅용
+      const originalType = question.questionType || question.question_type || question.type || '기타';
+      const type = getParagraphQuestionTypeLabel(originalType);
+      console.log('문단 문제 유형 디버깅:', { question, originalType, type }); // 디버깅용
       if (!acc[type]) {
         acc[type] = 0;
       }
@@ -1011,14 +1024,20 @@ ${allParagraphs}`;
           <h3>기본 정보</h3>
           <p><strong>과목:</strong> ${contentSet.subject} / ${contentSet.grade} / ${contentSet.area}</p>
           <p><strong>주제:</strong> ${contentSet.mainTopic || contentSet.maintopic || 'N/A'} > ${contentSet.subTopic || contentSet.subtopic || 'N/A'}</p>
-          <p><strong>핵심 개념어:</strong> ${contentSet.keywords || contentSet.keyword || 'N/A'}</p>
+          <p><strong>핵심어:</strong> ${vocabularyTermsData.filter(term => term.has_question_generated === true).map(term => term.term).join(', ') || 'N/A'}</p>
         </div>
         
         <div class="info-card">
           <h3>생성 정보</h3>
           <p><strong>교육과정:</strong> ${contentSet.division || contentSet.curriculum || 'N/A'}</p>
           <p><strong>지문길이:</strong> ${contentSet.passageLength || '정보 없음'}</p>
-          <p><strong>유형:</strong> ${contentSet.textType || '선택안함'}</p>
+          <p><strong>유형:</strong> ${(() => {
+            const textType = contentSet.textType;
+            if (textType === '기행문') return '설명문 – 초등 중학년';
+            if (textType === '논설문') return '설명문 – 초등 고학년';
+            if (textType === '설명문') return '설명문 – 중학생';
+            return textType || '선택안함';
+          })()}</p>
         </div>
         
         <div class="info-card">
@@ -1420,7 +1439,7 @@ ${allParagraphs}`;
             <div class="question-container">
               <div class="question-header">
                 <span class="question-number">문단 문제 ${q.question_number || q.questionNumber}</span>
-                <span class="question-type">${q.question_type || q.questionType}</span>
+                <span class="question-type">${getParagraphQuestionTypeLabel(q.question_type || q.questionType || '')}</span>
               </div>
               
               <!-- 관련 문단 번호 -->
@@ -1432,7 +1451,7 @@ ${allParagraphs}`;
               <div class="question-text" style="margin: 15px 0; font-weight: bold;">${q.question}</div>
               
               <!-- 문제 유형별 추가 정보 (어절들, 선택지) -->
-              ${(q.question_type || q.questionType) === '어절 순서 맞추기' ? `
+              ${(q.question_type || q.questionType) === '어절 순서 맞추기' || (q.question_type || q.questionType) === '문장 완성하기' ? `
                 <div style="margin: 15px 0; padding: 15px; background-color: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
                   <div style="font-weight: bold; color: #495057; margin-bottom: 12px; font-size: 0.95em;">
                     어절 목록:
@@ -1462,7 +1481,7 @@ ${allParagraphs}`;
                 </div>
               ` : ''}
               
-              ${q.options && q.options.length > 0 && (q.question_type || q.questionType) !== '어절 순서 맞추기' ? (
+              ${q.options && q.options.length > 0 && (q.question_type || q.questionType) !== '어절 순서 맞추기' && (q.question_type || q.questionType) !== '문장 완성하기' ? (
                 (q.question_type || q.questionType) === 'OX문제' ? `
                   <div class="options" style="margin: 15px 0;">
                     <div style="font-weight: bold; margin-bottom: 10px;">선택지:</div>
