@@ -91,26 +91,26 @@ export async function POST(request: NextRequest) {
 
     const supplementaryModel = body.model || 'gpt-4.1';
     
-    // 🎯 각 기본 문제당 2개의 보완 문제를 병렬로 생성
-    const supplementaryPromises = body.basicQuestions.flatMap((originalQuestion, originalIndex) => {
-      return [1, 2].map(async (supIndex) => {
-        try {
-          // 보완 문제용 프롬프트 생성 (DB에서 필요한 프롬프트만 조회)
-          const { getPromptFromDB, getDivisionSubCategory, getDivisionKey, getComprehensiveTypeKey } = await import('@/lib/prompts');
-          
-          // DB에서 구분 프롬프트와 문제 유형 프롬프트만 조회
-          const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(body.division), getDivisionKey(body.division));
-          const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', getComprehensiveTypeKey(originalQuestion.type));
-          
-          console.log(`🔄 Background generating supplementary question ${supIndex} for ${originalQuestion.type}`);
-          
-          // 보완 문제 전용 프롬프트 (단일 문제 생성에 특화)
-          const supplementaryPrompt = `###지시사항
-다음 종합 문제의 보완 문제 ${supIndex}번을 생성해주세요.
-- 원본 문제와 같은 유형이지만 다른 관점에서 접근
+    // 🎯 각 기본 문제당 1번 호출로 2개의 보완 문제를 생성
+    const supplementaryPromises = body.basicQuestions.map(async (originalQuestion, originalIndex) => {
+      try {
+        // 보완 문제용 프롬프트 생성 (DB에서 필요한 프롬프트만 조회)
+        const { getPromptFromDB, getDivisionSubCategory, getDivisionKey, getComprehensiveTypeKey } = await import('@/lib/prompts');
+        
+        // DB에서 구분 프롬프트와 문제 유형 프롬프트만 조회
+        const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(body.division), getDivisionKey(body.division));
+        const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', getComprehensiveTypeKey(originalQuestion.type));
+        
+        console.log(`🔄 Background generating 2 supplementary questions for ${originalQuestion.type}`);
+        
+        // 보완 문제 전용 프롬프트 (2개 문제 동시 생성에 특화)
+        const supplementaryPrompt = `###지시사항
+다음 종합 문제의 보완 문제 2개를 생성해주세요.
+- 원본 문제와 같은 유형이지만 서로 다른 관점에서 접근
 - 학습 강화를 위한 추가 연습 문제로 제작
 - 오답 시 학습에 도움이 되는 내용으로 구성
 - 지문에 직접 언급된 내용이나 논리적으로 추론 가능한 내용만 활용
+- 2개 문제는 서로 다른 내용과 접근 방식을 가져야 함
 
 ###원본 문제 정보
 - 유형: ${originalQuestion.type}
@@ -127,14 +127,23 @@ ${divisionPrompt || `${body.division}에 적합한 난이도로 조절`}
 ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
 
 ###출력 형식 (JSON)
-다음 JSON 형식으로 정확히 1개 문제만 생성하십시오:
-{
-  "question": "질문 내용",
-  "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
-  "answer": "정답",
-  "answerInitials": "초성 힌트 (단답형일 때만, 예: ㅈㄹㅎㅁ)",
-  "explanation": "해설"
-}
+다음 JSON 배열 형식으로 정확히 2개 문제를 생성하십시오:
+[
+  {
+    "question": "첫 번째 보완 문제 내용",
+    "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
+    "answer": "정답",
+    "answerInitials": "초성 힌트 (단답형일 때만, 예: ㅈㄹㅎㅁ)",
+    "explanation": "해설"
+  },
+  {
+    "question": "두 번째 보완 문제 내용",
+    "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
+    "answer": "정답",
+    "answerInitials": "초성 힌트 (단답형일 때만, 예: ㅈㄹㅎㅁ)",
+    "explanation": "해설"
+  }
+]
 
 ###주의사항
 - 반드시 위의 JSON 형식을 정확히 준수하십시오
@@ -145,64 +154,106 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
           
           const supplementaryResult = await generateQuestion(supplementaryPrompt, supplementaryModel);
           
-          // 보완 문제 결과 파싱
-          let supplementaryQuestion = null;
+          // 보완 문제 결과 파싱 (2개 문제 배열 처리)
+          let supplementaryQuestions: any[] = [];
           
           if (supplementaryResult && typeof supplementaryResult === 'object') {
             if ('raw' in supplementaryResult) {
               try {
                 const rawText = supplementaryResult.raw as string;
-                const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                  supplementaryQuestion = JSON.parse(jsonMatch[0]);
+                console.log(`📝 Raw response for ${originalQuestion.type}:`, rawText.substring(0, 500) + '...');
+                
+                // 배열 패턴 먼저 찾기
+                const arrayMatch = rawText.match(/\[[\s\S]*\]/);
+                if (arrayMatch) {
+                  const parsedArray = JSON.parse(arrayMatch[0]);
+                  if (Array.isArray(parsedArray)) {
+                    supplementaryQuestions = parsedArray;
+                    console.log(`✅ Successfully parsed ${supplementaryQuestions.length} supplementary questions`);
+                  }
+                } else {
+                  // 배열이 없으면 개별 JSON 객체 찾기 (fallback)
+                  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+                  if (jsonMatch) {
+                    const singleQuestion = JSON.parse(jsonMatch[0]);
+                    supplementaryQuestions = [singleQuestion];
+                    console.log(`⚠️ Got single question instead of array, wrapping in array`);
+                  }
                 }
               } catch (parseError) {
                 console.error(`Failed to parse supplementary raw response:`, parseError);
               }
+            } else if (Array.isArray(supplementaryResult)) {
+              supplementaryQuestions = supplementaryResult;
             } else if ('question' in supplementaryResult) {
-              supplementaryQuestion = supplementaryResult;
+              supplementaryQuestions = [supplementaryResult];
             }
           }
           
-          if (supplementaryQuestion?.question) {
-            return {
-              id: `comp_bg_sup_${originalQuestion.id}_${supIndex}_${Date.now()}_${originalIndex}`,
-              type: originalQuestion.type,
-              question: supplementaryQuestion.question,
-              options: supplementaryQuestion.options,
-              answer: supplementaryQuestion.answer,
-              answerInitials: supplementaryQuestion.answerInitials || undefined,
-              explanation: supplementaryQuestion.explanation || '보완 문제입니다.',
-              isSupplementary: true,
-              originalQuestionId: originalQuestion.id,
-              success: true
-            };
+          // 2개 문제를 각각 ComprehensiveQuestion 형식으로 변환
+          const generatedQuestions = [];
+          for (let i = 0; i < Math.min(supplementaryQuestions.length, 2); i++) {
+            const supQ = supplementaryQuestions[i];
+            if (supQ?.question) {
+              generatedQuestions.push({
+                id: `comp_bg_sup_${originalQuestion.id}_${i + 1}_${Date.now()}_${originalIndex}`,
+                type: originalQuestion.type,
+                question: supQ.question,
+                options: supQ.options,
+                answer: supQ.answer,
+                answerInitials: supQ.answerInitials || undefined,
+                explanation: supQ.explanation || '보완 문제입니다.',
+                isSupplementary: true,
+                originalQuestionId: originalQuestion.id,
+                success: true
+              });
+            }
+          }
+          
+          if (generatedQuestions.length > 0) {
+            console.log(`✅ Generated ${generatedQuestions.length} supplementary questions for ${originalQuestion.type}`);
+            return generatedQuestions;
           } else {
-            throw new Error('No valid supplementary question generated');
+            throw new Error('No valid supplementary questions generated');
           }
           
         } catch (supError) {
-          console.error(`❌ Background error generating supplementary question ${supIndex} for ${originalQuestion.id}:`, supError);
+          console.error(`❌ Background error generating supplementary questions for ${originalQuestion.id}:`, supError);
           
-          // 실패 시 기본 보완 문제 생성
-          return {
-            id: `comp_bg_sup_fallback_${originalQuestion.id}_${supIndex}_${Date.now()}_${originalIndex}`,
-            type: originalQuestion.type,
-            question: `${originalQuestion.type} 보완 문제 ${supIndex} (배경 생성)`,
-            options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
-            answer: '선택지 1',
-            explanation: '보완 문제 배경 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.',
-            isSupplementary: true,
-            originalQuestionId: originalQuestion.id,
-            success: false,
-            error: supError
-          };
+          // 실패 시 기본 보완 문제 2개 생성
+          return [
+            {
+              id: `comp_bg_sup_fallback_${originalQuestion.id}_1_${Date.now()}_${originalIndex}`,
+              type: originalQuestion.type,
+              question: `${originalQuestion.type} 보완 문제 1 (배경 생성)`,
+              options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
+              answer: '선택지 1',
+              explanation: '보완 문제 배경 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.',
+              isSupplementary: true,
+              originalQuestionId: originalQuestion.id,
+              success: false,
+              error: supError
+            },
+            {
+              id: `comp_bg_sup_fallback_${originalQuestion.id}_2_${Date.now()}_${originalIndex}`,
+              type: originalQuestion.type,
+              question: `${originalQuestion.type} 보완 문제 2 (배경 생성)`,
+              options: ['선택지 1', '선택지 2', '선택지 3', '선택지 4', '선택지 5'],
+              answer: '선택지 1',
+              explanation: '보완 문제 배경 생성 중 오류가 발생하여 기본 문제로 대체되었습니다.',
+              isSupplementary: true,
+              originalQuestionId: originalQuestion.id,
+              success: false,
+              error: supError
+            }
+          ];
         }
       });
-    });
     
-    // 🎯 모든 보완 문제를 병렬로 생성하고 결과 수집
-    const supplementaryResults = await Promise.all(supplementaryPromises);
+    // 🎯 모든 보완 문제를 병렬로 생성하고 결과 수집 (배열 flatten)
+    const supplementaryResultArrays = await Promise.all(supplementaryPromises);
+    const supplementaryResults = supplementaryResultArrays.flat(); // 2차원 배열을 1차원으로 flatten
+    
     console.log(`✅ Background supplementary generation completed. Results:`, supplementaryResults.map(r => ({ 
       id: r.id, 
       type: r.type,
@@ -211,7 +262,11 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
     
     // 성공한 보완 문제들만 추가 (타입 안전성을 위해 필터링)
     const validSupplementaryQuestions = supplementaryResults.filter(result => result.id).map(result => {
-      const { success, error, ...question } = result;
+      const { success, ...question } = result;
+      // error 속성은 있을 수도 없을 수도 있으므로 별도 처리
+      if ('error' in question) {
+        delete (question as any).error;
+      }
       return question as ComprehensiveQuestion;
     });
     

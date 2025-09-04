@@ -374,10 +374,10 @@ export async function POST(request: NextRequest) {
 
     console.log('❓ VocabularyQuestions 데이터 변환 완료:', transformedVocabularyQuestions.length, '개');
 
-    // Transform paragraph questions with safe handling
+    // Transform paragraph questions with safe handling - allow empty for comprehensive-only workflow
     let transformedParagraphQuestions: Omit<ParagraphQuestionDB, 'id' | 'content_set_id' | 'created_at'>[] = [];
     
-    if (paragraphQuestions && Array.isArray(paragraphQuestions)) {
+    if (paragraphQuestions && Array.isArray(paragraphQuestions) && paragraphQuestions.length > 0) {
       console.log('📄 원본 문단문제 데이터:', JSON.stringify(paragraphQuestions, null, 2));
       
       transformedParagraphQuestions = paragraphQuestions.map((q: any, index: number) => {
@@ -438,7 +438,7 @@ export async function POST(request: NextRequest) {
         return result;
       });
     } else {
-      console.log('📄 문단문제 데이터가 없거나 배열이 아닙니다:', paragraphQuestions);
+      console.log('📄 문단문제 데이터가 없습니다 (종합문제 전용 워크플로우):', paragraphQuestions);
     }
 
     console.log('📄 ParagraphQuestions 데이터 변환 완료:', transformedParagraphQuestions.length, '개');

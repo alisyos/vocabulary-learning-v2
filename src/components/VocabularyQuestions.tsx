@@ -29,17 +29,80 @@ export default function VocabularyQuestions({
   currentStep,
   lastUsedPrompt = ''
 }: VocabularyQuestionsProps) {
-  const [localQuestions, setLocalQuestions] = useState<VocabularyQuestion[]>(vocabularyQuestions);
+  // 초기 state에도 기본값 보장
+  const [localQuestions, setLocalQuestions] = useState<VocabularyQuestion[]>(() => {
+    return vocabularyQuestions.map(question => ({
+      ...question,
+      difficulty: question.difficulty || '일반'
+    }));
+  });
   const [generatingVocab, setGeneratingVocab] = useState(false);
+  
+  // props 변경 시 local state 동기화 (기본값 보장)
+  useEffect(() => {
+    // props에서 받은 문제들에 difficulty 기본값 보장 및 고유 ID 확인
+    const questionsWithDefaults = vocabularyQuestions.map((question, index) => ({
+      ...question,
+      id: question.id || `vocab_init_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+      difficulty: question.difficulty || '일반' // undefined인 경우 '일반'으로 설정
+    }));
+    
+    // ID 중복 체크
+    const idCounts = questionsWithDefaults.reduce((acc, q) => {
+      acc[q.id] = (acc[q.id] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const duplicateIds = Object.entries(idCounts).filter(([_, count]) => count > 1);
+    if (duplicateIds.length > 0) {
+      console.error('⚠️ Initial duplicate IDs detected:', duplicateIds);
+      
+      // 중복된 ID를 가진 문제들에 새로운 고유 ID 할당
+      const seenIds = new Set<string>();
+      const uniqueQuestions = questionsWithDefaults.map((q, idx) => {
+        if (seenIds.has(q.id)) {
+          return {
+            ...q,
+            id: `vocab_fixed_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 9)}`
+          };
+        }
+        seenIds.add(q.id);
+        return q;
+      });
+      
+      setLocalQuestions(uniqueQuestions);
+    } else {
+      setLocalQuestions(questionsWithDefaults);
+    }
+  }, [vocabularyQuestions]);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<VocabularyQuestionType[]>(Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[]);
   const [selectedTerm, setSelectedTerm] = useState<string>('');
   
-  // 🚀 병렬 처리 진행률 추적을 위한 state
+  // 🚀 병렬 스트리밍 진행률 추적을 위한 state
   const [generationProgress, setGenerationProgress] = useState<string>('');
+  const [typeProgress, setTypeProgress] = useState<Record<string, { progress: number; status: string }>>({});
   
   // 초기 용어 순서를 기억하기 위한 state
   const [termOrder, setTermOrder] = useState<string[]>([]);
+  
+  // 병렬 스트리밍 진행률 실시간 업데이트
+  useEffect(() => {
+    if (generatingVocab && Object.keys(typeProgress).length > 0) {
+      const totalTypes = Object.keys(typeProgress).length;
+      const completedTypes = Object.values(typeProgress).filter(p => p.progress === 100).length;
+      const totalProgress = Object.values(typeProgress).reduce((sum, p) => sum + p.progress, 0);
+      const averageProgress = totalProgress / totalTypes;
+      
+      if (completedTypes === totalTypes) {
+        setGenerationProgress(`🎉 병렬 스트리밍 완료: ${totalTypes}개 유형 모두 생성됨`);
+      } else {
+        setGenerationProgress(
+          `병렬 스트리밍 진행률: ${Math.round(averageProgress)}% (${completedTypes}/${totalTypes} 유형 완료)`
+        );
+      }
+    }
+  }, [typeProgress, generatingVocab]);
   
   // 2개 지문 형식에서 모든 footnote 통합하여 가져오기
   const getAllFootnotes = () => {
@@ -135,7 +198,7 @@ export default function VocabularyQuestions({
       .filter(Boolean);
   };
 
-  // 어휘 문제 생성
+  // 어휘 문제 생성 (스트리밍 지원)
   const handleGenerateVocabulary = async () => {
     const selectedTermsList = getSelectedTerms();
     
@@ -155,41 +218,69 @@ export default function VocabularyQuestions({
       // 로컬 스토리지에서 선택된 모델 가져오기
       const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
       
-      // 모든 문제를 저장할 배열
-      console.log(`🚀 ${selectedQuestionTypes.length}개 문제 유형을 병렬로 생성 시작`);
-      setGenerationProgress(`${selectedQuestionTypes.length}개 문제 유형을 동시에 생성 중...`);
+      // 병렬 스트리밍 초기화
+      console.log(`🚀 ${selectedQuestionTypes.length}개 문제 유형을 병렬 스트리밍으로 생성 시작`);
       
-      // 병렬 처리: 모든 문제 유형을 동시에 생성
-      const generationPromises = selectedQuestionTypes.map(async (questionType, index) => {
-        console.log(`🎯 생성 중인 문제 유형 (${index + 1}/${selectedQuestionTypes.length}): ${questionType}`);
-        setGenerationProgress(`${questionType} 문제 생성 중... (${index + 1}/${selectedQuestionTypes.length})`);
+      // 각 문제 유형별 진행률 초기화
+      const initialProgress: Record<string, { progress: number; status: string }> = {};
+      selectedQuestionTypes.forEach(type => {
+        initialProgress[type] = { progress: 0, status: '대기 중' };
+      });
+      setTypeProgress(initialProgress);
+      setGenerationProgress(`${selectedQuestionTypes.length}개 문제 유형을 병렬 스트리밍으로 생성 중...`);
+      
+      // 지문 데이터 구성 (공통)
+      let passageText = '';
+      if (editablePassage.passages && editablePassage.passages.length > 0) {
+        // 2개 지문 형식
+        passageText = editablePassage.passages.map((passage, index) => 
+          `[지문 ${index + 1}]\n${passage.title}\n\n${passage.paragraphs.join('\n\n')}`
+        ).join('\n\n---\n\n');
+      } else {
+        // 단일 지문 형식 (기존)
+        passageText = `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`;
+      }
+
+      // 병렬 처리: 용어별 × 문제유형별로 개별 통신 (30개 통신)
+      const allCombinations: Array<{term: string, questionType: string, key: string}> = [];
+      selectedTermsList.forEach(term => {
+        selectedQuestionTypes.forEach(questionType => {
+          allCombinations.push({
+            term,
+            questionType,
+            key: `${term}_${questionType}`
+          });
+        });
+      });
+
+      console.log(`🚀 총 ${allCombinations.length}개 개별 문제를 병렬 생성 시작`);
+
+      // 각 개별 문제별 진행률 초기화  
+      const initialIndividualProgress: Record<string, { progress: number; status: string }> = {};
+      allCombinations.forEach(({key}) => {
+        initialIndividualProgress[key] = { progress: 0, status: '대기 중' };
+      });
+      setTypeProgress(initialIndividualProgress);
+      setGenerationProgress(`총 ${allCombinations.length}개 개별 문제를 병렬 생성 중...`);
+
+      const generationPromises = allCombinations.map(async ({term, questionType, key}, index) => {
+        console.log(`🎯 개별 문제 병렬 생성 시작 (${index + 1}/${allCombinations.length}): ${term} - ${questionType}`);
         
         try {
-          // 지문 데이터 구성 (2개 지문 형식 지원)
-          let passageText = '';
-          if (editablePassage.passages && editablePassage.passages.length > 0) {
-            // 2개 지문 형식
-            passageText = editablePassage.passages.map((passage, index) => 
-              `[지문 ${index + 1}]\n${passage.title}\n\n${passage.paragraphs.join('\n\n')}`
-            ).join('\n\n---\n\n');
-          } else {
-            // 단일 지문 형식 (기존)
-            passageText = `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`;
-          }
-          
-          console.log('📝 Sending passage to API:', {
-            passageLength: passageText.length,
-            hasMultiplePassages: !!(editablePassage.passages && editablePassage.passages.length > 0),
-            passagePreview: passageText.substring(0, 100) + '...'
-          });
+          // 해당 문제 상태를 '생성 중'으로 업데이트
+          setTypeProgress(prev => ({
+            ...prev,
+            [key]: { progress: 0, status: '생성 중' }
+          }));
 
-          const response = await fetch('/api/generate-vocabulary', {
+          // 개별 용어만 전송
+          const response = await fetch('/api/generate-vocabulary-stream', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              terms: selectedTermsList,
+              terms: [term], // 단일 용어만 전송
               passage: passageText,
               division: division,
               questionType: questionType,
@@ -198,41 +289,115 @@ export default function VocabularyQuestions({
           });
 
           if (!response.ok) {
-            console.error(`❌ ${questionType} 문제 생성 실패`);
-            return { questionType, questions: [], usedPrompt: '', success: false };
+            console.error(`❌ ${term} - ${questionType} 문제 생성 실패`);
+            setTypeProgress(prev => ({
+              ...prev,
+              [key]: { progress: 0, status: '실패' }
+            }));
+            return { term, questionType, key, questions: [], usedPrompt: '', success: false };
           }
 
-          const result = await response.json();
-          const questions = result.vocabularyQuestions || [];
+          // 스트리밍 응답 처리
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          if (!reader) {
+            throw new Error('스트리밍 응답을 읽을 수 없습니다.');
+          }
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') continue;
+                
+                try {
+                  const parsed = JSON.parse(data);
+                  
+                  if (parsed.type === 'start') {
+                    setTypeProgress(prev => ({
+                      ...prev,
+                      [key]: { progress: 10, status: '시작됨' }
+                    }));
+                  } else if (parsed.type === 'progress') {
+                    // 진행률을 텍스트 길이 기반으로 계산 (10% ~ 90%)
+                    const progressPercent = Math.min(90, 10 + Math.floor((parsed.totalChars || 0) / 100));
+                    setTypeProgress(prev => ({
+                      ...prev,
+                      [key]: { 
+                        progress: progressPercent, 
+                        status: `생성 중 (${parsed.totalChars || 0}자)` 
+                      }
+                    }));
+                  } else if (parsed.type === 'complete') {
+                    console.log(`✅ ${term} - ${questionType} 문제 ${parsed.vocabularyQuestions?.length || 0}개 생성 완료`);
+                    setTypeProgress(prev => ({
+                      ...prev,
+                      [key]: { 
+                        progress: 100, 
+                        status: `완료 (${parsed.vocabularyQuestions?.length || 0}개)` 
+                      }
+                    }));
+                    return {
+                      term,
+                      questionType,
+                      key,
+                      questions: parsed.vocabularyQuestions || [],
+                      usedPrompt: parsed._metadata?.usedPrompt || '',
+                      success: true
+                    };
+                  } else if (parsed.type === 'error') {
+                    console.error(`❌ ${term} - ${questionType} 스트리밍 오류:`, parsed.error);
+                    setTypeProgress(prev => ({
+                      ...prev,
+                      [key]: { progress: 0, status: '오류' }
+                    }));
+                    return { term, questionType, key, questions: [], usedPrompt: '', success: false };
+                  }
+                } catch (e) {
+                  console.error('파싱 오류:', e);
+                }
+              }
+            }
+          }
+
+          // 스트리밍이 완료되었지만 complete 메시지를 받지 못한 경우
+          return { term, questionType, key, questions: [], usedPrompt: '', success: false };
           
-          console.log(`✅ ${questionType} 문제 ${questions.length}개 생성 완료`);
-          
-          return {
-            questionType,
-            questions,
-            usedPrompt: result._metadata?.usedPrompt || '',
-            success: true
-          };
         } catch (error) {
-          console.error(`❌ ${questionType} 문제 생성 중 오류:`, error);
-          return { questionType, questions: [], usedPrompt: '', success: false };
+          console.error(`❌ ${term} - ${questionType} 문제 생성 중 오류:`, error);
+          return { term, questionType, key, questions: [], usedPrompt: '', success: false };
         }
       });
       
-      // 모든 병렬 요청 완료 대기
+      // 모든 병렬 스트리밍 완료 대기
       const generationResults = await Promise.all(generationPromises);
       
       // 결과 집계
       const allQuestions: VocabularyQuestion[] = [];
       let lastUsedPrompt = '';
       let successCount = 0;
+      let questionIndex = 0;
       
       for (const result of generationResults) {
         if (result.success && result.questions.length > 0) {
-          allQuestions.push(...result.questions);
+          // 각 문제에 고유한 ID 할당
+          const questionsWithUniqueIds = result.questions.map((q, idx) => ({
+            ...q,
+            id: q.id || `vocab_${Date.now()}_${questionIndex++}_${idx}_${Math.random().toString(36).substr(2, 9)}`
+          }));
+          allQuestions.push(...questionsWithUniqueIds);
           successCount++;
           
-          // 첫 번째 성공한 유형의 프롬프트를 저장
+          // 첫 번째 성공한 개별 문제의 프롬프트를 저장
           if (!lastUsedPrompt && result.usedPrompt) {
             lastUsedPrompt = result.usedPrompt;
             console.log('📋 Received prompt from API:', {
@@ -243,8 +408,20 @@ export default function VocabularyQuestions({
         }
       }
       
-      console.log(`🎉 병렬 생성 완료: ${successCount}/${selectedQuestionTypes.length}개 유형 성공, 총 ${allQuestions.length}개 문제 생성`);
-      setGenerationProgress(`🎉 생성 완료: 총 ${allQuestions.length}개 문제 (${successCount}/${selectedQuestionTypes.length} 유형 성공)`);
+      console.log(`🎉 개별 문제 병렬 생성 완료: ${successCount}/${allCombinations.length}개 문제 성공, 총 ${allQuestions.length}개 문제 생성`);
+      
+      // ID 중복 체크
+      const idCounts = allQuestions.reduce((acc, q) => {
+        acc[q.id] = (acc[q.id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const duplicateIds = Object.entries(idCounts).filter(([_, count]) => count > 1);
+      if (duplicateIds.length > 0) {
+        console.error('⚠️ Duplicate IDs detected:', duplicateIds);
+      }
+      
+      setGenerationProgress(`🎉 생성 완료: 총 ${allQuestions.length}개 문제 (${successCount}/${allCombinations.length}개 성공)`);
       
       if (allQuestions.length === 0) {
         throw new Error('모든 문제 유형 생성에 실패했습니다.');
@@ -270,10 +447,34 @@ export default function VocabularyQuestions({
     }
   };
 
-  // 문제 수정
-  const handleQuestionUpdate = (index: number, field: keyof VocabularyQuestion, value: string | string[]) => {
-    const updated = [...localQuestions];
-    updated[index] = { ...updated[index], [field]: value };
+  // 문제 수정 - ID 기반으로 변경
+  const handleQuestionUpdate = (questionId: string, field: keyof VocabularyQuestion, value: string | string[]) => {
+    // 디버깅: 중복 ID 확인
+    const matchingQuestions = localQuestions.filter(q => q.id === questionId);
+    if (matchingQuestions.length > 1) {
+      console.error(`⚠️ Duplicate ID found: ${questionId}`, {
+        duplicateCount: matchingQuestions.length,
+        questions: matchingQuestions.map(q => ({ id: q.id, term: q.term, question_text: q.question_text }))
+      });
+    }
+    
+    const updated = localQuestions.map(q => 
+      q.id === questionId ? { ...q, [field]: value } : q
+    );
+    
+    // 디버깅: difficulty 필드 업데이트 시 로그 출력
+    if (field === 'difficulty') {
+      const originalQuestion = localQuestions.find(q => q.id === questionId);
+      const updatedQuestions = updated.filter(q => q.id === questionId);
+      console.log(`📝 Updating question difficulty:`, {
+        questionId,
+        oldValue: originalQuestion?.difficulty,
+        newValue: value,
+        updatedCount: updatedQuestions.length,
+        allQuestionIds: localQuestions.map(q => q.id)
+      });
+    }
+    
     setLocalQuestions(updated);
     onUpdate(updated);
   };
@@ -310,15 +511,17 @@ export default function VocabularyQuestions({
     onUpdate(updated);
   };
 
-  // 문제 삭제
-  const removeQuestion = (index: number) => {
+  // 문제 삭제 - ID 기반으로 변경
+  const removeQuestion = (questionId: string) => {
     if (localQuestions.length <= 1) {
       // 최소 1개의 문제는 있어야 하므로 삭제하지 않음
       return;
     }
     
-    const questionToDelete = localQuestions[index];
-    const updated = localQuestions.filter((_, i) => i !== index);
+    const questionToDelete = localQuestions.find(q => q.id === questionId);
+    if (!questionToDelete) return;
+    
+    const updated = localQuestions.filter(q => q.id !== questionId);
     
     // 현재 선택된 용어의 마지막 문제를 삭제하는 경우
     if (currentStep === 'review' && questionToDelete.term === selectedTerm) {
@@ -334,15 +537,22 @@ export default function VocabularyQuestions({
       }
     }
     
+    console.log(`🗑️ Removing question:`, {
+      questionId,
+      questionTerm: questionToDelete.term,
+      remainingCount: updated.length
+    });
+    
     setLocalQuestions(updated);
     onUpdate(updated);
   };
 
-  // 선택지 수정 (기존 인터페이스 지원을 위해 유지)
-  const handleOptionUpdate = (questionIndex: number, optionIndex: number, value: string) => {
-    const updated = [...localQuestions];
+  // 선택지 수정 - ID 기반으로 변경
+  const handleOptionUpdate = (questionId: string, optionIndex: number, value: string) => {
     const field = `option_${optionIndex + 1}` as keyof VocabularyQuestion;
-    updated[questionIndex] = { ...updated[questionIndex], [field]: value };
+    const updated = localQuestions.map(q => 
+      q.id === questionId ? { ...q, [field]: value } : q
+    );
     setLocalQuestions(updated);
     onUpdate(updated);
   };
@@ -559,34 +769,75 @@ export default function VocabularyQuestions({
         </div>
       </div>
 
-      {/* 어휘 문제 생성 로딩 모달 */}
+      {/* 어휘 문제 생성 로딩 모달 - 병렬 스트리밍 진행률 */}
       {generatingVocab && (
         <div 
           className="fixed inset-0 flex items-center justify-center z-50"
           style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
         >
-          <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
+          <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center max-w-lg w-full mx-4">
             {/* 로딩 스피너 */}
             <div className="w-12 h-12 border-3 border-gray-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
             
             {/* 메시지 */}
             <h3 className="text-lg font-medium text-gray-800 mb-1">
-              🚀 어휘 문제 병렬 생성 중
+              🚀 어휘 문제 병렬 스트리밍 중
             </h3>
-            <p className="text-sm text-gray-500 mb-2">
-              선택된 {selectedTerms.length}개 용어로 {selectedQuestionTypes.length}가지 유형의 문제를 <strong>동시에</strong> 생성하고 있습니다
+            <p className="text-sm text-gray-500 mb-4">
+              선택된 {selectedTerms.length}개 용어로 {selectedQuestionTypes.length}가지 유형의 문제를 <strong>동시 스트리밍</strong>으로 생성하고 있습니다
             </p>
-            <p className="text-xs text-green-600 mb-1">
-              🚀 병렬 처리로 약 85% 더 빠르게! (3-5초 예상)
-            </p>
-            <p className="text-xs text-gray-400">
-              선택된 유형: {selectedQuestionTypes.join(', ')}
-            </p>
+            
+            {/* 전체 진행률 */}
             {generationProgress && (
-              <p className="text-xs text-blue-600 mt-2 font-medium">
-                {generationProgress}
-              </p>
+              <div className="mb-4">
+                <p className="text-sm text-blue-600 font-medium mb-2">
+                  {generationProgress}
+                </p>
+                {Object.keys(typeProgress).length > 0 && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                      style={{ 
+                        width: `${Math.round(Object.values(typeProgress).reduce((sum, p) => sum + p.progress, 0) / Object.keys(typeProgress).length)}%` 
+                      }}
+                    ></div>
+                  </div>
+                )}
+              </div>
             )}
+            
+            {/* 개별 문제 유형별 진행률 */}
+            {Object.keys(typeProgress).length > 0 && (
+              <div className="space-y-2 text-left">
+                <h4 className="text-xs font-medium text-gray-700 mb-2 text-center">문제 유형별 진행률:</h4>
+                {Object.entries(typeProgress).map(([type, progress]) => (
+                  <div key={type} className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600 truncate flex-1 mr-2">{type}</span>
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                        <div 
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
+                            progress.progress === 100 ? 'bg-green-500' : 
+                            progress.progress > 0 ? 'bg-purple-500' : 'bg-gray-300'
+                          }`}
+                          style={{ width: `${progress.progress}%` }}
+                        ></div>
+                      </div>
+                      <span className={`text-xs w-12 text-right ${
+                        progress.progress === 100 ? 'text-green-600' : 
+                        progress.progress > 0 ? 'text-purple-600' : 'text-gray-400'
+                      }`}>
+                        {progress.progress}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <p className="text-xs text-green-600 mt-4">
+              🚀 병렬 스트리밍으로 빠르고 안정적! 타임아웃 방지 + 실시간 피드백
+            </p>
           </div>
         </div>
       )}
@@ -713,9 +964,6 @@ export default function VocabularyQuestions({
 
         <div className="space-y-6">
           {filteredQuestions.map((question, displayIndex) => {
-            // 실제 문제의 인덱스 찾기 (삭제/수정을 위해)
-            const qIndex = localQuestions.findIndex(q => q.id === question.id);
-            
             return (
               <div key={question.id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex justify-between items-start mb-4">
@@ -723,7 +971,7 @@ export default function VocabularyQuestions({
                   문제 {displayIndex + 1}
                 </h4>
                 <button
-                  onClick={() => removeQuestion(qIndex)}
+                  onClick={() => removeQuestion(question.id)}
                   className="text-red-500 hover:text-red-700 text-sm"
                   title="문제 삭제"
                 >
@@ -738,30 +986,32 @@ export default function VocabularyQuestions({
                     {question.question_type || question.questionType || '5지선다 객관식'}
                   </span>
                   
-                  {/* 기본/보완 문제 선택 */}
+                  {/* 기본/보완 문제 토글 스위치 */}
                   <div className="flex items-center space-x-2">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name={`difficulty_${question.id}`}
-                        value="일반"
-                        checked={question.difficulty === '일반'}
-                        onChange={(e) => handleQuestionUpdate(qIndex, 'difficulty', e.target.value)}
-                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                    <span className="text-sm text-gray-600">기본문제</span>
+                    <button
+                      onClick={() => {
+                        const newValue = question.difficulty === '일반' ? '보완' : '일반';
+                        console.log(`🔄 Switch clicked: ${newValue} for question ${question.id}, current value: ${question.difficulty}`);
+                        handleQuestionUpdate(question.id, 'difficulty', newValue);
+                      }}
+                      className={`
+                        relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                        ${question.difficulty === '보완' 
+                          ? 'bg-orange-500 focus:ring-orange-500' 
+                          : 'bg-blue-500 focus:ring-blue-500'
+                        }
+                        focus:outline-none focus:ring-2 focus:ring-offset-2
+                      `}
+                    >
+                      <span
+                        className={`
+                          inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+                          ${question.difficulty === '보완' ? 'translate-x-6' : 'translate-x-1'}
+                        `}
                       />
-                      <span className="ml-1 text-sm text-gray-700">기본문제</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name={`difficulty_${question.id}`}
-                        value="보완"
-                        checked={question.difficulty === '보완'}
-                        onChange={(e) => handleQuestionUpdate(qIndex, 'difficulty', e.target.value)}
-                        className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 focus:ring-orange-500"
-                      />
-                      <span className="ml-1 text-sm text-gray-700">보완문제</span>
-                    </label>
+                    </button>
+                    <span className="text-sm text-gray-600">보완문제</span>
                   </div>
                 </div>
                 
@@ -783,7 +1033,7 @@ export default function VocabularyQuestions({
                 <input
                   type="text"
                   value={question.term || ''}
-                  onChange={(e) => handleQuestionUpdate(qIndex, 'term', e.target.value)}
+                  onChange={(e) => handleQuestionUpdate(question.id, 'term', e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   placeholder="용어를 입력하세요"
                 />
@@ -796,7 +1046,7 @@ export default function VocabularyQuestions({
                 </label>
                 <textarea
                   value={question.question_text || question.question || ''}
-                  onChange={(e) => handleQuestionUpdate(qIndex, question.question_text ? 'question_text' : 'question', e.target.value)}
+                  onChange={(e) => handleQuestionUpdate(question.id, question.question_text ? 'question_text' : 'question', e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm min-h-[80px] resize-vertical"
                   placeholder="질문을 입력하세요"
                 />
@@ -842,11 +1092,11 @@ export default function VocabularyQuestions({
                             onChange={(e) => {
                               if (question.options) {
                                 // 기존 options 배열 방식
-                                handleOptionUpdate(qIndex, oIndex, e.target.value);
+                                handleOptionUpdate(question.id, oIndex, e.target.value);
                               } else {
                                 // 새로운 option_1, option_2 방식
                                 const field = `option_${oIndex + 1}` as keyof VocabularyQuestion;
-                                handleQuestionUpdate(qIndex, field, e.target.value);
+                                handleQuestionUpdate(question.id, field, e.target.value);
                               }
                             }}
                             className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
@@ -876,7 +1126,7 @@ export default function VocabularyQuestions({
                 })() ? (
                   <select
                     value={question.correct_answer || question.answer || ''}
-                    onChange={(e) => handleQuestionUpdate(qIndex, question.correct_answer !== undefined ? 'correct_answer' : 'answer', e.target.value)}
+                    onChange={(e) => handleQuestionUpdate(question.id, question.correct_answer !== undefined ? 'correct_answer' : 'answer', e.target.value)}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   >
                     <option value="">정답을 선택하세요</option>
@@ -909,7 +1159,7 @@ export default function VocabularyQuestions({
                     <input
                       type="text"
                       value={question.correct_answer || question.answer || ''}
-                      onChange={(e) => handleQuestionUpdate(qIndex, question.correct_answer !== undefined ? 'correct_answer' : 'answer', e.target.value)}
+                      onChange={(e) => handleQuestionUpdate(question.id, question.correct_answer !== undefined ? 'correct_answer' : 'answer', e.target.value)}
                       className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                       placeholder="정답을 입력하세요"
                     />
@@ -920,7 +1170,7 @@ export default function VocabularyQuestions({
                       <input
                         type="text"
                         value={question.answer_initials || question.answerInitials || ''}
-                        onChange={(e) => handleQuestionUpdate(qIndex, question.answer_initials !== undefined ? 'answer_initials' : 'answerInitials', e.target.value)}
+                        onChange={(e) => handleQuestionUpdate(question.id, question.answer_initials !== undefined ? 'answer_initials' : 'answerInitials', e.target.value)}
                         className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                         placeholder="초성을 입력하세요 (예: ㅂㅇㅊ)"
                       />
@@ -936,7 +1186,7 @@ export default function VocabularyQuestions({
                 </label>
                 <textarea
                   value={question.explanation}
-                  onChange={(e) => handleQuestionUpdate(qIndex, 'explanation', e.target.value)}
+                  onChange={(e) => handleQuestionUpdate(question.id, 'explanation', e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm min-h-[60px] resize-vertical"
                   placeholder="해설을 입력하세요"
                 />

@@ -63,6 +63,9 @@ export default function Home() {
     result: null as any
   });
 
+  // 보완 문제 생성 상태 관리
+  const [isSupplementaryGenerating, setIsSupplementaryGenerating] = useState(false);
+
   // 1단계: 지문 생성 (스트리밍 버전)
   const handlePassageGeneration = async (input: PassageInput & { model?: any }) => {
     setWorkflowData(prev => ({ ...prev, loading: true, input }));
@@ -181,6 +184,15 @@ export default function Home() {
               currentStep: 'passage-review',
               loading: false
             }));
+            
+            // 스트리밍 상태 초기화 (모달 즉시 닫기)
+            setStreamingState({
+              isStreaming: false,
+              message: '',
+              progress: '',
+              error: null,
+              result: null
+            });
           }
         },
         
@@ -295,12 +307,17 @@ export default function Home() {
   };
 
   // 7단계: 종합 문제 생성 완료 후 8단계로 이동
-  const handleComprehensiveGenerated = (questions: ComprehensiveQuestion[], usedPrompt?: string) => {
+  const handleComprehensiveGenerated = (questions: ComprehensiveQuestion[], usedPrompt?: string, isIntermediateUpdate = false) => {
+    const basicQuestions = questions.filter(q => !q.isSupplementary);
+    const supplementaryQuestions = questions.filter(q => q.isSupplementary);
+    
     // 디버깅 로그
     console.log('handleComprehensiveGenerated called:', {
       questionsLength: questions.length,
-      basicQuestions: questions.filter(q => !q.isSupplementary).length,
-      supplementaryQuestions: questions.filter(q => q.isSupplementary).length,
+      basicQuestions: basicQuestions.length,
+      supplementaryQuestions: supplementaryQuestions.length,
+      isIntermediateUpdate,
+      isSupplementaryGenerating,
       firstQuestion: questions[0] ? {
         id: questions[0].id,
         type: questions[0].type,
@@ -316,11 +333,28 @@ export default function Home() {
       }));
     }
     
+    // 🚨 중요: 8단계로 이동 조건
+    // 1. 중간 업데이트(기본 문제만 생성된 상황)가 아니고
+    // 2. 보완 문제가 있거나, 보완 문제 생성이 진행 중이 아닌 경우에만 8단계로 이동
+    const shouldMoveToReview = !isIntermediateUpdate && (
+      supplementaryQuestions.length > 0 || 
+      (!isSupplementaryGenerating && basicQuestions.length > 0)
+    );
+    
     setWorkflowData(prev => ({
       ...prev,
       comprehensiveQuestions: questions,
-      currentStep: 'comprehensive-review'
+      // 🚨 조건부 단계 이동: 조건을 만족하는 경우에만 review로 이동
+      currentStep: shouldMoveToReview ? 'comprehensive-review' : prev.currentStep
     }));
+    
+    console.log('🔍 handleComprehensiveGenerated - shouldMoveToReview:', shouldMoveToReview, {
+      supplementaryCount: supplementaryQuestions.length,
+      basicCount: basicQuestions.length,
+      totalCount: questions.length,
+      isSupplementaryGenerating: isSupplementaryGenerating,
+      isIntermediateUpdate
+    });
   };
 
   // 8단계: 종합 문제 업데이트
@@ -546,9 +580,19 @@ export default function Home() {
               <ComprehensiveQuestions
                 editablePassage={editablePassage}
                 division={input.division || ''}
+                subject={input.subject || '사회'}
+                area={input.area || ''}
                 comprehensiveQuestions={comprehensiveQuestions}
-                onUpdate={handleComprehensiveGenerated}
-                onNext={() => {}} // 생성 단계에서는 사용 안함
+                onUpdate={(questions, usedPrompt, isIntermediateUpdate) => handleComprehensiveGenerated(questions, usedPrompt, isIntermediateUpdate)}
+                onNext={() => {
+                  // 7단계 완료 후 8단계로 자동 이동 (ComprehensiveQuestions 컴포넌트에서 호출)
+                  console.log('🚀 7단계 완료! 8단계로 이동합니다.');
+                  setWorkflowData(prev => ({
+                    ...prev,
+                    currentStep: 'comprehensive-review'
+                  }));
+                }}
+                onSupplementaryStatusChange={setIsSupplementaryGenerating}
                 loading={loading}
                 currentStep="generation"
               />
@@ -563,9 +607,12 @@ export default function Home() {
               <ComprehensiveQuestions
                 editablePassage={editablePassage}
                 division={input.division || ''}
+                subject={input.subject || '사회'}
+                area={input.area || ''}
                 comprehensiveQuestions={comprehensiveQuestions}
                 onUpdate={handleComprehensiveUpdate}
                 onNext={handleMoveToFinalSave}
+                onSupplementaryStatusChange={setIsSupplementaryGenerating}
                 loading={loading}
                 currentStep="review"
                 lastUsedPrompt={lastUsedPrompts.comprehensive}
@@ -682,8 +729,8 @@ export default function Home() {
           {/* 현재 단계 렌더링 */}
           {renderCurrentStep()}
 
-          {/* 로딩 상태 */}
-          {workflowData.loading && (
+          {/* 로딩 상태 - 지문 생성 단계는 제외 (PassageForm에서 스트리밍 모달 사용) */}
+          {workflowData.loading && workflowData.currentStep !== 'passage-generation' && (
             <div 
               className="fixed inset-0 flex items-center justify-center z-50"
               style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
@@ -693,18 +740,8 @@ export default function Home() {
                 <div className="w-12 h-12 border-3 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
                 
                 {/* 메시지 */}
-                <h3 className="text-lg font-medium text-gray-800 mb-1">
-                  {workflowData.currentStep === 'passage-generation' 
-                    ? '지문 생성 중' 
-                    : '처리 중'
-                  }
-                </h3>
-                <p className="text-sm text-gray-500 mb-2">
-                  {workflowData.currentStep === 'passage-generation' 
-                    ? '교육과정에 맞는 맞춤형 지문을 생성하고 있습니다' 
-                    : '요청을 처리하고 있습니다'
-                  }
-                </p>
+                <h3 className="text-lg font-medium text-gray-800 mb-1">처리 중</h3>
+                <p className="text-sm text-gray-500 mb-2">요청을 처리하고 있습니다</p>
                 <p className="text-xs text-gray-400">
                   잠시만 기다려주세요
                 </p>

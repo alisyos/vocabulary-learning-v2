@@ -466,7 +466,8 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
             className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="gpt-4.1">GPT-4.1</option>
-            <option value="gpt-5">GPT-5 🆕</option>
+            <option value="gpt-5">GPT-5</option>
+            <option value="gpt-5-mini">GPT-5-mini</option>
           </select>
           <span className="text-xs text-gray-500">
             모든 콘텐츠 생성에 사용
@@ -710,73 +711,95 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
         </button>
       </form>
 
-      {/* 스트리밍 상태 표시 */}
+      {/* 지문 생성 스트리밍 모달 */}
       {streamingState && (streamingState.isStreaming || streamingState.error || streamingState.message) && (
-        <div className="mt-4 p-4 bg-gray-50 border rounded-md">
-          <h4 className="text-sm font-medium text-gray-900 mb-2">🔄 실시간 진행 상황</h4>
-          
-          {/* 진행 메시지 */}
-          {streamingState.message && (
-            <div className="mb-2">
-              <div className="flex items-center">
-                {streamingState.isStreaming && (
-                  <div className="animate-spin mr-2">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </div>
-                )}
-                <span className="text-sm text-gray-700">{streamingState.message}</span>
-              </div>
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+        >
+          <div className="bg-white backdrop-blur-sm p-6 rounded-xl shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* 헤더 */}
+            <div className="text-center mb-6">
+              <div className={`w-12 h-12 border-3 border-gray-200 ${streamingState.isStreaming ? 'border-t-blue-600' : streamingState.error ? 'border-t-red-600' : 'border-t-green-600'} rounded-full animate-spin mx-auto mb-3`}></div>
+              <h3 className="text-xl font-bold mb-2 text-gray-800">
+                {streamingState.isStreaming 
+                  ? '🚀 1단계: 지문 스트리밍 생성 중'
+                  : streamingState.error 
+                    ? '❌ 지문 생성 오류' 
+                    : '✅ 지문 생성 완료'
+                }
+              </h3>
+              <p className="text-sm text-gray-600">
+                {streamingState.isStreaming 
+                  ? '교육과정에 맞는 맞춤형 지문을 실시간으로 생성하고 있습니다'
+                  : streamingState.error 
+                    ? '지문 생성 중 문제가 발생했습니다'
+                    : '지문 생성이 성공적으로 완료되었습니다'
+                }
+              </p>
             </div>
-          )}
 
-          {/* 에러 메시지 */}
-          {streamingState.error && (
-            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded">
-              <div className="flex items-center">
-                <svg className="w-4 h-4 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-sm text-red-700">{streamingState.error}</span>
+            {/* 진행 메시지 */}
+            {streamingState.message && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm font-medium text-blue-800 text-center">{streamingState.message}</p>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* 진행률 표시 (진행 중인 경우) */}
-          {streamingState.isStreaming && (
-            <div className="mb-2">
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-blue-600 h-2 rounded-full transition-all duration-300 animate-pulse" style={{ width: '60%' }}></div>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">AI 모델이 응답을 생성하고 있습니다...</p>
-            </div>
-          )}
-
-          {/* 실시간 내용 미리보기 (옵션) */}
-          {streamingState.progress && streamingState.progress.length > 0 && (
-            <div className="mt-2">
-              <details className="group">
-                <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
-                  실시간 생성 내용 미리보기 ({streamingState.progress.length}자)
-                </summary>
-                <div className="mt-2 p-2 bg-white border rounded text-xs text-gray-600 max-h-32 overflow-y-auto">
-                  <pre className="whitespace-pre-wrap font-mono">{streamingState.progress.substring(0, 200)}</pre>
-                  {streamingState.progress.length > 200 && <span className="text-gray-400">...</span>}
+            {/* 에러 메시지 */}
+            {streamingState.error && (
+              <div className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                <div className="flex items-center justify-center">
+                  <svg className="w-4 h-4 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm text-red-700">{streamingState.error}</span>
                 </div>
-              </details>
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* 완료 상태 */}
-          {!streamingState.isStreaming && !streamingState.error && streamingState.result && (
-            <div className="flex items-center text-green-700">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-sm">생성 완료! 우측에서 결과를 확인하세요.</span>
+            {/* 진행률 표시 (진행 중인 경우) */}
+            {streamingState.isStreaming && (
+              <div className="mb-4">
+                <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                  <div className="bg-blue-600 h-3 rounded-full transition-all duration-500 animate-pulse" style={{ width: '60%' }}></div>
+                </div>
+                <p className="text-xs text-gray-600 text-center">AI 모델이 스트리밍 응답을 생성하고 있습니다...</p>
+              </div>
+            )}
+
+            {/* 생성 진행 정보 */}
+            {streamingState.progress && streamingState.progress.length > 0 && (
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="flex items-center justify-center">
+                  <span className="text-sm text-gray-700">📝 현재 생성된 글자수: </span>
+                  <span className="text-sm font-semibold text-blue-600 ml-1">{streamingState.progress.length}자</span>
+                </div>
+              </div>
+            )}
+
+            {/* 완료 상태 */}
+            {!streamingState.isStreaming && !streamingState.error && streamingState.result && (
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <div className="flex items-center justify-center text-green-700">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-sm font-medium">지문 생성 완료! 잠시 후 2단계 검토로 자동 이동합니다.</span>
+                </div>
+              </div>
+            )}
+
+            {/* 하단 정보 */}
+            <div className="mt-4 text-center">
+              <p className="text-xs text-gray-500">
+                {streamingState.isStreaming 
+                  ? '스트리밍 방식으로 실시간 생성 과정을 확인할 수 있습니다'
+                  : '생성이 완료되면 자동으로 다음 단계로 이동합니다'
+                }
+              </p>
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

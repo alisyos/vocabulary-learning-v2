@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPromptFromDB } from '@/lib/supabase';
+import { getPromptFromDB } from '@/lib/prompts';
 
 export async function GET() {
   try {

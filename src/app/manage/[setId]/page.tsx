@@ -2808,12 +2808,31 @@ ${allParagraphs}`;
                           {/* 2. 관련 문단 내용 */}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">관련 문단 내용</label>
-                            <textarea
-                              value={question.paragraphText}
-                              onChange={(e) => handleParagraphQuestionChange(index, 'paragraphText', e.target.value)}
-                              rows={4}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
+                            <div className="p-3 bg-gray-50 rounded-lg border">
+                              <div className="text-sm text-gray-800">
+                                {(() => {
+                                  // 실제 지문 데이터에서 해당 문단 가져오기
+                                  const getAllParagraphs = () => {
+                                    if (editablePassages && editablePassages.length > 0) {
+                                      const allParagraphs: string[] = [];
+                                      editablePassages.forEach((passage) => {
+                                        if (passage.paragraphs && Array.isArray(passage.paragraphs)) {
+                                          allParagraphs.push(...passage.paragraphs);
+                                        }
+                                      });
+                                      return allParagraphs;
+                                    }
+                                    return [];
+                                  };
+                                  
+                                  const allParagraphs = getAllParagraphs();
+                                  const paragraphIndex = question.paragraphNumber - 1;
+                                  const paragraphText = allParagraphs[paragraphIndex];
+                                  
+                                  return paragraphText || question.paragraphText || '해당 문단 내용을 불러올 수 없습니다.';
+                                })()}
+                              </div>
+                            </div>
                           </div>
                           
                           {/* 3. 문제 텍스트 */}

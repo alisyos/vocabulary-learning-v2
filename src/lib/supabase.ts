@@ -772,7 +772,7 @@ export const db = {
       const passagesWithId = passagesData.map(p => ({ ...p, content_set_id: contentSetId }))
       const vocabularyTermsWithId = vocabularyTerms.map(v => ({ ...v, content_set_id: contentSetId }))
       const vocabularyQuestionsWithId = vocabularyQuestions.map(q => ({ ...q, content_set_id: contentSetId }))
-      const paragraphQuestionsWithId = paragraphQuestions.map(q => ({ ...q, content_set_id: contentSetId }))
+      const paragraphQuestionsWithId = (paragraphQuestions || []).map(q => ({ ...q, content_set_id: contentSetId }))
       const comprehensiveQuestionsWithId = comprehensiveQuestions.map(q => ({ ...q, content_set_id: contentSetId }))
       
       console.log('🔗 관련 데이터에 content_set_id 추가 완료');
@@ -819,10 +819,21 @@ export const db = {
         
         // 데이터 검증
         const validatedData = paragraphQuestionsWithId.map((q, index) => {
-          // 필수 필드 검증
-          if (!q.content_set_id || !q.question_text || !q.paragraph_text) {
-            console.error(`❌ 문단문제 ${index + 1} 필수 필드 누락:`, q);
-            throw new Error(`문단문제 ${index + 1}: 필수 필드가 누락되었습니다`);
+          // 필수 필드 검증 (빈 문자열도 허용)
+          if (!q.content_set_id) {
+            console.error(`❌ 문단문제 ${index + 1} content_set_id 누락:`, q);
+            throw new Error(`문단문제 ${index + 1}: content_set_id가 누락되었습니다`);
+          }
+          
+          // question_text와 paragraph_text는 빈 문자열이라도 있으면 OK
+          if (q.question_text === undefined || q.question_text === null) {
+            console.error(`❌ 문단문제 ${index + 1} question_text 누락:`, q);
+            throw new Error(`문단문제 ${index + 1}: question_text가 누락되었습니다`);
+          }
+          
+          if (q.paragraph_text === undefined || q.paragraph_text === null) {
+            console.error(`❌ 문단문제 ${index + 1} paragraph_text 누락:`, q);
+            throw new Error(`문단문제 ${index + 1}: paragraph_text가 누락되었습니다`);
           }
           
           // correct_answer 검증 (문제 유형에 따라 다름)

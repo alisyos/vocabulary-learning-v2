@@ -6,7 +6,7 @@ const client = new OpenAI({
 });
 
 // 지원하는 모델 타입
-export type ModelType = 'gpt-4.1' | 'gpt-5';
+export type ModelType = 'gpt-4.1' | 'gpt-5' | 'gpt-5-mini';
 
 // 스트리밍 응답을 위한 타입
 export interface StreamingResponse {
@@ -24,13 +24,13 @@ export async function callGPT(prompt: string, maxTokens: number = 2000, model: M
     
     let content: string | null = null;
     
-    if (model === 'gpt-5') {
-      console.log('🚀 GPT-5 API 사용 (responses.create)');
-      // GPT-5 새로운 API 형식 사용
+    if (model === 'gpt-5' || model === 'gpt-5-mini') {
+      console.log(`🚀 ${model.toUpperCase()} API 사용 (responses.create)`);
+      // GPT-5 및 GPT-5-mini 새로운 API 형식 사용
       const fullInput = `${systemPrompt}\n\n${prompt}`;
       
       const response = await client.responses.create({
-        model: 'gpt-5',
+        model: model,
         input: fullInput,
       });
       
@@ -84,12 +84,12 @@ export async function* callGPTStream(prompt: string, maxTokens: number = 2000, m
     
     let stream;
     
-    if (model === 'gpt-5') {
-      console.log('🚀 GPT-5 스트리밍 API 사용');
-      // GPT-5의 경우 일반 응답으로 처리 (스트리밍 미지원 가정)
+    if (model === 'gpt-5' || model === 'gpt-5-mini') {
+      console.log(`🚀 ${model.toUpperCase()} 스트리밍 API 사용`);
+      // GPT-5 및 GPT-5-mini의 경우 일반 응답으로 처리 (스트리밍 미지원 가정)
       const fullInput = `${systemPrompt}\n\n${prompt}`;
       const response = await client.responses.create({
-        model: 'gpt-5',
+        model: model,
         input: fullInput,
       });
       

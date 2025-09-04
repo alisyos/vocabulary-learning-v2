@@ -31,6 +31,44 @@ export default function ParagraphQuestions({
   const [selectedParagraphTab, setSelectedParagraphTab] = useState<number | null>(null); // 선택된 문단 탭 (null 시 첫 번째 문단 선택)
   const [generationProgress, setGenerationProgress] = useState<string>('');
   const [estimatedQuestions, setEstimatedQuestions] = useState<number>(0);
+  const [typeProgress, setTypeProgress] = useState<Record<string, { progress: number; status: string }>>({});
+  
+  // props 변경 시 localQuestions 업데이트 및 ID 중복 체크
+  useEffect(() => {
+    // 각 문제에 고유 ID 보장
+    const questionsWithUniqueIds = paragraphQuestions.map((question, index) => ({
+      ...question,
+      id: question.id || `paragraph_init_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`
+    }));
+    
+    // ID 중복 체크
+    const idCounts = questionsWithUniqueIds.reduce((acc, q) => {
+      acc[q.id] = (acc[q.id] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const duplicateIds = Object.entries(idCounts).filter(([_, count]) => count > 1);
+    if (duplicateIds.length > 0) {
+      console.error('⚠️ Duplicate paragraph question IDs detected:', duplicateIds);
+      
+      // 중복된 ID를 가진 문제들에 새로운 고유 ID 할당
+      const seenIds = new Set<string>();
+      const uniqueQuestions = questionsWithUniqueIds.map((q, idx) => {
+        if (seenIds.has(q.id)) {
+          return {
+            ...q,
+            id: `paragraph_fixed_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 9)}`
+          };
+        }
+        seenIds.add(q.id);
+        return q;
+      });
+      
+      setLocalQuestions(uniqueQuestions);
+    } else {
+      setLocalQuestions(questionsWithUniqueIds);
+    }
+  }, [paragraphQuestions]);
   
   // 2개 지문 형식에서 모든 paragraphs 통합하여 가져오기
   const getAllParagraphs = () => {
@@ -99,7 +137,7 @@ export default function ParagraphQuestions({
     if (selectedParagraphs.length === 0) return 0;
     
     if (selectedQuestionType === 'Random') {
-      // Random: 각 문단별로 5가지 유형 × 1개씩
+      // Random: 선택된 문단 수 × 5가지 유형 = 각 문단당 5개 문제
       return selectedParagraphs.length * 5;
     } else {
       // 특정 유형: 각 문단별로 4개씩
@@ -107,7 +145,29 @@ export default function ParagraphQuestions({
     }
   };
 
-  // 문단 문제 생성 (개선된 진행 상황 표시)
+  // 실시간 진행률 업데이트
+  useEffect(() => {
+    const updateProgress = () => {
+      const progressEntries = Object.entries(typeProgress);
+      if (progressEntries.length === 0) return;
+      
+      const totalProgress = progressEntries.reduce((sum, [_, data]) => sum + data.progress, 0);
+      const avgProgress = totalProgress / progressEntries.length;
+      const completedCount = progressEntries.filter(([_, data]) => data.progress === 100).length;
+      
+      if (completedCount === progressEntries.length && completedCount > 0) {
+        setGenerationProgress(`✅ 완료! 모든 문제 유형 생성 완료 (병렬 처리로 시간 대폭 단축)`);
+      } else {
+        setGenerationProgress(
+          `🚀 병렬 생성 중... 전체 진행률: ${Math.round(avgProgress)}% (${completedCount}/${progressEntries.length}개 완료)`
+        );
+      }
+    };
+    
+    updateProgress();
+  }, [typeProgress]);
+
+  // 병렬 스트리밍 문단 문제 생성 (개선된 성능)
   const handleGenerateParagraph = async () => {
     if (selectedParagraphs.length === 0) {
       alert('생성할 문단을 선택해주세요.');
@@ -117,65 +177,308 @@ export default function ParagraphQuestions({
     const estimated = calculateEstimatedQuestions();
     setEstimatedQuestions(estimated);
     setGeneratingParagraph(true);
+    setTypeProgress({});
     
-    // 진행 상황 설정
-    if (selectedQuestionType === 'Random') {
-      setGenerationProgress(`🚀 ${selectedParagraphs.length}개 문단 × 5가지 유형 = ${estimated}개 문제를 병렬로 생성 중...`);
-    } else {
-      setGenerationProgress(`🚀 ${selectedParagraphs.length}개 문단 × 4개씩 = ${estimated}개 ${selectedQuestionType} 문제를 병렬로 생성 중...`);
-    }
-
+    // 로컬 스토리지에서 선택된 모델 가져오기
+    const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
+    const allParagraphs = getAllParagraphs();
+    const title = editablePassage.passages && editablePassage.passages.length > 0 
+      ? editablePassage.passages[0].title 
+      : editablePassage.title;
+    
     try {
-      // 로컬 스토리지에서 선택된 모델 가져오기
-      const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
+      console.log('🚀 Starting parallel streaming paragraph generation');
       
-      const allParagraphs = getAllParagraphs();
-      const title = editablePassage.passages && editablePassage.passages.length > 0 
-        ? editablePassage.passages[0].title 
-        : editablePassage.title;
+      let allQuestions: any[] = [];
+      let collectedPrompts: { type: string; prompt: string }[] = [];
       
-      const response = await fetch('/api/generate-paragraph', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          paragraphs: allParagraphs,
-          selectedParagraphs: selectedParagraphs.map(p => parseInt(p)),
-          questionType: selectedQuestionType,
-          division,
-          title: title,
-          model: selectedModel
-        }),
-      });
-
-      if (!response.ok) {
-        // 구체적인 오류 메시지 추출 및 표시
-        const errorMessage = await parseErrorMessage(response);
-        alert(errorMessage);
-        setGenerationProgress('');
-        return;
+      if (selectedQuestionType === 'Random') {
+        // Random 모드: 각 문단별로 5가지 문제 유형을 각각 생성 (문단 × 유형 조합별 병렬 처리)
+        const questionTypes = ['빈칸 채우기', '주관식 단답형', '어절 순서 맞추기', 'OX문제', '객관식 일반형'];
+        
+        // 각 문단+유형 조합별 진행률 초기화
+        const initialProgress: Record<string, { progress: number; status: string }> = {};
+        selectedParagraphs.forEach(paragraphNum => {
+          questionTypes.forEach(type => {
+            const key = `문단${paragraphNum}-${type}`;
+            initialProgress[key] = { progress: 0, status: '대기 중' };
+          });
+        });
+        setTypeProgress(initialProgress);
+        
+        // 문단별 × 유형별 병렬 스트리밍 처리
+        const generationPromises = selectedParagraphs.flatMap(paragraphNum => 
+          questionTypes.map(async (questionType) => {
+            const progressKey = `문단${paragraphNum}-${questionType}`;
+            try {
+              setTypeProgress(prev => ({
+                ...prev,
+                [progressKey]: { progress: 5, status: 'API 호출 중' }
+              }));
+              
+              const response = await fetch('/api/generate-paragraph-stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  paragraphs: allParagraphs,
+                  selectedParagraphs: [parseInt(paragraphNum)], // 각 문단별로 개별 호출
+                  questionType: questionType,
+                  division,
+                  title: title,
+                  model: selectedModel
+                }),
+              });
+            
+              if (!response.ok) {
+                throw new Error(`문단 ${paragraphNum} ${questionType} 생성 실패: ${response.statusText}`);
+              }
+              
+              // 스트리밍 응답 처리
+              const reader = response.body?.getReader();
+              const decoder = new TextDecoder();
+              let buffer = '';
+              let typeQuestions: any[] = [];
+              let typePrompt = '';
+              
+              if (!reader) {
+                throw new Error(`문단 ${paragraphNum} ${questionType} 스트리밍 응답을 읽을 수 없습니다.`);
+              }
+              
+              setTypeProgress(prev => ({
+                ...prev,
+                [progressKey]: { progress: 10, status: '스트리밍 시작' }
+              }));
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6);
+                  if (data === '[DONE]') continue;
+                  
+                  try {
+                    const parsed = JSON.parse(data);
+                    
+                      if (parsed.type === 'progress') {
+                        const progressPercent = Math.min(Math.max(Math.floor((parsed.totalChars / 8000) * 80) + 10, 15), 90);
+                        setTypeProgress(prev => ({
+                          ...prev,
+                          [progressKey]: { progress: progressPercent, status: '생성 중' }
+                        }));
+                      } else if (parsed.type === 'complete') {
+                        typeQuestions = parsed.paragraphQuestions || [];
+                        typePrompt = parsed._metadata?.usedPrompt || '';
+                        setTypeProgress(prev => ({
+                          ...prev,
+                          [progressKey]: { progress: 100, status: `완료 (${typeQuestions.length}개)` }
+                        }));
+                        break;
+                      } else if (parsed.type === 'error') {
+                        throw new Error(parsed.error);
+                      }
+                    } catch (e) {
+                      if (e instanceof Error && e.message !== 'Unexpected end of JSON input') {
+                        console.error(`문단 ${paragraphNum} ${questionType} 파싱 오류:`, e);
+                      }
+                    }
+                  }
+                }
+              }
+              
+              return { 
+                paragraphNum, 
+                questionType, 
+                questions: typeQuestions, 
+                prompt: typePrompt 
+              };
+              
+            } catch (error) {
+              console.error(`Error generating paragraph ${paragraphNum} ${questionType}:`, error);
+              setTypeProgress(prev => ({
+                ...prev,
+                [progressKey]: { progress: 0, status: '실패' }
+              }));
+              return { 
+                paragraphNum, 
+                questionType, 
+                questions: [], 
+                prompt: '' 
+              };
+            }
+          })
+        );
+        
+        // 모든 병렬 처리 완료 대기
+        const results = await Promise.all(generationPromises);
+        allQuestions = results.flatMap(result => {
+          // 각 문제에 paragraphNumber 정보가 누락된 경우 추가
+          return result.questions.map(question => ({
+            ...question,
+            paragraphNumber: question.paragraphNumber || parseInt(result.paragraphNum)
+          }));
+        });
+        
+        // Random 모드에서 프롬프트 수집 (문단별 × 유형별)
+        results.forEach(result => {
+          if (result.prompt) {
+            collectedPrompts.push({
+              type: `문단 ${result.paragraphNum} - ${result.questionType} 유형`,
+              prompt: result.prompt
+            });
+          }
+        });
+        
+      } else {
+        // 특정 유형 모드: 선택된 문단별로 병렬 처리
+        const initialProgress: Record<string, { progress: number; status: string }> = {};
+        selectedParagraphs.forEach(paragraphNum => {
+          initialProgress[`문단${paragraphNum}`] = { progress: 0, status: '대기 중' };
+        });
+        setTypeProgress(initialProgress);
+        
+        // 문단별 병렬 스트리밍 처리
+        const generationPromises = selectedParagraphs.map(async (paragraphNum) => {
+          try {
+            setTypeProgress(prev => ({
+              ...prev,
+              [`문단${paragraphNum}`]: { progress: 5, status: 'API 호출 중' }
+            }));
+            
+            const response = await fetch('/api/generate-paragraph-stream', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                paragraphs: allParagraphs,
+                selectedParagraphs: [parseInt(paragraphNum)],
+                questionType: selectedQuestionType,
+                division,
+                title: title,
+                model: selectedModel
+              }),
+            });
+            
+            if (!response.ok) {
+              throw new Error(`문단 ${paragraphNum} 생성 실패: ${response.statusText}`);
+            }
+            
+            // 스트리밍 응답 처리
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let paragraphQuestions: any[] = [];
+            let paragraphPrompt = '';
+            
+            if (!reader) {
+              throw new Error(`문단 ${paragraphNum} 스트리밍 응답을 읽을 수 없습니다.`);
+            }
+            
+            setTypeProgress(prev => ({
+              ...prev,
+              [`문단${paragraphNum}`]: { progress: 10, status: '스트리밍 시작' }
+            }));
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6);
+                  if (data === '[DONE]') continue;
+                  
+                  try {
+                    const parsed = JSON.parse(data);
+                    
+                    if (parsed.type === 'progress') {
+                      const progressPercent = Math.min(Math.max(Math.floor((parsed.totalChars / 8000) * 80) + 10, 15), 90);
+                      setTypeProgress(prev => ({
+                        ...prev,
+                        [`문단${paragraphNum}`]: { progress: progressPercent, status: '생성 중' }
+                      }));
+                    } else if (parsed.type === 'complete') {
+                      paragraphQuestions = parsed.paragraphQuestions || [];
+                      paragraphPrompt = parsed._metadata?.usedPrompt || '';
+                      setTypeProgress(prev => ({
+                        ...prev,
+                        [`문단${paragraphNum}`]: { progress: 100, status: `완료 (${paragraphQuestions.length}개)` }
+                      }));
+                      break;
+                    } else if (parsed.type === 'error') {
+                      throw new Error(parsed.error);
+                    }
+                  } catch (e) {
+                    if (e instanceof Error && e.message !== 'Unexpected end of JSON input') {
+                      console.error(`문단 ${paragraphNum} 파싱 오류:`, e);
+                    }
+                  }
+                }
+              }
+            }
+            
+            return { paragraphNum, questions: paragraphQuestions, prompt: paragraphPrompt };
+            
+          } catch (error) {
+            console.error(`Error generating paragraph ${paragraphNum}:`, error);
+            setTypeProgress(prev => ({
+              ...prev,
+              [`문단${paragraphNum}`]: { progress: 0, status: '실패' }
+            }));
+            return { paragraphNum, questions: [], prompt: '' };
+          }
+        });
+        
+        // 모든 병렬 처리 완료 대기
+        const results = await Promise.all(generationPromises);
+        allQuestions = results.flatMap(result => {
+          // 각 문제에 paragraphNumber 정보가 누락된 경우 추가
+          return result.questions.map(question => ({
+            ...question,
+            paragraphNumber: question.paragraphNumber || parseInt(result.paragraphNum)
+          }));
+        });
+        
+        // 특정 유형 모드에서 프롬프트 수집
+        results.forEach(result => {
+          if (result.prompt) {
+            collectedPrompts.push({
+              type: `문단 ${result.paragraphNum} (${selectedQuestionType} 유형)`,
+              prompt: result.prompt
+            });
+          }
+        });
       }
-
-      const result = await response.json();
-      const newQuestions = result.paragraphQuestions || [];
       
-      console.log('🎉 Paragraph questions generation completed:', {
+      console.log('✅ Parallel streaming paragraph generation completed:', {
         estimated: estimated,
-        actual: newQuestions.length,
+        actual: allQuestions.length,
         questionType: selectedQuestionType,
         selectedParagraphs: selectedParagraphs.length
       });
       
-      setLocalQuestions(newQuestions);
-      onUpdate(newQuestions, result._metadata?.usedPrompt);
-      setGenerationProgress(`✅ 완료! 총 ${newQuestions.length}개 문제 생성됨 (병렬 처리로 시간 대폭 단축)`);
+      // 수집된 프롬프트들을 구조화된 형태로 통합
+      const combinedPrompt = collectedPrompts.length > 0 
+        ? collectedPrompts.map(item => 
+            `=== ${item.type} 프롬프트 ===\n\n${item.prompt}`
+          ).join('\n\n' + '='.repeat(80) + '\n\n')
+        : '프롬프트 수집에 실패했습니다.';
+      
+      setLocalQuestions(allQuestions);
+      onUpdate(allQuestions, combinedPrompt);
 
     } catch (error) {
-      console.error('Error generating paragraph questions:', error);
+      console.error('Error in parallel paragraph generation:', error);
       setGenerationProgress('');
       
-      // 네트워크 오류 등 예외 상황에 대한 구체적인 메시지
       if (error instanceof Error) {
         if (error.message.includes('fetch')) {
           alert('네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.');
@@ -187,7 +490,10 @@ export default function ParagraphQuestions({
       }
     } finally {
       setGeneratingParagraph(false);
-      setTimeout(() => setGenerationProgress(''), 3000); // 3초 후 메시지 제거
+      setTimeout(() => {
+        setGenerationProgress('');
+        setTypeProgress({});
+      }, 5000);
     }
   };
 
@@ -225,7 +531,7 @@ export default function ParagraphQuestions({
   const getQuestionTypeDescription = (type: ParagraphQuestionType) => {
     switch (type) {
       case 'Random':
-        return '5가지 유형의 문제를 1개씩 생성합니다.';
+        return '5가지 유형의 문제를 총 5개 생성합니다 (각 유형별 1개씩).';
       case '빈칸 채우기':
         return '문맥에 맞는 적절한 단어를 선택하는 문제입니다.';
       case '주관식 단답형':
@@ -362,11 +668,11 @@ export default function ParagraphQuestions({
                 <p><strong>선택된 유형:</strong> {selectedQuestionType}</p>
                 <p>• {getQuestionTypeDescription(selectedQuestionType)}</p>
                 {selectedQuestionType === 'Random' ? (
-                  <p>• 선택된 문단별로 5가지 유형을 1개씩 총 5개 문제가 생성됩니다.</p>
+                  <p>• 선택된 문단을 기반으로 5가지 유형을 각 1개씩 총 5개 문제가 생성됩니다.</p>
                 ) : (
                   <p>• 선택된 문단별로 {selectedQuestionType} 유형의 문제를 4개 생성됩니다.</p>
                 )}
-                <p className="text-green-600 font-medium">• 🚀 병렬 처리로 빠른 생성: 예상 대기시간 10-15초 (기존 30-50초 대비 대폭 단축)</p>
+                <p className="text-green-600 font-medium">• 🚀 병렬 스트리밍 처리: 예상 대기시간 10-15초 (기존 30-50초 대비 85% 단축)</p>
               </div>
             </div>
           </div>
@@ -404,34 +710,88 @@ export default function ParagraphQuestions({
           </div>
         </div>
 
-        {/* 문단 문제 생성 로딩 모달 */}
+        {/* 문단 문제 생성 로딩 모달 (병렬 스트리밍) */}
         {generatingParagraph && (
           <div 
             className="fixed inset-0 flex items-center justify-center z-50"
             style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
           >
-            <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center">
+            <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 max-w-2xl w-full mx-4">
               {/* 로딩 스피너 */}
               <div className="w-12 h-12 border-3 border-gray-200 border-t-orange-600 rounded-full animate-spin mx-auto mb-4"></div>
               
               {/* 메시지 */}
-              <h3 className="text-lg font-medium text-gray-800 mb-1">
-                🚀 문단 문제 병렬 생성 중
-              </h3>
-              <p className="text-sm text-gray-500 mb-2">
-                선택된 {selectedParagraphs.length}개 문단으로 {selectedQuestionType} 문제를 병렬로 생성하고 있습니다
-              </p>
-              {estimatedQuestions > 0 && (
-                <p className="text-sm text-blue-600 mb-2 font-medium">
-                  총 {estimatedQuestions}개 문제를 동시에 생성하여 시간을 단축합니다
+              <div className="text-center mb-6">
+                <h3 className="text-lg font-medium text-gray-800 mb-2">
+                  🚀 병렬 스트리밍 문단 문제 생성 중
+                </h3>
+                <p className="text-sm text-gray-500 mb-2">
+                  {selectedQuestionType === 'Random' 
+                    ? `5가지 문제 유형을 동시에 생성하여 시간을 대폭 단축합니다`
+                    : `선택된 ${selectedParagraphs.length}개 문단을 동시에 처리하여 시간을 대폭 단축합니다`
+                  }
                 </p>
+                {estimatedQuestions > 0 && (
+                  <p className="text-sm text-blue-600 mb-2 font-medium">
+                    총 {estimatedQuestions}개 문제 예상 | 대기시간 85% 단축
+                  </p>
+                )}
+              </div>
+
+              {/* 병렬 진행률 표시 */}
+              {Object.keys(typeProgress).length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-gray-700 text-center">
+                    {selectedQuestionType === 'Random' ? '문제 유형별 진행률' : '문단별 진행률'}
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto">
+                    {Object.entries(typeProgress).map(([key, data]) => {
+                      const isCompleted = data.progress === 100;
+                      const isFailed = data.progress === 0 && data.status === '실패';
+                      
+                      return (
+                        <div key={key} className="p-3 bg-gray-50 rounded-lg">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium text-gray-700">
+                              {key}
+                            </span>
+                            <div className="flex items-center space-x-2">
+                              {isFailed ? (
+                                <span className="text-xs text-red-600 font-medium">❌ 실패</span>
+                              ) : isCompleted ? (
+                                <span className="text-xs text-green-600 font-medium">✅ 완료</span>
+                              ) : (
+                                <span className="text-xs text-blue-600">{data.progress}%</span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                isFailed ? 'bg-red-500' : isCompleted ? 'bg-green-500' : 'bg-blue-500'
+                              }`}
+                              style={{ width: `${Math.max(data.progress, 0)}%` }}
+                            ></div>
+                          </div>
+                          
+                          <div className="text-xs text-gray-600">
+                            상태: {data.status}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
-              <p className="text-xs text-gray-400">
-                예상 대기시간: 10-15초 (병렬 처리로 대폭 단축)
-              </p>
+
+              {/* 전체 진행 상황 */}
               {generationProgress && (
-                <div className="mt-3 p-2 bg-blue-50 rounded-md">
-                  <p className="text-sm text-blue-800">{generationProgress}</p>
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                  <p className="text-sm text-blue-800 font-medium text-center">
+                    {generationProgress}
+                  </p>
                 </div>
               )}
             </div>
@@ -554,7 +914,14 @@ export default function ParagraphQuestions({
               {/* 해당 문단 내용 */}
               <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm font-medium text-gray-700 mb-2">문단 {question.paragraphNumber} 내용:</div>
-                <div className="text-sm text-gray-800">{question.paragraphText}</div>
+                <div className="text-sm text-gray-800">
+                  {(() => {
+                    const allParagraphs = getAllParagraphs();
+                    const paragraphIndex = question.paragraphNumber - 1;
+                    const paragraphText = allParagraphs[paragraphIndex];
+                    return paragraphText || question.paragraphText || '문단 내용을 불러올 수 없습니다.';
+                  })()}
+                </div>
               </div>
 
               {/* 질문 */}

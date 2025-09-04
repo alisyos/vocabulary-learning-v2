@@ -33,7 +33,7 @@ export default function PromptModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full h-[95vh] flex flex-col">
         {/* 헤더 */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <div>

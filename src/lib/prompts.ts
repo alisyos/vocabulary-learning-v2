@@ -1948,30 +1948,49 @@ export async function generateComprehensivePromptFromDB(
     const typePrompt = await getPromptFromDB('comprehensive', 'comprehensiveType', getComprehensiveTypeKey(questionType));
     const divisionPrompt = await getPromptFromDB('division', getDivisionSubCategory(division), getDivisionKey(division));
     
-    console.log('Comprehensive prompt generation:', {
+    console.log('🔍 Comprehensive prompt generation:', {
       questionType,
-      systemPrompt: systemPrompt ? 'FROM DB (' + systemPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
-      typePrompt: typePrompt ? 'FROM DB (' + typePrompt.length + ' chars)' : 'FALLBACK TO HARDCODED',
-      divisionPrompt: divisionPrompt ? 'FROM DB (' + divisionPrompt.length + ' chars)' : 'FALLBACK TO HARDCODED'
+      comprehensiveTypeKey: getComprehensiveTypeKey(questionType),
+      systemPrompt: systemPrompt ? `FROM DB (${systemPrompt.length} chars)` : 'FALLBACK TO HARDCODED',
+      typePrompt: typePrompt ? `FROM DB (${typePrompt.length} chars)` : 'NOT FOUND - USING SYSTEM PROMPT',
+      divisionPrompt: divisionPrompt ? `FROM DB (${divisionPrompt.length} chars)` : 'NOT FOUND'
     });
 
     // 서버 시스템 프롬프트가 있으면 템플릿 변수 치환 사용
     if (systemPrompt) {
       console.log('🔧 Using server comprehensive system prompt with template substitution');
       
+      // 타입 프롬프트 처리: 정보 확인/추론은 시스템 프롬프트 내에 포함되어 있음
+      let typePromptText = '';
+      if (typePrompt) {
+        typePromptText = typePrompt;
+        console.log(`✅ Using separate type prompt for ${questionType}`);
+      } else {
+        // 정보 확인, 추론 등은 시스템 프롬프트에 이미 포함되어 있음
+        if (questionType === '정보 확인' || questionType === '추론') {
+          typePromptText = '위 시스템 프롬프트의 가이드라인을 따라 문제를 생성하십시오.';
+          console.log(`✅ Using system prompt guidelines for ${questionType}`);
+        } else {
+          typePromptText = `${questionType} 유형에 적합한 문제를 생성하십시오.`;
+          console.log(`⚠️ No specific type prompt found for ${questionType}, using generic guidance`);
+        }
+      }
+      
       const finalPrompt = systemPrompt
-        .replace('{questionType}', questionType)
-        .replace('{questionCount}', questionCount.toString())
-        .replace('{passage}', passage)
-        .replace('{divisionPrompt}', divisionPrompt || '난이도 정보가 없습니다.')
-        .replace('{typePrompt}', typePrompt || '문제 유형 가이드라인이 없습니다.');
+        .replace(/{questionType}/g, questionType)
+        .replace(/{questionCount}/g, questionCount.toString())
+        .replace(/{passage}/g, passage)
+        .replace(/{divisionPrompt}/g, divisionPrompt || '해당 학년에 적합한 난이도로 문제를 출제하십시오.')
+        .replace(/{typePrompt}/g, typePromptText);
       
       console.log('✅ Comprehensive template substitution completed');
+      console.log(`📊 Final prompt length: ${finalPrompt.length} characters`);
       return finalPrompt;
     }
 
-    // 폴백: 하드코딩된 프롬프트 사용
-    console.log('🔧 Using fallback hardcoded comprehensive system prompt');
+    // 폴백: 하드코딩된 프롬프트 사용 (DB 조회 실패 시)
+    console.warn('⚠️ DB system prompt not found, using fallback hardcoded comprehensive system prompt');
+    console.warn('⚠️ Check if "comprehensive-system-base" exists in system_prompts_v3 table');
     return `###지시사항
 주어진 지문을 바탕으로 **${questionType}** 유형의 문제 ${questionCount}개를 생성하십시오.
 - 지문의 전체적인 이해와 핵심 내용 파악을 평가하는 문제를 생성합니다.
@@ -1988,7 +2007,19 @@ ${divisionPrompt || '난이도 정보가 없습니다.'}
 ${typePrompt || '문제 유형 가이드라인이 없습니다.'}
 
 ###출력형식(JSON)
-${outputPrompt || '출력 형식이 없습니다.'}
+{
+  "comprehensiveQuestions": [
+    {
+      "id": "comp_문제번호_timestamp",
+      "type": "${questionType}",
+      "questionFormat": "multiple_choice",
+      "question": "문제 내용",
+      "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
+      "answer": "정답",
+      "explanation": "해설"
+    }
+  ]
+}
 
 ###주의사항
 - 반드시 위의 JSON 형식을 정확히 준수하십시오.
@@ -2012,3 +2043,4 @@ export function getDefaultPromptById(promptId: string): string | null {
   console.log('Found prompt:', prompt);
   return prompt ? prompt.promptText : null;
 }
+
