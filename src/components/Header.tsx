@@ -156,6 +156,28 @@ export default function Header() {
                 </div>
               )}
             </div>
+            
+            {/* DB 다운로드 메뉴 */}
+            <Link
+              href="/download"
+              className={`
+                group relative flex items-center px-3 py-2 text-sm font-medium transition-all duration-200 border-b-2
+                ${isActive('/download')
+                  ? 'text-blue-600 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900 border-transparent hover:border-gray-300'
+                }
+              `}
+              title="데이터베이스 테이블 CSV 다운로드"
+            >
+              <span className="mr-2">📊</span>
+              <span>DB 다운로드</span>
+              
+              {/* 호버 툴팁 */}
+              <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                데이터베이스 테이블 CSV 다운로드
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-b-gray-900"></div>
+              </div>
+            </Link>
           </nav>
           
           {/* 사용자 정보 및 액션 */}
@@ -238,6 +260,12 @@ export default function Header() {
                   <Link href="/curriculum-admin" className="hover:text-gray-900">시스템 설정</Link>
                   <span className="mx-2">/</span>
                   <span className="text-gray-400">필드데이터 관리</span>
+                </>
+              )}
+              {pathname.startsWith('/download') && (
+                <>
+                  <span className="mx-2">/</span>
+                  <span className="text-gray-400">DB 다운로드</span>
                 </>
               )}
             </div>
