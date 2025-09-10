@@ -90,13 +90,20 @@ export async function GET(request: NextRequest) {
                 passage.paragraph_10
               ].filter(p => p && p.trim() !== '')
             })),
-            vocabularyTerms: (setDetails.vocabulary_terms || []).map((term: VocabularyTerm) => ({
-              id: term.id,
-              term: term.term,
-              definition: term.definition,
-              example_sentence: term.example_sentence,
-              has_question_generated: term.has_question_generated // has_question_generated 필드 추가
-            })),
+            vocabularyTerms: (setDetails.vocabulary_terms || []).map((term: VocabularyTerm) => {
+              // passage_id로 해당 지문 정보 찾기
+              const relatedPassage = (setDetails.passages || []).find((p: any) => p.id === term.passage_id);
+              return {
+                id: term.id,
+                term: term.term,
+                definition: term.definition,
+                example_sentence: term.example_sentence,
+                has_question_generated: term.has_question_generated, // has_question_generated 필드 추가
+                passage_id: term.passage_id, // 지문 ID 추가
+                passage_number: relatedPassage?.passage_number || 1, // 지문 번호
+                passage_title: relatedPassage?.title || '지문' // 지문 제목
+              };
+            }),
             vocabularyQuestions: (setDetails.vocabulary_questions || []).map((q: VocabularyQuestion) => {
               console.log('어휘문제 DB 데이터:', q);
               const result = {

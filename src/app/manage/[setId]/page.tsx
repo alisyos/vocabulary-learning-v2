@@ -101,6 +101,9 @@ interface VocabularyTerm {
   exampleSentence: string;
   orderIndex: number;
   has_question_generated?: boolean; // 어휘 문제 생성 여부 (true: 핵심어, false: 어려운 어휘)
+  passage_id?: string; // 어휘가 추출된 지문의 ID
+  passage_number?: number; // 지문 번호 (조인된 데이터)
+  passage_title?: string; // 지문 제목 (조인된 데이터)
 }
 
 interface PassageData {
@@ -197,7 +200,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
           console.log(`어휘 용어 ${index + 1} 원본:`, term);
           
           if (term && typeof term === 'object' && term.term && term.definition) {
-            // VocabularyTerm 객체 구조를 유지
+            // VocabularyTerm 객체 구조를 유지 (passage 정보 포함)
             const processedTerm = {
               id: term.id,
               content_set_id: term.content_set_id,
@@ -205,6 +208,9 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
               definition: term.definition,
               example_sentence: term.example_sentence || '',
               has_question_generated: term.has_question_generated || false,
+              passage_id: term.passage_id, // 지문 ID 추가
+              passage_number: term.passage_number, // 지문 번호 추가
+              passage_title: term.passage_title, // 지문 제목 추가
               created_at: term.created_at
             };
             console.log(`어휘 용어 ${index + 1} 처리 결과:`, processedTerm);
@@ -1281,12 +1287,46 @@ ${allParagraphs}`;
         </div>
       </div>
 
-      <!-- 어려운 어휘 섹션 -->
+      <!-- 어려운 어휘 섹션 - 지문별로 그룹화 -->
       <div>
         <h2 style="color: #2c3e50; margin-bottom: 20px;">📖 어려운 어휘 (${difficultVocabularyCount}개)</h2>
         <p style="color: #6c757d; margin-bottom: 30px; font-style: italic;">지문 이해에 도움이 되는 추가 어휘들입니다.</p>
-        <div class="vocabulary-grid">
-          ${vocabularyTermsData.filter(term => term.has_question_generated !== true).map((vocabTerm, index) => {
+        ${(() => {
+          // 어려운 어휘만 필터링
+          const difficultTerms = vocabularyTermsData.filter(term => term.has_question_generated !== true);
+          
+          // 지문별로 그룹화
+          const termsByPassage = {};
+          difficultTerms.forEach(term => {
+            const passageKey = term.passage_id || 'unknown';
+            if (!termsByPassage[passageKey]) {
+              termsByPassage[passageKey] = {
+                passageNumber: term.passage_number || 1,
+                passageTitle: term.passage_title || '지문',
+                terms: []
+              };
+            }
+            termsByPassage[passageKey].terms.push(term);
+          });
+          
+          // passage_number로 정렬
+          const sortedPassages = Object.entries(termsByPassage).sort((a, b) => 
+            a[1].passageNumber - b[1].passageNumber
+          );
+          
+          // HTML 생성
+          return sortedPassages.map(([passageId, passageData]) => {
+            const passageLabel = editablePassages.length > 1 
+              ? `지문 ${passageData.passageNumber}: ${passageData.passageTitle}` 
+              : '지문에서 추출된 어휘';
+            
+            return `
+              <div style="margin-bottom: 30px;">
+                <h3 style="color: #dc6843; margin-bottom: 15px; font-size: 1.1em;">
+                  📄 ${passageLabel} (${passageData.terms.length}개)
+                </h3>
+                <div class="vocabulary-grid">
+                  ${passageData.terms.map((vocabTerm, index) => {
             const vocab = vocabTerm.term + ': ' + vocabTerm.definition + (vocabTerm.example_sentence ? ' (예시: ' + vocabTerm.example_sentence + ')' : '');
             
             // 기본적인 어휘 형식: "용어: 정의"
@@ -1327,8 +1367,12 @@ ${allParagraphs}`;
                 '</div>';
             }
             return '';
-          }).join('')}
-        </div>
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('');
+        })()}
       </div>
     </div>
 
@@ -2276,12 +2320,69 @@ ${allParagraphs}`;
                   <h3 className="text-lg font-medium text-gray-900">
                     어휘 ({vocabularyTermsData.length}개)
                   </h3>
-                  <button
-                    onClick={addVocabulary}
-                    className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
-                  >
-                    + 용어 추가
-                  </button>
+                  
+                  {/* 신규 용어 추가 버튼과 지문 선택 */}
+                  <div className="flex items-center gap-3">
+                    {editablePassages.length > 1 && (
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600">새 용어를 추가할 지문:</label>
+                        <select
+                          id="new-vocabulary-passage"
+                          className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          {editablePassages.map((passage, pIdx) => (
+                            <option key={pIdx} value={`passage_${pIdx}`}>
+                              지문 {pIdx + 1}: {passage.title || '제목 없음'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        // 기본 용어 추가
+                        addVocabulary();
+                        
+                        // 지문 정보 설정 (여러 지문이 있을 때만)
+                        if (editablePassages.length > 1) {
+                          setTimeout(() => {
+                            const selectElement = document.getElementById('new-vocabulary-passage') as HTMLSelectElement;
+                            const selectedPassageId = selectElement?.value || 'passage_0';
+                            const passageIndex = parseInt(selectedPassageId.split('_')[1]);
+                            const selectedPassage = editablePassages[passageIndex];
+                            
+                            // 새로 추가된 용어에 지문 정보 설정
+                            const newIndex = editableVocabulary.length - 1; // 방금 추가된 용어의 인덱스
+                            const updatedTermsData = [...vocabularyTermsData];
+                            if (!updatedTermsData[newIndex]) {
+                              updatedTermsData[newIndex] = {
+                                id: `temp-${newIndex}`,
+                                term: '용어',
+                                definition: '설명',
+                                exampleSentence: '',
+                                orderIndex: newIndex,
+                                has_question_generated: false,
+                                passage_id: selectedPassageId,
+                                passage_number: passageIndex + 1,
+                                passage_title: selectedPassage?.title || '지문'
+                              };
+                            } else {
+                              updatedTermsData[newIndex] = {
+                                ...updatedTermsData[newIndex],
+                                passage_id: selectedPassageId,
+                                passage_number: passageIndex + 1,
+                                passage_title: selectedPassage?.title || '지문'
+                              };
+                            }
+                            setVocabularyTermsData(updatedTermsData);
+                          }, 10); // 짧은 지연으로 addVocabulary 실행 완료 후 처리
+                        }
+                      }}
+                      className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
+                    >
+                      + 용어 추가
+                    </button>
+                  </div>
                 </div>
 
                 {/* 핵심어 섹션 (어휘 문제가 생성된 용어) */}
@@ -2315,33 +2416,68 @@ ${allParagraphs}`;
                   );
                 })()}
 
-                {/* 어려운 어휘 섹션 (어휘 문제가 생성되지 않은 용어) */}
+                {/* 어려운 어휘 섹션 - 지문별로 그룹화 */}
                 {(() => {
                   const difficultTerms = vocabularyTermsData.filter(term => term.has_question_generated !== true);
+                  
+                  // 지문별로 그룹화
+                  const termsByPassage: { [key: string]: { passageNumber: number; passageTitle: string; terms: typeof difficultTerms } } = {};
+                  
+                  difficultTerms.forEach(term => {
+                    const passageKey = term.passage_id || 'unknown';
+                    if (!termsByPassage[passageKey]) {
+                      termsByPassage[passageKey] = {
+                        passageNumber: term.passage_number || 1,
+                        passageTitle: term.passage_title || '지문',
+                        terms: []
+                      };
+                    }
+                    termsByPassage[passageKey].terms.push(term);
+                  });
+                  
+                  // passage_number로 정렬
+                  const sortedPassages = Object.entries(termsByPassage).sort((a, b) => 
+                    a[1].passageNumber - b[1].passageNumber
+                  );
+                  
                   return difficultTerms.length > 0 && (
                     <div className="bg-orange-50 rounded-lg p-6 border border-orange-200">
                       <h4 className="text-lg font-semibold text-orange-900 mb-4 flex items-center">
                         <span className="w-3 h-3 bg-orange-500 rounded-full mr-2"></span>
                         어려운 어휘 ({difficultTerms.length}개)
                       </h4>
-                      <p className="text-sm text-orange-700 mb-4">문제로 만들어지지 않은 추가 학습 용어입니다.</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {difficultTerms.map((term, index) => (
-                          <div key={term.id} className="bg-white rounded-lg p-4 border border-orange-200">
-                            <div className="font-semibold text-orange-900 text-lg mb-2">
-                              {term.term}
-                            </div>
-                            <div className="text-gray-700 mb-2">
-                              {term.definition}
-                            </div>
-                            {term.example_sentence && (
-                              <div className="text-sm text-gray-600 italic">
-                                예시: {term.example_sentence}
+                      <p className="text-sm text-orange-700 mb-6">문제로 만들어지지 않은 추가 학습 용어입니다.</p>
+                      
+                      {/* 지문별로 구분하여 표시 */}
+                      {sortedPassages.map(([passageId, { passageNumber, passageTitle, terms }]) => (
+                        <div key={passageId} className="mb-6 last:mb-0">
+                          <h5 className="text-md font-semibold text-orange-800 mb-3 flex items-center">
+                            <span className="mr-2">📖</span>
+                            {editablePassages.length > 1 ? `지문 ${passageNumber}: ${passageTitle}` : '지문에서 추출된 어휘'}
+                            <span className="ml-2 text-sm text-orange-600">({terms.length}개)</span>
+                          </h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {terms.map((term, index) => (
+                              <div key={term.id} className="bg-white rounded-lg p-4 border border-orange-200">
+                                <div className="flex justify-between items-start mb-2">
+                                  <div className="font-semibold text-orange-900 text-lg">
+                                    {term.term}
+                                  </div>
+                                  <span className="text-xs text-orange-600">No.{index + 1}</span>
+                                </div>
+                                <div className="text-gray-700 mb-2">
+                                  {term.definition}
+                                </div>
+                                {term.example_sentence && (
+                                  <div className="text-sm text-gray-600 italic">
+                                    예시: {term.example_sentence}
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
                   );
                 })()}
@@ -2460,6 +2596,23 @@ ${allParagraphs}`;
                         }
                       };
                       
+                      const updateVocabularyPassage = (passageId: string) => {
+                        const updatedTermsData = [...vocabularyTermsData];
+                        if (updatedTermsData[index]) {
+                          // 선택된 지문 찾기
+                          const passageIndex = parseInt(passageId.split('_')[1]);
+                          const selectedPassage = editablePassages[passageIndex];
+                          
+                          updatedTermsData[index] = {
+                            ...updatedTermsData[index],
+                            passage_id: passageId,
+                            passage_number: passageIndex + 1,
+                            passage_title: selectedPassage?.title || '지문'
+                          };
+                          setVocabularyTermsData(updatedTermsData);
+                        }
+                      };
+                      
                       // 현재 어휘 유형 결정 (has_question_generated 기반)
                       const currentType = vocabularyTermsData[index]?.has_question_generated === true ? '핵심어' : '어려운 어휘';
                       
@@ -2506,10 +2659,30 @@ ${allParagraphs}`;
                               </div>
                             </div>
                             
-                            {/* 어휘 유형 선택 */}
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">어휘 유형</label>
-                              <div className="flex gap-4">
+                            {/* 지문 선택 및 어휘 유형 선택 */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* 지문 선택 드롭다운 (여러 지문이 있을 때만 표시) */}
+                              {editablePassages.length > 1 && (
+                                <div>
+                                  <label className="block text-xs text-gray-500 mb-1">소속 지문</label>
+                                  <select
+                                    value={vocabularyTermsData[index]?.passage_id || `passage_0`}
+                                    onChange={(e) => updateVocabularyPassage(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  >
+                                    {editablePassages.map((passage, pIdx) => (
+                                      <option key={pIdx} value={`passage_${pIdx}`}>
+                                        지문 {pIdx + 1}: {passage.title || '제목 없음'}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                              
+                              {/* 어휘 유형 선택 */}
+                              <div className={editablePassages.length > 1 ? '' : 'md:col-span-2'}>
+                                <label className="block text-xs text-gray-500 mb-1">어휘 유형</label>
+                                <div className="flex gap-4">
                                 <button
                                   type="button"
                                   onClick={() => updateVocabularyType('핵심어')}
@@ -2538,6 +2711,7 @@ ${allParagraphs}`;
                                   </span>
                                   <span className="text-xs opacity-80 mt-1 block">보조 설명용 용어</span>
                                 </button>
+                                </div>
                               </div>
                             </div>
                           </div>

@@ -888,6 +888,160 @@ export const db = {
     }
   },
 
+  // Helper function to save complete content set with passage_id mapping for vocabulary terms
+  async saveCompleteContentSetWithPassageMapping(
+    contentSetData: Omit<ContentSet, 'id' | 'created_at' | 'updated_at'>,
+    passagesData: Omit<Passage, 'id' | 'content_set_id' | 'created_at'>[],
+    vocabularyTermsTemp: Array<Omit<VocabularyTerm, 'id' | 'content_set_id' | 'created_at' | 'passage_id'> & { passageIndex: number }>,
+    vocabularyQuestions: Omit<VocabularyQuestion, 'id' | 'content_set_id' | 'created_at'>[],
+    paragraphQuestions: Omit<ParagraphQuestionDB, 'id' | 'content_set_id' | 'created_at'>[],
+    comprehensiveQuestions: Omit<ComprehensiveQuestionDB, 'id' | 'content_set_id' | 'created_at'>[]
+  ) {
+    console.log('🏗️ saveCompleteContentSetWithPassageMapping 시작 (passage_id 매핑 포함)');
+    console.log('📋 ContentSet 데이터:', contentSetData);
+    
+    try {
+      // 1. ContentSet 저장
+      const { data: contentSet, error: contentSetError } = await supabase
+        .from('content_sets')
+        .insert(contentSetData)
+        .select()
+        .single()
+      
+      if (contentSetError) {
+        console.error('❌ ContentSet 삽입 오류:', contentSetError);
+        throw contentSetError;
+      }
+      
+      console.log('✅ ContentSet 삽입 성공:', contentSet.id);
+      
+      const contentSetId = contentSet.id
+      
+      // 2. Passages 저장 및 ID 매핑
+      const passagesWithId = passagesData.map(p => ({ ...p, content_set_id: contentSetId }))
+      
+      console.log('📝 Passages 삽입 중...', passagesWithId.length, '개');
+      
+      const { data: insertedPassages, error: passagesError } = await supabase
+        .from('passages')
+        .insert(passagesWithId)
+        .select()
+      
+      if (passagesError) {
+        console.error('❌ Passages 삽입 오류:', passagesError);
+        throw passagesError;
+      }
+      
+      console.log('✅ Passages 삽입 성공:', insertedPassages?.length || 0, '개');
+      
+      // 3. passage_number로 passage ID 매핑 생성
+      const passageIndexToIdMap: { [key: number]: string } = {};
+      insertedPassages?.forEach((passage) => {
+        // passage_number - 1이 passageIndex와 매칭됨
+        passageIndexToIdMap[passage.passage_number - 1] = passage.id;
+      });
+      
+      console.log('📖 Passage Index to ID 매핑:', passageIndexToIdMap);
+      
+      // 4. Vocabulary Terms를 passage_id와 함께 저장
+      const vocabularyTermsWithId = vocabularyTermsTemp.map(v => {
+        const { passageIndex, ...termData } = v;
+        const passageId = passageIndexToIdMap[passageIndex] || null;
+        
+        if (!passageId) {
+          console.warn(`⚠️ 어휘 "${termData.term}"의 passage_id를 찾을 수 없음 (passageIndex: ${passageIndex})`);
+        }
+        
+        return {
+          ...termData,
+          content_set_id: contentSetId,
+          passage_id: passageId // passage_id 추가
+        };
+      });
+      
+      console.log('📚 Vocabulary Terms 삽입 중 (passage_id 포함)...', vocabularyTermsWithId.length, '개');
+      
+      if (vocabularyTermsWithId.length > 0) {
+        const { data: termsData, error: termsError } = await supabase
+          .from('vocabulary_terms')
+          .insert(vocabularyTermsWithId)
+          .select()
+        
+        if (termsError) {
+          console.error('❌ Vocabulary Terms 삽입 오류:', termsError);
+          throw termsError;
+        }
+        
+        console.log('✅ Vocabulary Terms 삽입 성공:', termsData?.length || 0, '개');
+        
+        // passage_id 매핑 결과 로그
+        const passageIdCounts: { [key: string]: number } = {};
+        termsData?.forEach((term: any) => {
+          if (term.passage_id) {
+            passageIdCounts[term.passage_id] = (passageIdCounts[term.passage_id] || 0) + 1;
+          }
+        });
+        console.log('📊 Passage별 어휘 분포:', passageIdCounts);
+      }
+      
+      // 5. 나머지 데이터 저장 (기존 로직과 동일)
+      const vocabularyQuestionsWithId = vocabularyQuestions.map(q => ({ ...q, content_set_id: contentSetId }))
+      const paragraphQuestionsWithId = (paragraphQuestions || []).map(q => ({ ...q, content_set_id: contentSetId }))
+      const comprehensiveQuestionsWithId = comprehensiveQuestions.map(q => ({ ...q, content_set_id: contentSetId }))
+      
+      const results = []
+      
+      // Vocabulary Questions
+      if (vocabularyQuestionsWithId.length > 0) {
+        console.log('❓ Vocabulary Questions 삽입 중...', vocabularyQuestionsWithId.length, '개');
+        const { error: vocabQError } = await supabase
+          .from('vocabulary_questions')
+          .insert(vocabularyQuestionsWithId)
+        
+        if (vocabQError) {
+          console.error('❌ Vocabulary Questions 삽입 오류:', vocabQError);
+          throw vocabQError;
+        }
+        results.push(`어휘문제 ${vocabularyQuestionsWithId.length}개`)
+      }
+      
+      // Paragraph Questions
+      if (paragraphQuestionsWithId.length > 0) {
+        console.log('📄 Paragraph Questions 삽입 중...', paragraphQuestionsWithId.length, '개');
+        const { error: paraQError } = await supabase
+          .from('paragraph_questions')
+          .insert(paragraphQuestionsWithId)
+        
+        if (paraQError) {
+          console.error('❌ Paragraph Questions 삽입 오류:', paraQError);
+          throw paraQError;
+        }
+        results.push(`문단문제 ${paragraphQuestionsWithId.length}개`)
+      }
+      
+      // Comprehensive Questions
+      if (comprehensiveQuestionsWithId.length > 0) {
+        console.log('🧠 Comprehensive Questions 삽입 중...', comprehensiveQuestionsWithId.length, '개');
+        const { error: compQError } = await supabase
+          .from('comprehensive_questions')
+          .insert(comprehensiveQuestionsWithId)
+        
+        if (compQError) {
+          console.error('❌ Comprehensive Questions 삽입 오류:', compQError);
+          throw compQError;
+        }
+        results.push(`종합문제 ${comprehensiveQuestionsWithId.length}개`)
+      }
+      
+      console.log('🎉 모든 데이터 삽입 완료:', results.join(', '));
+      
+      return contentSet as ContentSet
+    } catch (error) {
+      console.error('💥 saveCompleteContentSetWithPassageMapping 전체 오류:', error);
+      throw error;
+    }
+  },
+
   // Curriculum Data
   async getCurriculumData(filters: { subject?: string; grade?: string; area?: string } = {}) {
     let query = supabase

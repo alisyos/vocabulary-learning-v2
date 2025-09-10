@@ -174,24 +174,29 @@ export async function POST(request: NextRequest) {
     console.log('📝 Passage 데이터 변환 완료:', passagesData.length, '개');
 
     // Transform vocabulary terms - handle both single and dual passage formats
-    let allFootnotes: string[] = [];
+    // 각 어휘가 어느 지문에서 나왔는지 추적하기 위한 구조
+    let vocabularyTermsWithPassageInfo: Array<{ footnote: string; passageIndex: number }> = [];
     
     if (editablePassage?.passages && Array.isArray(editablePassage.passages) && editablePassage.passages.length > 0) {
-      // 새로운 2개 지문 형식 - 모든 지문의 footnote를 합치기
-      console.log('🔄 2개 지문의 어휘 용어 합치기');
-      editablePassage.passages.forEach((passage, index) => {
+      // 새로운 2개 지문 형식 - 각 지문의 footnote와 지문 인덱스 연결
+      console.log('🔄 2개 지문의 어휘 용어 처리 (지문별 구분)');
+      editablePassage.passages.forEach((passage, passageIndex) => {
         if (passage.footnote && Array.isArray(passage.footnote)) {
-          console.log(`📚 지문 ${index + 1} 어휘 용어:`, passage.footnote.length, '개');
-          allFootnotes = allFootnotes.concat(passage.footnote);
+          console.log(`📚 지문 ${passageIndex + 1} 어휘 용어:`, passage.footnote.length, '개');
+          passage.footnote.forEach(footnote => {
+            vocabularyTermsWithPassageInfo.push({ footnote, passageIndex });
+          });
         }
       });
     } else if (editablePassage?.footnote && Array.isArray(editablePassage.footnote)) {
       // 기존 단일 지문 형식
       console.log('📄 단일 지문 어휘 용어 처리');
-      allFootnotes = editablePassage.footnote;
+      editablePassage.footnote.forEach(footnote => {
+        vocabularyTermsWithPassageInfo.push({ footnote, passageIndex: 0 });
+      });
     }
     
-    console.log('📚 총 어휘 용어 수:', allFootnotes.length, '개');
+    console.log('📚 총 어휘 용어 수:', vocabularyTermsWithPassageInfo.length, '개');
     
     // 어휘 문제에서 사용된 용어들 추출 (문제 생성 여부 판단용)
     const vocabularyQuestionTerms = new Set(
@@ -199,9 +204,12 @@ export async function POST(request: NextRequest) {
     );
     console.log('📝 어휘 문제가 생성된 용어들:', Array.from(vocabularyQuestionTerms));
     
-    const vocabularyTerms: Omit<VocabularyTerm, 'id' | 'content_set_id' | 'created_at'>[] = 
-      allFootnotes?.map((footnote: string, index: number) => {
-        console.log(`어휘 용어 ${index + 1} 원본 footnote:`, footnote);
+    // 먼저 지문들을 저장하고 passage_id를 받아야 함
+    // (아래에서 수정)
+    const vocabularyTermsTemp: Array<Omit<VocabularyTerm, 'id' | 'content_set_id' | 'created_at' | 'passage_id'> & { passageIndex: number }> = 
+      vocabularyTermsWithPassageInfo?.map((item, index: number) => {
+        const { footnote, passageIndex } = item;
+        console.log(`어휘 용어 ${index + 1} 원본 footnote:`, footnote, '(지문', passageIndex + 1, ')');
         
         // 첫 번째 콜론만 기준으로 분리
         const colonIndex = footnote.indexOf(':');
@@ -264,14 +272,15 @@ export async function POST(request: NextRequest) {
           term: term || '',
           definition: definition || footnote,
           example_sentence: exampleSentence,
-          has_question_generated: hasQuestion
+          has_question_generated: hasQuestion,
+          passageIndex: passageIndex // 임시로 지문 인덱스 저장
         };
         
         console.log(`분리된 용어 ${index + 1}:`, result);
         return result;
       }) || [];
 
-    console.log('📚 VocabularyTerms 데이터 변환 완료:', vocabularyTerms.length, '개');
+    console.log('📚 VocabularyTerms 데이터 변환 완료 (passage_id 매핑 전):', vocabularyTermsTemp.length, '개');
 
     // 6가지 어휘 문제 유형을 DB의 2가지 유형으로 매핑하는 함수
     const mapVocabularyQuestionType = (detailedType: string): '객관식' | '주관식' => {
@@ -537,17 +546,17 @@ export async function POST(request: NextRequest) {
     console.log('📊 저장할 데이터 요약:');
     console.log('  - ContentSet:', !!contentSetData);
     console.log('  - Passages:', passagesData.length);
-    console.log('  - Vocabulary Terms:', vocabularyTerms.length);  
+    console.log('  - Vocabulary Terms:', vocabularyTermsTemp.length);  
     console.log('  - Vocabulary Questions:', transformedVocabularyQuestions.length);
     console.log('  - Paragraph Questions:', transformedParagraphQuestions.length);
     console.log('  - Comprehensive Questions:', transformedComprehensiveQuestions.length);
 
-    // Save to Supabase
-    console.log('🔄 db.saveCompleteContentSet 호출 중...');
-    const savedContentSet = await db.saveCompleteContentSet(
+    // Save to Supabase with passage_id mapping
+    console.log('🔄 db.saveCompleteContentSet 호출 중 (passage_id 매핑 포함)...');
+    const savedContentSet = await db.saveCompleteContentSetWithPassageMapping(
       contentSetData,
       passagesData,
-      vocabularyTerms,
+      vocabularyTermsTemp, // passageIndex 포함된 임시 데이터
       transformedVocabularyQuestions,
       transformedParagraphQuestions,
       transformedComprehensiveQuestions

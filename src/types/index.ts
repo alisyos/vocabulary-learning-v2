@@ -315,6 +315,7 @@ export interface Passage {
 export interface VocabularyTerm {
   id?: string; // UUID
   content_set_id: string; // UUID
+  passage_id?: string; // UUID - 어휘가 추출된 지문의 ID
   term: string;
   definition: string;
   example_sentence?: string | null; // 예시 문장
