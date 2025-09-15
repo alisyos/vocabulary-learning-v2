@@ -1800,16 +1800,35 @@ ${allParagraphs}`;
     URL.revokeObjectURL(url);
   };
 
-  // 지문 편집 함수들
-  const handleTitleChange = (newTitle: string) => {
-    setEditablePassage(prev => ({ ...prev, title: newTitle }));
+  // 지문 편집 함수들 - editablePassages와 editablePassage 동기화
+  const handleTitleChange = (newTitle: string, passageIndex: number = currentPassageIndex) => {
+    // editablePassage 업데이트
+    if (passageIndex === currentPassageIndex) {
+      setEditablePassage(prev => ({ ...prev, title: newTitle }));
+    }
+    
+    // editablePassages 업데이트
+    setEditablePassages(prev => 
+      prev.map((p, i) => i === passageIndex ? { ...p, title: newTitle } : p)
+    );
   };
 
-  const handleParagraphChange = (index: number, newContent: string) => {
-    setEditablePassage(prev => ({
-      ...prev,
-      paragraphs: prev.paragraphs.map((p, i) => i === index ? newContent : p)
-    }));
+  const handleParagraphChange = (index: number, newContent: string, passageIndex: number = currentPassageIndex) => {
+    // editablePassage 업데이트
+    if (passageIndex === currentPassageIndex) {
+      setEditablePassage(prev => ({
+        ...prev,
+        paragraphs: prev.paragraphs.map((p, i) => i === index ? newContent : p)
+      }));
+    }
+    
+    // editablePassages 업데이트
+    setEditablePassages(prev => 
+      prev.map((p, i) => i === passageIndex 
+        ? { ...p, paragraphs: p.paragraphs.map((para, j) => j === index ? newContent : para) }
+        : p
+      )
+    );
   };
 
   const addParagraph = () => {
@@ -1819,18 +1838,25 @@ ${allParagraphs}`;
     }));
   };
 
-  const removeParagraph = (index: number) => {
-    if (editablePassage.paragraphs.length <= 1) {
+  const removeParagraph = (index: number, passageIndex: number = currentPassageIndex) => {
+    // 해당 지문의 단락 수 확인
+    const targetPassage = editablePassages[passageIndex] || editablePassage;
+    if (targetPassage.paragraphs.length <= 1) {
       alert('최소 1개의 단락은 있어야 합니다.');
       return;
     }
-    setEditablePassage(prev => ({
-      ...prev,
-      paragraphs: prev.paragraphs.filter((_, i) => i !== index)
-    }));
-    // 여러 지문 배열도 업데이트
+    
+    // editablePassage 업데이트
+    if (passageIndex === currentPassageIndex) {
+      setEditablePassage(prev => ({
+        ...prev,
+        paragraphs: prev.paragraphs.filter((_, i) => i !== index)
+      }));
+    }
+    
+    // editablePassages 업데이트
     setEditablePassages(prev => 
-      prev.map((p, i) => i === currentPassageIndex 
+      prev.map((p, i) => i === passageIndex 
         ? { ...p, paragraphs: p.paragraphs.filter((_, j) => j !== index) }
         : p
       )
@@ -2238,15 +2264,7 @@ ${allParagraphs}`;
                         type="text"
                         value={passage.title}
                         onChange={(e) => {
-                          const updatedPassages = [...editablePassages];
-                          updatedPassages[passageIndex].title = e.target.value;
-                          setEditablePassages(updatedPassages);
-                          if (passageIndex === currentPassageIndex) {
-                            setEditablePassage({
-                              ...editablePassage,
-                              title: e.target.value
-                            });
-                          }
+                          handleTitleChange(e.target.value, passageIndex);
                         }}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -2294,12 +2312,7 @@ ${allParagraphs}`;
                             <textarea
                               value={paragraph}
                               onChange={(e) => {
-                                const updatedPassages = [...editablePassages];
-                                updatedPassages[passageIndex].paragraphs[paragraphIndex] = e.target.value;
-                                setEditablePassages(updatedPassages);
-                                if (passageIndex === currentPassageIndex) {
-                                  handleParagraphChange(paragraphIndex, e.target.value);
-                                }
+                                handleParagraphChange(paragraphIndex, e.target.value, passageIndex);
                               }}
                               rows={4}
                               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

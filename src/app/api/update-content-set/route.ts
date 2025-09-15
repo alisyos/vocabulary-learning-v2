@@ -17,38 +17,51 @@ export async function PUT(request: NextRequest) {
       contentSetId,
       editableIntroductionQuestion,
       editablePassage,
+      editablePassages, // 여러 지문 배열 추가
       editableVocabulary,
       editableVocabQuestions,
       editableParagraphQuestions,
-      editableComprehensive
+      editableComprehensive,
+      vocabularyTermsData // 어휘 타입 정보 추가
     } = data;
 
-    // Validate required data
-    if (!contentSetId || !editablePassage) {
-      console.log('❌ 필수 데이터 누락:', { contentSetId: !!contentSetId, editablePassage: !!editablePassage });
+    // Validate required data - editablePassages가 있으면 그것을 우선 사용
+    if (!contentSetId || (!editablePassages && !editablePassage)) {
+      console.log('❌ 필수 데이터 누락:', { 
+        contentSetId: !!contentSetId, 
+        editablePassages: !!editablePassages, 
+        editablePassage: !!editablePassage 
+      });
       return NextResponse.json({
         success: false,
-        message: 'contentSetId와 editablePassage는 필수입니다.'
+        message: 'contentSetId와 editablePassages 또는 editablePassage는 필수입니다.'
       }, { status: 400 });
     }
 
     console.log('📋 입력 데이터 검증 완료');
 
-    // 안전한 문단 수 계산
-    let actualParagraphCount = 0;
-    if (editablePassage?.paragraphs && Array.isArray(editablePassage.paragraphs)) {
-      actualParagraphCount = editablePassage.paragraphs.filter((p: string) => {
-        return p && typeof p === 'string' && p.trim() !== '';
-      }).length;
-    }
-    
-    console.log('📊 계산된 문단 수:', actualParagraphCount);
+    // editablePassages가 있으면 우선 사용, 없으면 editablePassage 사용
+    const passagesToProcess = editablePassages || (editablePassage ? [editablePassage] : []);
+    console.log('📝 처리할 지문 수:', passagesToProcess.length);
 
-    // 1. ContentSet 업데이트
+    // 안전한 문단 수 계산 (모든 지문의 문단 합계)
+    let actualParagraphCount = 0;
+    passagesToProcess.forEach((passage: any) => {
+      if (passage?.paragraphs && Array.isArray(passage.paragraphs)) {
+        actualParagraphCount += passage.paragraphs.filter((p: string) => {
+          return p && typeof p === 'string' && p.trim() !== '';
+        }).length;
+      }
+    });
+    
+    console.log('📊 계산된 총 문단 수:', actualParagraphCount);
+
+    // 1. ContentSet 업데이트 (첫 번째 지문의 제목 사용)
+    const firstPassage = passagesToProcess[0] || {};
     const contentSetUpdateData = {
-      title: editablePassage.title,
+      title: firstPassage.title || '',
       introduction_question: editableIntroductionQuestion || null,
-      total_passages: actualParagraphCount,
+      total_passages: passagesToProcess.length, // 지문 개수로 변경
       total_vocabulary_terms: editableVocabulary?.length || 0,
       total_vocabulary_questions: editableVocabQuestions?.length || 0,
       total_paragraph_questions: editableParagraphQuestions?.length || 0,
@@ -59,34 +72,49 @@ export async function PUT(request: NextRequest) {
     console.log('📊 ContentSet 업데이트 데이터:', contentSetUpdateData);
     await db.updateContentSet(contentSetId, contentSetUpdateData);
 
-    // 2. Passage 업데이트
-    const passageData = {
-      title: editablePassage.title,
-      paragraph_1: editablePassage.paragraphs[0] || null,
-      paragraph_2: editablePassage.paragraphs[1] || null,
-      paragraph_3: editablePassage.paragraphs[2] || null,
-      paragraph_4: editablePassage.paragraphs[3] || null,
-      paragraph_5: editablePassage.paragraphs[4] || null,
-      paragraph_6: editablePassage.paragraphs[5] || null,
-      paragraph_7: editablePassage.paragraphs[6] || null,
-      paragraph_8: editablePassage.paragraphs[7] || null,
-      paragraph_9: editablePassage.paragraphs[8] || null,
-      paragraph_10: editablePassage.paragraphs[9] || null,
-    };
-
-    // 기존 passage 찾아서 업데이트
+    // 2. Passages 업데이트 (여러 지문 처리)
     const existingPassages = await db.getPassagesByContentSetId(contentSetId);
-    if (existingPassages.length > 0 && existingPassages[0].id) {
-      console.log('📝 기존 Passage 업데이트');
-      await db.updatePassage(existingPassages[0].id, passageData);
+    console.log('📝 기존 지문 수:', existingPassages.length);
+    console.log('📝 업데이트할 지문 수:', passagesToProcess.length);
+
+    // 각 지문을 처리
+    for (let i = 0; i < passagesToProcess.length; i++) {
+      const passage = passagesToProcess[i];
+      const passageData = {
+        title: passage.title || '',
+        paragraph_1: passage.paragraphs?.[0] || null,
+        paragraph_2: passage.paragraphs?.[1] || null,
+        paragraph_3: passage.paragraphs?.[2] || null,
+        paragraph_4: passage.paragraphs?.[3] || null,
+        paragraph_5: passage.paragraphs?.[4] || null,
+        paragraph_6: passage.paragraphs?.[5] || null,
+        paragraph_7: passage.paragraphs?.[6] || null,
+        paragraph_8: passage.paragraphs?.[7] || null,
+        paragraph_9: passage.paragraphs?.[8] || null,
+        paragraph_10: passage.paragraphs?.[9] || null,
+      };
+
+      if (existingPassages[i]?.id) {
+        // 기존 지문 업데이트
+        console.log(`📝 지문 ${i + 1} 업데이트 (ID: ${existingPassages[i].id})`);
+        await db.updatePassage(existingPassages[i].id, passageData);
+      } else if (i === 0 && existingPassages.length === 0) {
+        // 첫 번째 지문이고 기존 지문이 없는 경우 새로 생성
+        console.log(`📝 새 지문 생성`);
+        await db.createPassage({
+          content_set_id: contentSetId,
+          passage_number: i + 1,
+          ...passageData
+        });
+      }
+      // 추가 지문이 있는 경우는 현재 무시 (필요시 추가 구현)
     }
 
     // 3. VocabularyTerms 업데이트 (안전한 업데이트 방식)
     if (editableVocabulary && editableVocabulary.length > 0) {
       console.log('📚 VocabularyTerms 업데이트 시작');
       
-      // vocabularyTermsData가 함께 전달된 경우 (has_question_generated 정보 포함)
-      const vocabularyTermsData = data.vocabularyTermsData;
+      // vocabularyTermsData는 이미 위에서 destructuring으로 가져옴
       
       const vocabularyTerms: Omit<VocabularyTerm, 'id' | 'created_at'>[] = 
         editableVocabulary.map((vocab: any, index: number) => {
