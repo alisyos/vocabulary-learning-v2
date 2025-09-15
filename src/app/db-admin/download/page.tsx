@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Header from '@/components/Header';
-import AuthGuard from '@/components/AuthGuard';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TableInfo {
   key: string;
@@ -53,6 +53,8 @@ const tables: TableInfo[] = [
 export default function DownloadPage() {
   const [activeTab, setActiveTab] = useState('content_sets');
   const [downloading, setDownloading] = useState<{ [key: string]: boolean }>({});
+  const router = useRouter();
+  const { user, isLoading } = useAuth();
 
   const handleDownload = async (tableName: string) => {
     setDownloading(prev => ({ ...prev, [tableName]: true }));
@@ -96,10 +98,26 @@ export default function DownloadPage() {
 
   const activeTable = tables.find(table => table.key === activeTab);
 
+  // 인증 로딩 중
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-2 text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 인증 체크
+  if (!user) {
+    router.push('/login');
+    return null;
+  }
+
   return (
-    <AuthGuard>
-      <Header />
-      <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="bg-white rounded-lg shadow">
             {/* Tab Navigation */}
@@ -214,6 +232,5 @@ export default function DownloadPage() {
           </div>
         </div>
       </div>
-    </AuthGuard>
   );
 }

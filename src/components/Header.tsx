@@ -10,7 +10,9 @@ export default function Header() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [isSystemDropdownOpen, setIsSystemDropdownOpen] = useState(false);
+  const [isDbDropdownOpen, setIsDbDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dbDropdownRef = useRef<HTMLDivElement>(null);
   
   const navigation = [
     {
@@ -41,6 +43,21 @@ export default function Header() {
       description: '교육과정 데이터 관리'
     }
   ];
+
+  const dbMenuItems = [
+    {
+      name: 'DB 다운로드',
+      href: '/db-admin/download',
+      icon: '💾',
+      description: '데이터베이스 테이블 CSV 다운로드'
+    },
+    {
+      name: '어휘 DB 관리',
+      href: '/db-admin/vocabulary',
+      icon: '📚',
+      description: '어휘 데이터 확인, 검수, 수정'
+    }
+  ];
   
   const isActive = (href: string) => {
     if (href === '/') {
@@ -53,11 +70,18 @@ export default function Header() {
     return pathname.startsWith('/prompts') || pathname.startsWith('/curriculum-admin');
   };
 
+  const isDbMenuActive = () => {
+    return pathname.startsWith('/db-admin');
+  };
+
   // 외부 클릭 감지
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsSystemDropdownOpen(false);
+      }
+      if (dbDropdownRef.current && !dbDropdownRef.current.contains(event.target as Node)) {
+        setIsDbDropdownOpen(false);
       }
     };
 
@@ -157,27 +181,50 @@ export default function Header() {
               )}
             </div>
             
-            {/* DB 다운로드 메뉴 */}
-            <Link
-              href="/download"
-              className={`
-                group relative flex items-center px-3 py-2 text-sm font-medium transition-all duration-200 border-b-2
-                ${isActive('/download')
-                  ? 'text-blue-600 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 border-transparent hover:border-gray-300'
-                }
-              `}
-              title="데이터베이스 테이블 CSV 다운로드"
-            >
-              <span className="mr-2">📊</span>
-              <span>DB 다운로드</span>
+            {/* DB 관리 드롭다운 */}
+            <div className="relative" ref={dbDropdownRef}>
+              <button
+                onClick={() => setIsDbDropdownOpen(!isDbDropdownOpen)}
+                className={`
+                  group relative flex items-center px-3 py-2 text-sm font-medium transition-all duration-200 border-b-2
+                  ${isDbMenuActive()
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-900 border-transparent hover:border-gray-300'
+                  }
+                `}
+                title="데이터베이스 관리"
+              >
+                <span className="mr-2">📊</span>
+                <span>DB 관리</span>
+                <span className={`ml-1 transition-transform duration-200 ${isDbDropdownOpen ? 'rotate-180' : ''}`}>
+                  ▼
+                </span>
+              </button>
               
-              {/* 호버 툴팁 */}
-              <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                데이터베이스 테이블 CSV 다운로드
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-b-gray-900"></div>
-              </div>
-            </Link>
+              {/* 드롭다운 메뉴 */}
+              {isDbDropdownOpen && (
+                <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                  {dbMenuItems.map((item) => (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => setIsDbDropdownOpen(false)}
+                      className={`
+                        flex items-center px-4 py-2 text-sm transition-colors border-l-4
+                        ${isActive(item.href)
+                          ? 'text-blue-600 bg-blue-50 border-blue-600'
+                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50 border-transparent'
+                        }
+                      `}
+                      title={item.description}
+                    >
+                      <span className="mr-3">{item.icon}</span>
+                      <span className="font-medium">{item.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </nav>
           
           {/* 사용자 정보 및 액션 */}
@@ -262,10 +309,22 @@ export default function Header() {
                   <span className="text-gray-400">필드데이터 관리</span>
                 </>
               )}
-              {pathname.startsWith('/download') && (
+              {pathname.startsWith('/db-admin') && (
                 <>
                   <span className="mx-2">/</span>
-                  <span className="text-gray-400">DB 다운로드</span>
+                  <Link href="/db-admin" className="hover:text-gray-900">DB 관리</Link>
+                  {pathname.startsWith('/db-admin/download') && (
+                    <>
+                      <span className="mx-2">/</span>
+                      <span className="text-gray-400">DB 다운로드</span>
+                    </>
+                  )}
+                  {pathname.startsWith('/db-admin/vocabulary') && (
+                    <>
+                      <span className="mx-2">/</span>
+                      <span className="text-gray-400">어휘 DB 관리</span>
+                    </>
+                  )}
                 </>
               )}
             </div>
