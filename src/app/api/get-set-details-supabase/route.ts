@@ -158,13 +158,22 @@ export async function GET(request: NextRequest) {
         questionType: q.question_type || '단답형', // 호환성을 위한 별칭
         question: q.question_text,
         questionFormat: q.question_format || (q.option_1 ? '객관식' : '주관식'),
-        options: q.question_format === '객관식' || q.option_1 ? 
-          [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(o => o) : 
+        // 개별 옵션 필드들 추가
+        option_1: q.option_1,
+        option_2: q.option_2,
+        option_3: q.option_3,
+        option_4: q.option_4,
+        option_5: q.option_5,
+        // 기존 options 배열도 유지
+        options: q.question_format === '객관식' || q.option_1 ?
+          [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(o => o) :
           undefined,
         answer: q.correct_answer,
         correctAnswer: q.correct_answer, // 호환성을 위한 별칭
+        correct_answer: q.correct_answer, // 추가 호환성
         explanation: q.explanation,
         isSupplementary: q.is_supplementary || q.difficulty === '보완',
+        is_supplementary: q.is_supplementary, // 추가 호환성
         originalQuestionId: q.original_question_id,
         questionSetNumber: q.question_set_number || 1
       })) || []

@@ -31,6 +31,44 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
   const [editableParagraphQuestions, setEditableParagraphQuestions] = useState<any[]>([]);
   const [editableComprehensive, setEditableComprehensive] = useState<any[]>([]);
   const [introductionQuestion, setIntroductionQuestion] = useState<string>('');
+  const [currentStatus, setCurrentStatus] = useState<string>('검수 전');
+  const [statusUpdating, setStatusUpdating] = useState(false);
+
+  // 안전한 ID 기반 수정 함수들
+  const updateVocabTerm = (termId: string, field: string, value: any) => {
+    console.log(`🔧 어휘 용어 수정: ID=${termId}, field=${field}, value=`, value);
+    setEditableVocabTerms(prev => prev.map(term =>
+      term.id === termId ? { ...term, [field]: value } : term
+    ));
+  };
+
+  const updateVocabQuestion = (questionId: string, field: string, value: any) => {
+    console.log(`🔧 어휘 문제 수정: ID=${questionId}, field=${field}, value=`, value);
+    setEditableVocabQuestions(prev => prev.map(question =>
+      question.id === questionId ? { ...question, [field]: value } : question
+    ));
+  };
+
+  const updateParagraphQuestion = (questionId: string, field: string, value: any) => {
+    console.log(`🔧 문단 문제 수정: ID=${questionId}, field=${field}, value=`, value);
+    setEditableParagraphQuestions(prev => prev.map(question =>
+      question.id === questionId ? { ...question, [field]: value } : question
+    ));
+  };
+
+  const updateComprehensiveQuestion = (questionId: string, field: string, value: any) => {
+    console.log(`🔧 종합 문제 수정: ID=${questionId}, field=${field}, value=`, value);
+    setEditableComprehensive(prev => prev.map(question =>
+      question.id === questionId ? { ...question, [field]: value } : question
+    ));
+  };
+
+  // 상태 옵션 정의
+  const statusOptions = [
+    { value: '검수 전', label: '검수 전', color: 'bg-gray-100 text-gray-800' },
+    { value: '검수완료', label: '검수완료', color: 'bg-yellow-100 text-yellow-800' },
+    { value: '승인완료', label: '승인완료', color: 'bg-green-100 text-green-800' }
+  ];
 
   // 데이터 로드
   useEffect(() => {
@@ -48,6 +86,9 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
       if (result.success && result.data) {
         console.log('Loaded data:', result.data);
         setData(result.data);
+
+        // 현재 상태 설정
+        setCurrentStatus(result.data.contentSet?.status || '검수 전');
 
         // 지문 데이터 처리 - 모든 지문 가져오기
         if (result.data.passages && result.data.passages.length > 0) {
@@ -99,7 +140,45 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
           });
         }
 
+        // 어휘 문제 데이터 상세 디버깅 (detailed_question_type 필드 확인)
+        console.log('=== 어휘 문제 detailed_question_type 디버깅 ===');
+        if (result.data.vocabularyQuestions && result.data.vocabularyQuestions.length > 0) {
+          result.data.vocabularyQuestions.forEach((q, index) => {
+            console.log(`어휘 문제 ${index + 1} (ID: ${q.id}):`, {
+              term: q.term,
+              question_type: q.question_type,
+              detailed_question_type: q.detailed_question_type,
+              detailedQuestionType: q.detailedQuestionType,
+              difficulty: q.difficulty
+            });
+          });
+        }
+        console.log('=== 어휘 문제 디버깅 끝 ===');
+
         setEditableVocabQuestions(result.data.vocabularyQuestions || []);
+
+        // 문단 문제 데이터 디버깅
+        console.log('Paragraph Questions Raw Data:', result.data.paragraphQuestions);
+        if (result.data.paragraphQuestions && result.data.paragraphQuestions.length > 0) {
+          console.log('문단 문제 총 개수:', result.data.paragraphQuestions.length);
+          result.data.paragraphQuestions.forEach((q, index) => {
+            console.log(`문단 문제 ${index + 1}:`, {
+              id: q.id,
+              paragraph_number: q.paragraphNumber,
+              question_type: q.questionType,
+              question: q.question?.substring(0, 50) + '...',
+            });
+          });
+
+          // 지문별 문제 개수 확인
+          const questionsByPassage = {};
+          result.data.paragraphQuestions.forEach(q => {
+            const passageKey = q.paragraphNumber || 'unknown';
+            questionsByPassage[passageKey] = (questionsByPassage[passageKey] || 0) + 1;
+          });
+          console.log('지문별 문단 문제 개수:', questionsByPassage);
+        }
+
         setEditableParagraphQuestions(result.data.paragraphQuestions || []);
         setEditableComprehensive(result.data.comprehensiveQuestions || []);
       }
@@ -114,13 +193,138 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
   const handleSave = async () => {
     setSaving(true);
     try {
-      // TODO: 저장 API 구현
-      alert('저장 기능은 추가 구현이 필요합니다.');
+      if (!data) {
+        alert('저장할 데이터가 없습니다.');
+        return;
+      }
+
+      // 저장할 데이터 구성
+      const saveData = {
+        contentSetId: contentSetId,
+        contentSet: {
+          ...data.contentSet,
+          // 기본 정보는 현재 편집된 값들로 업데이트
+          introduction_question: introductionQuestion
+        },
+        passages: editablePassages,
+        vocabularyTerms: editableVocabTerms,
+        vocabularyQuestions: editableVocabQuestions,
+        paragraphQuestions: editableParagraphQuestions,
+        comprehensiveQuestions: editableComprehensive
+      };
+
+      console.log('저장할 데이터:', saveData);
+
+      // 저장 API 호출 (기존 API 구조에 맞춰 데이터 재구성)
+      // editablePassages의 paragraph_1, paragraph_2... 형태를 paragraphs 배열로 변환
+      const processedPassages = editablePassages.map(passage => ({
+        ...passage,
+        paragraphs: [
+          passage.paragraph_1,
+          passage.paragraph_2,
+          passage.paragraph_3,
+          passage.paragraph_4,
+          passage.paragraph_5,
+          passage.paragraph_6,
+          passage.paragraph_7,
+          passage.paragraph_8,
+          passage.paragraph_9,
+          passage.paragraph_10
+        ].filter(p => p && p.trim() !== '') // 빈 문단 제거
+      }));
+
+      const apiData = {
+        contentSetId: contentSetId,
+        editableIntroductionQuestion: introductionQuestion,
+        editablePassages: processedPassages,
+        editableVocabulary: editableVocabTerms,
+        editableVocabQuestions: editableVocabQuestions,
+        editableParagraphQuestions: editableParagraphQuestions,
+        editableComprehensive: editableComprehensive
+      };
+
+      console.log('API 전송 데이터:', apiData);
+      console.log('원본 editablePassages:', editablePassages);
+      console.log('변환된 processedPassages:', processedPassages);
+
+      // 어휘 문제 저장 데이터 상세 디버깅
+      console.log('=== 저장할 어휘 문제 데이터 디버깅 ===');
+      if (editableVocabQuestions && editableVocabQuestions.length > 0) {
+        editableVocabQuestions.forEach((q, index) => {
+          console.log(`저장할 어휘 문제 ${index + 1} (ID: ${q.id}):`, {
+            term: q.term,
+            question_type: q.question_type,
+            detailed_question_type: q.detailed_question_type,
+            detailedQuestionType: q.detailedQuestionType,
+            difficulty: q.difficulty,
+            hasAllFields: {
+              has_detailed_question_type: !!q.detailed_question_type,
+              has_detailedQuestionType: !!q.detailedQuestionType,
+              has_question_type: !!q.question_type
+            }
+          });
+        });
+      }
+      console.log('=== 저장 데이터 디버깅 끝 ===');
+
+      const response = await fetch('/api/update-content-set', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiData)
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('변경사항이 성공적으로 저장되었습니다.');
+        console.log('저장 완료:', result);
+
+        // 저장 성공 후 데이터 새로고침
+        await fetchContentData();
+      } else {
+        console.error('저장 실패:', result.error);
+        alert(`저장 실패: ${result.error || '알 수 없는 오류가 발생했습니다.'}`);
+      }
     } catch (error) {
       console.error('저장 오류:', error);
-      alert('저장 중 오류가 발생했습니다.');
+      alert('저장 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // 상태 업데이트 함수
+  const handleStatusUpdate = async (newStatus: string) => {
+    setStatusUpdating(true);
+    try {
+      const response = await fetch('/api/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          setId: contentSetId,
+          status: newStatus
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setCurrentStatus(newStatus);
+        console.log(`상태가 "${newStatus}"로 변경되었습니다.`);
+        // alert 대신 조용한 성공 처리
+      } else {
+        console.error('상태 업데이트 실패:', result.error);
+        alert(`상태 변경 실패: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('상태 업데이트 중 오류:', error);
+      alert('상태 변경 중 오류가 발생했습니다.');
+    } finally {
+      setStatusUpdating(false);
     }
   };
 
@@ -164,24 +368,57 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
         <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose}></div>
 
         {/* 모달 내용 */}
-        <div className="relative bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-hidden">
+        <div className="relative bg-white rounded-lg max-w-[95vw] w-full max-h-[95vh] overflow-hidden">
           {/* 헤더 */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
-            <div className="flex justify-between items-center">
-              <div>
+            <div className="flex justify-between items-start">
+              <div className="flex-1 mr-4">
                 <h2 className="text-2xl font-bold">콘텐츠 세트 수정</h2>
                 {data && (
-                  <p className="text-sm opacity-90 mt-1">
-                    {data.contentSet.title || '제목 없음'} | ID: {contentSetId.substring(0, 8)}...
-                  </p>
+                  <div className="text-sm opacity-90 mt-1">
+                    <p className="break-words">
+                      제목: {data.contentSet.title || '제목 없음'} | ID: {contentSetId}
+                    </p>
+                  </div>
                 )}
               </div>
-              <button
-                onClick={onClose}
-                className="text-white hover:text-gray-200 text-2xl"
-              >
-                ✕
-              </button>
+
+              {/* 상태 드롭다운과 닫기 버튼 */}
+              <div className="flex items-center gap-4 flex-shrink-0">
+                {data && (
+                  <div className="text-right">
+                    <label className="block text-xs opacity-75 mb-1">상태</label>
+                    <div className="flex items-center">
+                      <select
+                        value={currentStatus}
+                        onChange={(e) => handleStatusUpdate(e.target.value)}
+                        disabled={statusUpdating}
+                        className="text-sm rounded px-2 py-1 border border-white/20 bg-white/10 text-white focus:bg-white focus:text-gray-900 focus:outline-none disabled:opacity-50"
+                      >
+                        {statusOptions.map(option => (
+                          <option
+                            key={option.value}
+                            value={option.value}
+                            className="text-gray-900"
+                          >
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      {statusUpdating && (
+                        <span className="ml-2 text-xs opacity-75">업데이트 중...</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={onClose}
+                  className="text-white hover:text-gray-200 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           </div>
 
@@ -211,7 +448,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
               </div>
 
               {/* 탭 내용 */}
-              <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+              <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 220px)' }}>
                 {/* 기본 정보 탭 */}
                 {activeTab === 'info' && (
                   <div className="space-y-6">
@@ -370,7 +607,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                             {coreTerms.length > 0 ? (
                               <div className="space-y-4">
                                 {coreTerms.map((term, index) => {
-                                  const originalIndex = editableVocabTerms.findIndex(t => t.id === term.id);
+                                  const termId = term.id;
                                   return (
                                     <div key={term.id} className="bg-white border border-blue-200 rounded-lg p-4">
                                       <div className="flex justify-between items-center mb-3">
@@ -397,11 +634,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                           <input
                                             type="text"
                                             value={term.definition}
-                                            onChange={(e) => {
-                                              const updated = [...editableVocabTerms];
-                                              updated[originalIndex].definition = e.target.value;
-                                              setEditableVocabTerms(updated);
-                                            }}
+                                            onChange={(e) => updateVocabTerm(termId, 'definition', e.target.value)}
                                             className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                           />
                                         </div>
@@ -410,11 +643,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                           <input
                                             type="text"
                                             value={term.example_sentence || ''}
-                                            onChange={(e) => {
-                                              const updated = [...editableVocabTerms];
-                                              updated[originalIndex].example_sentence = e.target.value;
-                                              setEditableVocabTerms(updated);
-                                            }}
+                                            onChange={(e) => updateVocabTerm(termId, 'example_sentence', e.target.value)}
                                             className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                           />
                                         </div>
@@ -445,7 +674,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                             {difficultTerms.length > 0 ? (
                               <div className="space-y-4">
                                 {difficultTerms.map((term, index) => {
-                                  const originalIndex = editableVocabTerms.findIndex(t => t.id === term.id);
+                                  const termId = term.id;
                                   return (
                                     <div key={term.id} className="bg-white border border-orange-200 rounded-lg p-4">
                                       <div className="flex justify-between items-center mb-3">
@@ -472,11 +701,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                           <input
                                             type="text"
                                             value={term.definition}
-                                            onChange={(e) => {
-                                              const updated = [...editableVocabTerms];
-                                              updated[originalIndex].definition = e.target.value;
-                                              setEditableVocabTerms(updated);
-                                            }}
+                                            onChange={(e) => updateVocabTerm(termId, 'definition', e.target.value)}
                                             className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                           />
                                         </div>
@@ -485,11 +710,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                           <input
                                             type="text"
                                             value={term.example_sentence || ''}
-                                            onChange={(e) => {
-                                              const updated = [...editableVocabTerms];
-                                              updated[originalIndex].example_sentence = e.target.value;
-                                              setEditableVocabTerms(updated);
-                                            }}
+                                            onChange={(e) => updateVocabTerm(termId, 'example_sentence', e.target.value)}
                                             className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                           />
                                         </div>
@@ -581,7 +802,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
 
                               <div className="space-y-4">
                                 {basicQuestions.map((question, index) => {
-                                  const originalIndex = editableVocabQuestions.findIndex(q => q.id === question.id);
+                                  const questionId = question.id;
                                   return (
                                     <div key={question.id} className="bg-white border border-green-200 rounded-lg p-6">
                                       <div className="mb-4">
@@ -603,11 +824,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                           <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
                                           <textarea
                                             value={question.question}
-                                            onChange={(e) => {
-                                              const updated = [...editableVocabQuestions];
-                                              updated[originalIndex].question = e.target.value;
-                                              setEditableVocabQuestions(updated);
-                                            }}
+                                            onChange={(e) => updateVocabQuestion(questionId, 'question', e.target.value)}
                                             className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
                                           />
                                         </div>
@@ -624,11 +841,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             <input
                                               type="text"
                                               value={question.answer_initials || ''}
-                                              onChange={(e) => {
-                                                const updated = [...editableVocabQuestions];
-                                                updated[originalIndex].answer_initials = e.target.value;
-                                                setEditableVocabQuestions(updated);
-                                              }}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'answer_initials', e.target.value)}
                                               className="w-full border border-blue-300 rounded-md px-3 py-2 text-sm bg-white"
                                               placeholder={
                                                 question.detailed_question_type === '단답형 초성 문제'
@@ -667,11 +880,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                       <input
                                                         type="text"
                                                         value={optionValue || ''}
-                                                        onChange={(e) => {
-                                                          const updated = [...editableVocabQuestions];
-                                                          updated[originalIndex][`option_${num}`] = e.target.value;
-                                                          setEditableVocabQuestions(updated);
-                                                        }}
+                                                        onChange={(e) => updateVocabQuestion(questionId, `option_${num}`, e.target.value)}
                                                         className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                         placeholder={`보기 ${num}`}
                                                       />
@@ -689,11 +898,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             <input
                                               type="text"
                                               value={question.correct_answer || ''}
-                                              onChange={(e) => {
-                                                const updated = [...editableVocabQuestions];
-                                                updated[originalIndex].correct_answer = e.target.value;
-                                                setEditableVocabQuestions(updated);
-                                              }}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'correct_answer', e.target.value)}
                                               className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                               placeholder={
                                                 (question.detailed_question_type === '단답형 초성 문제' ||
@@ -725,11 +930,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
                                             <textarea
                                               value={question.explanation}
-                                              onChange={(e) => {
-                                                const updated = [...editableVocabQuestions];
-                                                updated[originalIndex].explanation = e.target.value;
-                                                setEditableVocabQuestions(updated);
-                                              }}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'explanation', e.target.value)}
                                               className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
                                             />
                                           </div>
@@ -765,7 +966,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
 
                               <div className="space-y-4">
                                 {supplementaryQuestions.map((question, index) => {
-                                  const originalIndex = editableVocabQuestions.findIndex(q => q.id === question.id);
+                                  const questionId = question.id;
                                   return (
                                     <div key={question.id} className="bg-white border border-orange-200 rounded-lg p-6">
                                       <div className="mb-4">
@@ -787,11 +988,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                           <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
                                           <textarea
                                             value={question.question}
-                                            onChange={(e) => {
-                                              const updated = [...editableVocabQuestions];
-                                              updated[originalIndex].question = e.target.value;
-                                              setEditableVocabQuestions(updated);
-                                            }}
+                                            onChange={(e) => updateVocabQuestion(questionId, 'question', e.target.value)}
                                             className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
                                           />
                                         </div>
@@ -808,11 +1005,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             <input
                                               type="text"
                                               value={question.answer_initials || ''}
-                                              onChange={(e) => {
-                                                const updated = [...editableVocabQuestions];
-                                                updated[originalIndex].answer_initials = e.target.value;
-                                                setEditableVocabQuestions(updated);
-                                              }}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'answer_initials', e.target.value)}
                                               className="w-full border border-blue-300 rounded-md px-3 py-2 text-sm bg-white"
                                               placeholder={
                                                 question.detailed_question_type === '단답형 초성 문제'
@@ -851,11 +1044,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                       <input
                                                         type="text"
                                                         value={optionValue || ''}
-                                                        onChange={(e) => {
-                                                          const updated = [...editableVocabQuestions];
-                                                          updated[originalIndex][`option_${num}`] = e.target.value;
-                                                          setEditableVocabQuestions(updated);
-                                                        }}
+                                                        onChange={(e) => updateVocabQuestion(questionId, `option_${num}`, e.target.value)}
                                                         className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                         placeholder={`보기 ${num}`}
                                                       />
@@ -873,11 +1062,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             <input
                                               type="text"
                                               value={question.correct_answer || ''}
-                                              onChange={(e) => {
-                                                const updated = [...editableVocabQuestions];
-                                                updated[originalIndex].correct_answer = e.target.value;
-                                                setEditableVocabQuestions(updated);
-                                              }}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'correct_answer', e.target.value)}
                                               className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                               placeholder={
                                                 (question.detailed_question_type === '단답형 초성 문제' ||
@@ -909,11 +1094,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
                                             <textarea
                                               value={question.explanation}
-                                              onChange={(e) => {
-                                                const updated = [...editableVocabQuestions];
-                                                updated[originalIndex].explanation = e.target.value;
-                                                setEditableVocabQuestions(updated);
-                                              }}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'explanation', e.target.value)}
                                               className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
                                             />
                                           </div>
@@ -942,179 +1123,462 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                 {/* 문단 문제 탭 */}
                 {activeTab === 'paragraph-questions' && (
                   <div className="space-y-6">
-                    {editableParagraphQuestions.map((question, index) => (
-                      <div key={question.id} className="border border-gray-200 rounded-lg p-6">
-                        <div className="mb-4">
-                          <div className="flex justify-between items-center">
-                            <h4 className="font-semibold">
-                              문단 {question.paragraph_number} - 문제 {index + 1}
-                            </h4>
-                            <span className="text-sm text-gray-500">
-                              {getQuestionTypeLabel(question.question_type)}
+                    {(() => {
+                      // 지문별로 문단 문제를 그룹화
+                      const questionsByPassage = {};
+                      editableParagraphQuestions.forEach((question) => {
+                        const passageKey = question.paragraphNumber || question.paragraph_number || 'unknown';
+                        if (!questionsByPassage[passageKey]) {
+                          questionsByPassage[passageKey] = [];
+                        }
+                        questionsByPassage[passageKey].push(question);
+                      });
+
+                      // 지문 번호 순으로 정렬
+                      const sortedPassageKeys = Object.keys(questionsByPassage).sort((a, b) => {
+                        if (a === 'unknown') return 1;
+                        if (b === 'unknown') return -1;
+                        return parseInt(a) - parseInt(b);
+                      });
+
+                      console.log('문단 문제 그룹화 결과:', questionsByPassage);
+
+                      return sortedPassageKeys.map(passageKey => (
+                        <div key={passageKey} className="bg-gray-50 border border-gray-300 rounded-lg p-6">
+                          <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-300 pb-2">
+                            📖 {passageKey === 'unknown' ? '지문 정보 없음' : `지문 ${passageKey}`}
+                            <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {questionsByPassage[passageKey].length}개 문제
                             </span>
-                          </div>
-                        </div>
+                          </h3>
 
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
-                            <textarea
-                              value={question.question}
-                              onChange={(e) => {
-                                const updated = [...editableParagraphQuestions];
-                                updated[index].question = e.target.value;
-                                setEditableParagraphQuestions(updated);
-                              }}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
-                            />
-                          </div>
+                          <div className="space-y-4">
+                            {questionsByPassage[passageKey].map((question, questionIndex) => {
+                              const questionId = question.id;
+                              return (
+                              <div key={question.id} className="bg-white border border-gray-200 rounded-lg p-6">
+                                <div className="mb-4">
+                                  <div className="flex justify-between items-center">
+                                    <h4 className="font-semibold">
+                                      문제 {questionIndex + 1}
+                                    </h4>
+                                    <span className="text-sm text-gray-500">
+                                      {getQuestionTypeLabel(question.questionType || question.question_type)}
+                                    </span>
+                                  </div>
+                                </div>
 
-                          {question.question_type !== '주관식 단답형' && (
-                            <div className="grid grid-cols-4 gap-2">
-                              {[1, 2, 3, 4].map(num => {
-                                const optionKey = `option_${num}`;
-                                if (!question[optionKey]) return null;
-                                return (
-                                  <div key={num}>
-                                    <label className="block text-xs text-gray-500 mb-1">보기 {num}</label>
-                                    <input
-                                      type="text"
-                                      value={question[optionKey] || ''}
-                                      onChange={(e) => {
-                                        const updated = [...editableParagraphQuestions];
-                                        updated[index][optionKey] = e.target.value;
-                                        setEditableParagraphQuestions(updated);
-                                      }}
-                                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
+                                    <textarea
+                                      value={question.question}
+                                      onChange={(e) => updateParagraphQuestion(questionId, 'question', e.target.value)}
+                                      className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
                                     />
                                   </div>
-                                );
-                              })}
-                            </div>
-                          )}
 
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                              <input
-                                type="text"
-                                value={question.correct_answer}
-                                onChange={(e) => {
-                                  const updated = [...editableParagraphQuestions];
-                                  updated[index].correct_answer = e.target.value;
-                                  setEditableParagraphQuestions(updated);
-                                }}
-                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
-                              <textarea
-                                value={question.explanation}
-                                onChange={(e) => {
-                                  const updated = [...editableParagraphQuestions];
-                                  updated[index].explanation = e.target.value;
-                                  setEditableParagraphQuestions(updated);
-                                }}
-                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-10"
-                              />
-                            </div>
+                                  {(() => {
+                                    const questionType = question.questionType || question.question_type;
+
+                                    // 디버깅용 로그 - 문제 유형 확인
+                                    console.log(`🔍 문단 문제 유형 분석:`, {
+                                      questionType,
+                                      questionId: question.id,
+                                      originalQuestionType: question.questionType,
+                                      questionTypeField: question.question_type,
+                                      allFields: Object.keys(question)
+                                    });
+
+                                    // 주관식 유형 체크 함수
+                                    const isSubjectiveType = (type) => {
+                                      if (!type) return false;
+                                      const subjectiveKeywords = ['주관', '단답', '서술', '초성'];
+                                      return subjectiveKeywords.some(keyword => type.includes(keyword)) ||
+                                             type === '주관식' ||
+                                             type === '주관식 단답형' ||
+                                             type === '단답형' ||
+                                             type === '서술형';
+                                    };
+
+                                    // 2. 주관식: 초성 힌트 표시 (우선 체크)
+                                    if (isSubjectiveType(questionType)) {
+                                      console.log(`✅ 주관식 유형으로 인식: "${questionType}"`);
+                                      return (
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                          <label className="block text-sm font-medium text-blue-800 mb-2">
+                                            💡 초성 힌트 (주관식: {questionType})
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={question.answerInitials || question.answer_initials || ''}
+                                            onChange={(e) => {
+                                              updateParagraphQuestion(questionId, 'answerInitials', e.target.value);
+                                              updateParagraphQuestion(questionId, 'answer_initials', e.target.value);
+                                            }}
+                                            className="w-full border border-blue-300 rounded-md px-3 py-2 text-sm bg-white"
+                                            placeholder="초성 힌트 (예: ㅇㅈㄱㅇ)"
+                                          />
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            현재 초성 힌트 값: "{question.answerInitials || question.answer_initials || ''}"
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
+                                    // 3. 문장 완성하기: 어절 목록 표시 (주관식)
+                                    if (questionType === '문장 완성하기' || questionType === '어절 순서 맞추기') {
+                                      return (
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                          <label className="block text-sm font-medium text-green-800 mb-2">
+                                            📝 어절 목록 (word_segments)
+                                          </label>
+                                          <div className="flex flex-wrap gap-2 mb-3">
+                                            {(question.wordSegments || []).map((segment, idx) => (
+                                              <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                {segment}
+                                              </span>
+                                            ))}
+                                          </div>
+                                          <textarea
+                                            value={(question.wordSegments || []).join(', ')}
+                                            onChange={(e) => {
+                                              const segments = e.target.value.split(',').map(s => s.trim()).filter(s => s);
+                                              updateParagraphQuestion(questionId, 'wordSegments', segments);
+                                            }}
+                                            className="w-full border border-green-300 rounded-md px-3 py-2 text-sm bg-white h-20"
+                                            placeholder="어절들을 쉼표로 구분하여 입력하세요 (예: 잘게, 음식이, 부서지고)"
+                                          />
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            현재 어절 목록: {(question.wordSegments || []).length}개 어절
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
+                                    // 객관식 유형들: 동적 보기 개수 설정
+                                    let optionCount = 5; // 기본값: 5지선다
+                                    let gridCols = 'grid-cols-5';
+
+                                    // 4. OX퀴즈: 2지선다
+                                    if (questionType === 'OX퀴즈' || questionType === 'O/X 문제' || questionType === 'OX문제') {
+                                      optionCount = 2;
+                                      gridCols = 'grid-cols-2';
+                                    }
+                                    // 1. 빈칸 채우기: 5지선다
+                                    else if (questionType === '빈칸 채우기' || questionType === '빈 칸 채우기') {
+                                      optionCount = 5;
+                                      gridCols = 'grid-cols-5';
+                                    }
+                                    // 5. 객관식: 5지선다
+                                    else if (questionType === '객관식' || questionType === '다지선다' || questionType === '선택형') {
+                                      optionCount = 5;
+                                      gridCols = 'grid-cols-5';
+                                    }
+                                    // 기타 객관식 문제들은 기본 5지선다
+                                    else {
+                                      optionCount = 5;
+                                      gridCols = 'grid-cols-5';
+                                    }
+
+                                    return (
+                                      <div>
+                                        <div className={`grid ${gridCols} gap-2`}>
+                                          {Array.from({ length: optionCount }, (_, i) => i + 1).map(num => {
+                                            const optionKey = `option_${num}`;
+                                            const optionValue = question.options && question.options[num - 1]
+                                              ? question.options[num - 1]
+                                              : question[optionKey];
+
+                                            return (
+                                              <div key={num}>
+                                                <label className="block text-xs text-gray-500 mb-1">보기 {num}</label>
+                                                <input
+                                                  type="text"
+                                                  value={optionValue || ''}
+                                                  onChange={(e) => updateParagraphQuestion(questionId, optionKey, e.target.value)}
+                                                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                                />
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+
+                                  <div className="space-y-3">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
+                                      <input
+                                        type="text"
+                                        value={question.correctAnswer || question.correct_answer || ''}
+                                        onChange={(e) => {
+                                          updateParagraphQuestion(questionId, 'correctAnswer', e.target.value);
+                                          updateParagraphQuestion(questionId, 'correct_answer', e.target.value);
+                                        }}
+                                        className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
+                                      <textarea
+                                        value={question.explanation || ''}
+                                        onChange={(e) => updateParagraphQuestion(questionId, 'explanation', e.target.value)}
+                                        className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                            })}
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 )}
 
                 {/* 종합 문제 탭 */}
                 {activeTab === 'comprehensive' && (
                   <div className="space-y-6">
-                    {editableComprehensive.map((question, index) => (
-                      <div key={question.id} className="border border-gray-200 rounded-lg p-6">
-                        <div className="mb-4">
-                          <div className="flex justify-between items-center">
-                            <h4 className="font-semibold">문제 {index + 1}</h4>
-                            <div className="flex gap-2">
-                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                                {question.question_type}
-                              </span>
-                              {question.is_supplementary && (
-                                <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded">
-                                  보완문제
+                    {(() => {
+                      // 기본문제와 보완문제로 분류
+                      const basicQuestions = editableComprehensive.filter(q => {
+                        const isSupplementary = q.difficulty === '보완' ||
+                                              q.is_supplementary === true ||
+                                              q.isSupplementary === true;
+                        return !isSupplementary;
+                      });
+
+                      const supplementaryQuestions = editableComprehensive.filter(q => {
+                        const isSupplementary = q.difficulty === '보완' ||
+                                              q.is_supplementary === true ||
+                                              q.isSupplementary === true;
+                        return isSupplementary;
+                      });
+
+                      console.log('종합 문제 분류 결과:', {
+                        총문제수: editableComprehensive.length,
+                        기본문제수: basicQuestions.length,
+                        보완문제수: supplementaryQuestions.length
+                      });
+
+                      return (
+                        <div className="space-y-6">
+                          {/* 기본문제 섹션 */}
+                          {basicQuestions.length > 0 ? (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                              <div className="flex items-center mb-4">
+                                <h3 className="text-lg font-semibold text-blue-800">✅ 기본문제</h3>
+                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {basicQuestions.length}개
                                 </span>
-                              )}
+                              </div>
+                              <p className="text-sm text-blue-600 mb-4">
+                                기본 학습을 위한 종합 문제들입니다.
+                              </p>
+
+                              <div className="space-y-4">
+                                {basicQuestions.map((question, index) => {
+                                  const questionId = question.id;
+                                  return (
+                                    <div key={question.id} className="bg-white border border-blue-200 rounded-lg p-6">
+                                      <div className="mb-4">
+                                        <div className="flex justify-between items-center">
+                                          <h4 className="font-semibold">기본문제 {index + 1}</h4>
+                                          <div className="flex gap-2">
+                                            <span className="text-sm text-gray-500">
+                                              {question.question_type || question.type || '종합 문제'}
+                                            </span>
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                              기본문제
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-3">
+                                        <div>
+                                          <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
+                                          <textarea
+                                            value={question.question}
+                                            onChange={(e) => updateComprehensiveQuestion(questionId, 'question', e.target.value)}
+                                            className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
+                                          />
+                                        </div>
+
+                                        {/* 종합 문제는 모두 5지선다 객관식 */}
+                                        <div>
+                                          <div className="space-y-3">
+                                            {[1, 2, 3, 4, 5].map(num => {
+                                              const optionKey = `option_${num}`;
+                                              const optionValue = question[optionKey];
+
+                                              return (
+                                                <div key={num}>
+                                                  <label className="block text-sm font-medium text-gray-700 mb-1">보기 {num}</label>
+                                                  <input
+                                                    type="text"
+                                                    value={optionValue || ''}
+                                                    onChange={(e) => updateComprehensiveQuestion(questionId, optionKey, e.target.value)}
+                                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                                    placeholder={`보기 ${num} 내용을 입력하세요`}
+                                                  />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
+                                            <input
+                                              type="text"
+                                              value={question.correct_answer || question.answer || question.correctAnswer || ''}
+                                              onChange={(e) => {
+                                                updateComprehensiveQuestion(questionId, 'correct_answer', e.target.value);
+                                                updateComprehensiveQuestion(questionId, 'answer', e.target.value);
+                                                updateComprehensiveQuestion(questionId, 'correctAnswer', e.target.value);
+                                              }}
+                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                              placeholder="정답 번호 (예: 1, 2, 3, 4, 5)"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
+                                            <textarea
+                                              value={question.explanation}
+                                              onChange={(e) => updateComprehensiveQuestion(questionId, 'explanation', e.target.value)}
+                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
-                            <textarea
-                              value={question.question}
-                              onChange={(e) => {
-                                const updated = [...editableComprehensive];
-                                updated[index].question = e.target.value;
-                                setEditableComprehensive(updated);
-                              }}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
-                            />
-                          </div>
-
-                          {question.question_format === 'multiple_choice' && (
-                            <div className="grid grid-cols-5 gap-2">
-                              {[1, 2, 3, 4, 5].map(num => {
-                                const optionKey = `option_${num}`;
-                                if (!question[optionKey]) return null;
-                                return (
-                                  <div key={num}>
-                                    <label className="block text-xs text-gray-500 mb-1">보기 {num}</label>
-                                    <input
-                                      type="text"
-                                      value={question[optionKey] || ''}
-                                      onChange={(e) => {
-                                        const updated = [...editableComprehensive];
-                                        updated[index][optionKey] = e.target.value;
-                                        setEditableComprehensive(updated);
-                                      }}
-                                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                    />
-                                  </div>
-                                );
-                              })}
+                          ) : (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                              <div className="text-center text-blue-600">
+                                <div className="text-4xl mb-4">✅</div>
+                                <p>기본 종합 문제가 없습니다.</p>
+                                <p className="text-sm mt-2">모든 종합 문제가 보완문제로 분류되었을 수 있습니다.</p>
+                              </div>
                             </div>
                           )}
 
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                              <input
-                                type="text"
-                                value={question.correct_answer}
-                                onChange={(e) => {
-                                  const updated = [...editableComprehensive];
-                                  updated[index].correct_answer = e.target.value;
-                                  setEditableComprehensive(updated);
-                                }}
-                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                              />
+                          {/* 보완문제 섹션 */}
+                          {supplementaryQuestions.length > 0 ? (
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                              <div className="flex items-center mb-4">
+                                <h3 className="text-lg font-semibold text-orange-800">🔄 보완문제</h3>
+                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  {supplementaryQuestions.length}개
+                                </span>
+                              </div>
+                              <p className="text-sm text-orange-600 mb-4">
+                                추가적인 학습 보완을 위한 종합 문제들입니다.
+                              </p>
+
+                              <div className="space-y-4">
+                                {supplementaryQuestions.map((question, index) => {
+                                  const questionId = question.id;
+                                  return (
+                                    <div key={question.id} className="bg-white border border-orange-200 rounded-lg p-6">
+                                      <div className="mb-4">
+                                        <div className="flex justify-between items-center">
+                                          <h4 className="font-semibold">보완문제 {index + 1}</h4>
+                                          <div className="flex gap-2">
+                                            <span className="text-sm text-gray-500">
+                                              {question.question_type || question.type || '종합 문제'}
+                                            </span>
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                              보완문제
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-3">
+                                        <div>
+                                          <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
+                                          <textarea
+                                            value={question.question}
+                                            onChange={(e) => updateComprehensiveQuestion(questionId, 'question', e.target.value)}
+                                            className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
+                                          />
+                                        </div>
+
+                                        {/* 종합 문제는 모두 5지선다 객관식 */}
+                                        <div>
+                                          <div className="space-y-3">
+                                            {[1, 2, 3, 4, 5].map(num => {
+                                              const optionKey = `option_${num}`;
+                                              const optionValue = question[optionKey];
+
+                                              return (
+                                                <div key={num}>
+                                                  <label className="block text-sm font-medium text-gray-700 mb-1">보기 {num}</label>
+                                                  <input
+                                                    type="text"
+                                                    value={optionValue || ''}
+                                                    onChange={(e) => updateComprehensiveQuestion(questionId, optionKey, e.target.value)}
+                                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                                    placeholder={`보기 ${num} 내용을 입력하세요`}
+                                                  />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
+                                            <input
+                                              type="text"
+                                              value={question.correct_answer || question.answer || question.correctAnswer || ''}
+                                              onChange={(e) => {
+                                                updateComprehensiveQuestion(questionId, 'correct_answer', e.target.value);
+                                                updateComprehensiveQuestion(questionId, 'answer', e.target.value);
+                                                updateComprehensiveQuestion(questionId, 'correctAnswer', e.target.value);
+                                              }}
+                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                              placeholder="정답 번호 (예: 1, 2, 3, 4, 5)"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
+                                            <textarea
+                                              value={question.explanation}
+                                              onChange={(e) => updateComprehensiveQuestion(questionId, 'explanation', e.target.value)}
+                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
-                              <textarea
-                                value={question.explanation}
-                                onChange={(e) => {
-                                  const updated = [...editableComprehensive];
-                                  updated[index].explanation = e.target.value;
-                                  setEditableComprehensive(updated);
-                                }}
-                                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-10"
-                              />
+                          ) : (
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                              <div className="text-center text-orange-600">
+                                <div className="text-4xl mb-4">🔄</div>
+                                <p>보완 종합 문제가 없습니다.</p>
+                                <p className="text-sm mt-2">필요에 따라 보완문제를 추가로 생성할 수 있습니다.</p>
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })()}
                   </div>
                 )}
               </div>

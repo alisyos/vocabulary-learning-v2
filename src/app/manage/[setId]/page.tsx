@@ -1873,12 +1873,41 @@ ${allParagraphs}`;
   };
 
   const removeVocabulary = (index: number) => {
+    console.log(`🗑️ 어휘 삭제: index=${index}`);
     setEditableVocabulary(prev => prev.filter((_, i) => i !== index));
+    // vocabularyTermsData도 함께 업데이트
+    setVocabularyTermsData(prev => prev.filter((_, i) => i !== index));
   };
 
-  // 어휘문제 편집 함수들
-  const handleVocabQuestionChange = (index: number, field: keyof VocabularyQuestion, value: string | string[]) => {
-    setEditableVocabQuestions(prev => prev.map((q, i) => 
+  // 어휘문제 편집 함수들 (ID 기반으로 수정)
+  const handleVocabQuestionChange = (questionId: string, field: keyof VocabularyQuestion, value: string | string[]) => {
+    console.log(`🔧 어휘 문제 수정: ID=${questionId}, field=${field}, value=`, value);
+
+    if (!questionId) {
+      console.error('❌ questionId가 없습니다. 수정할 수 없습니다.');
+      return;
+    }
+
+    setEditableVocabQuestions(prev => {
+      const updated = prev.map(q =>
+        q.id === questionId ? { ...q, [field]: value } : q
+      );
+
+      // 수정이 실제로 적용되었는지 확인
+      const updatedQuestion = updated.find(q => q.id === questionId);
+      if (updatedQuestion) {
+        console.log(`✅ 문제 수정 완료: ID=${questionId}, ${field}=${updatedQuestion[field]}`);
+      } else {
+        console.error(`❌ 문제를 찾을 수 없습니다: ID=${questionId}`);
+      }
+
+      return updated;
+    });
+  };
+
+  // 기존 인덱스 기반 함수 (호환성용)
+  const handleVocabQuestionChangeByIndex = (index: number, field: keyof VocabularyQuestion, value: string | string[]) => {
+    setEditableVocabQuestions(prev => prev.map((q, i) =>
       i === index ? { ...q, [field]: value } : q
     ));
   };
@@ -1896,13 +1925,50 @@ ${allParagraphs}`;
     setEditableVocabQuestions(prev => [...prev, newQuestion]);
   };
 
-  const removeVocabQuestion = (index: number) => {
+  // 어휘 문제 삭제 함수 (ID 기반으로 수정)
+  const removeVocabQuestion = (questionId: string) => {
+    console.log(`🗑️ 어휘 문제 삭제: ID=${questionId}`);
+    setEditableVocabQuestions(prev => {
+      const filtered = prev.filter(q => q.id !== questionId);
+      console.log(`✅ 삭제 완료. 남은 문제 수: ${filtered.length}`);
+      return filtered;
+    });
+  };
+
+  // 기존 인덱스 기반 함수 (호환성용)
+  const removeVocabQuestionByIndex = (index: number) => {
     setEditableVocabQuestions(prev => prev.filter((_, i) => i !== index));
   };
 
-  // 문단문제 편집 함수들
-  const handleParagraphQuestionChange = (index: number, field: keyof ParagraphQuestion, value: string | string[]) => {
-    setEditableParagraphQuestions(prev => prev.map((q, i) => 
+  // 문단문제 편집 함수들 (ID 기반으로 수정)
+  const handleParagraphQuestionChange = (questionId: string, field: keyof ParagraphQuestion, value: string | string[]) => {
+    console.log(`🔧 문단 문제 수정: ID=${questionId}, field=${field}, value=`, value);
+
+    if (!questionId) {
+      console.error('❌ questionId가 없습니다. 문단 문제를 수정할 수 없습니다.');
+      return;
+    }
+
+    setEditableParagraphQuestions(prev => {
+      const updated = prev.map(q =>
+        q.id === questionId ? { ...q, [field]: value } : q
+      );
+
+      // 수정이 실제로 적용되었는지 확인
+      const updatedQuestion = updated.find(q => q.id === questionId);
+      if (updatedQuestion) {
+        console.log(`✅ 문단 문제 수정 완료: ID=${questionId}, ${field}=${updatedQuestion[field]}`);
+      } else {
+        console.error(`❌ 문단 문제를 찾을 수 없습니다: ID=${questionId}`);
+      }
+
+      return updated;
+    });
+  };
+
+  // 기존 인덱스 기반 함수 (호환성용)
+  const handleParagraphQuestionChangeByIndex = (index: number, field: keyof ParagraphQuestion, value: string | string[]) => {
+    setEditableParagraphQuestions(prev => prev.map((q, i) =>
       i === index ? { ...q, [field]: value } : q
     ));
   };
@@ -1928,9 +1994,35 @@ ${allParagraphs}`;
     setEditableParagraphQuestions(prev => prev.filter((_, i) => i !== index));
   };
 
-  // 종합문제 편집 함수들
-  const handleComprehensiveChange = (index: number, field: keyof ComprehensiveQuestion, value: string | string[] | boolean) => {
-    setEditableComprehensive(prev => prev.map((q, i) => 
+  // 종합문제 편집 함수들 (ID 기반으로 수정)
+  const handleComprehensiveChange = (questionId: string, field: keyof ComprehensiveQuestion, value: string | string[] | boolean) => {
+    console.log(`🔧 종합 문제 수정: ID=${questionId}, field=${field}, value=`, value);
+
+    if (!questionId) {
+      console.error('❌ questionId가 없습니다. 종합 문제를 수정할 수 없습니다.');
+      return;
+    }
+
+    setEditableComprehensive(prev => {
+      const updated = prev.map(q =>
+        q.questionId === questionId ? { ...q, [field]: value } : q
+      );
+
+      // 수정이 실제로 적용되었는지 확인
+      const updatedQuestion = updated.find(q => q.questionId === questionId);
+      if (updatedQuestion) {
+        console.log(`✅ 종합 문제 수정 완료: ID=${questionId}, ${field}=${updatedQuestion[field]}`);
+      } else {
+        console.error(`❌ 종합 문제를 찾을 수 없습니다: ID=${questionId}`);
+      }
+
+      return updated;
+    });
+  };
+
+  // 기존 인덱스 기반 함수 (호환성용)
+  const handleComprehensiveChangeByIndex = (index: number, field: keyof ComprehensiveQuestion, value: string | string[] | boolean) => {
+    setEditableComprehensive(prev => prev.map((q, i) =>
       i === index ? { ...q, [field]: value } : q
     ));
   };
@@ -2763,10 +2855,24 @@ ${allParagraphs}`;
                       <div className="space-y-6">
                         {questions.map((question, questionIndex) => {
                           const originalIndex = (question as any).originalIndex;
+                          const questionId = question.id || question.questionId;
+                          // 문제 유형 디버깅
+                          console.log(`🔍 문제 ${questionIndex + 1} 유형 디버깅 (ID: ${questionId}, originalIndex: ${originalIndex}):`, {
+                            question_type: question.question_type,
+                            questionType: question.questionType,
+                            detailed_question_type: question.detailed_question_type,
+                            detailedQuestionType: question.detailedQuestionType,
+                            questionId: questionId,
+                            originalIndex: originalIndex
+                          });
+
                           const questionTypeLabel = getVocabularyQuestionTypeLabel(
                             question.question_type || question.questionType || '객관식',
                             question.detailed_question_type || question.detailedQuestionType
                           );
+
+                          console.log(`📊 계산된 questionTypeLabel: ${questionTypeLabel}`);
+                          console.log(`📋 최종 표시될 유형: ${question.detailed_question_type || question.detailedQuestionType || questionTypeLabel}`);
                           
                           return (
                             <div key={question.questionId} className="bg-white border border-gray-200 rounded-lg p-6">
@@ -2787,7 +2893,7 @@ ${allParagraphs}`;
                                   )}
                                 </div>
                                 <button
-                                  onClick={() => removeVocabQuestion(originalIndex)}
+                                  onClick={() => removeVocabQuestion(questionId)}
                                   className="text-red-600 hover:text-red-800 text-sm"
                                 >
                                   삭제
@@ -2801,7 +2907,7 @@ ${allParagraphs}`;
                                     <input
                                       type="text"
                                       value={question.term}
-                                      onChange={(e) => handleVocabQuestionChange(originalIndex, 'term', e.target.value)}
+                                      onChange={(e) => handleVocabQuestionChange(questionId, 'term', e.target.value)}
                                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                   </div>
@@ -2814,7 +2920,7 @@ ${allParagraphs}`;
                                       return isSubjective ? (
                                         <textarea
                                           value={question.correctAnswer || question.answer}
-                                          onChange={(e) => handleVocabQuestionChange(originalIndex, 'correctAnswer', e.target.value)}
+                                          onChange={(e) => handleVocabQuestionChange(questionId, 'correctAnswer', e.target.value)}
                                           rows={2}
                                           placeholder="주관식 정답을 입력하세요"
                                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -2822,7 +2928,7 @@ ${allParagraphs}`;
                                       ) : (
                                         <select
                                           value={question.correctAnswer || question.answer}
-                                          onChange={(e) => handleVocabQuestionChange(originalIndex, 'correctAnswer', e.target.value)}
+                                          onChange={(e) => handleVocabQuestionChange(questionId, 'correctAnswer', e.target.value)}
                                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         >
                                           {question.options.map((option, optIndex) => (
@@ -2851,7 +2957,7 @@ ${allParagraphs}`;
                                         <input
                                           type="text"
                                           value={question.answerInitials || question.answer_initials || ''}
-                                          onChange={(e) => handleVocabQuestionChange(originalIndex, 'answerInitials', e.target.value)}
+                                          onChange={(e) => handleVocabQuestionChange(questionId, 'answerInitials', e.target.value)}
                                           placeholder="예: ㄱㅇㅂ (정답의 초성을 입력하면 학습자에게 힌트로 제공됩니다)"
                                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         />
@@ -2864,7 +2970,7 @@ ${allParagraphs}`;
                                   <label className="block text-sm font-medium text-gray-700 mb-1">질문</label>
                                   <textarea
                                     value={question.question}
-                                    onChange={(e) => handleVocabQuestionChange(originalIndex, 'question', e.target.value)}
+                                    onChange={(e) => handleVocabQuestionChange(questionId, 'question', e.target.value)}
                                     rows={2}
                                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   />
@@ -2888,7 +2994,7 @@ ${allParagraphs}`;
                                               onChange={(e) => {
                                                 const newOptions = [...question.options];
                                                 newOptions[optIndex] = e.target.value;
-                                                handleVocabQuestionChange(originalIndex, 'options', newOptions);
+                                                handleVocabQuestionChange(questionId, 'options', newOptions);
                                               }}
                                               className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             />
@@ -2903,7 +3009,7 @@ ${allParagraphs}`;
                                   <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
                                   <textarea
                                     value={question.explanation}
-                                    onChange={(e) => handleVocabQuestionChange(originalIndex, 'explanation', e.target.value)}
+                                    onChange={(e) => handleVocabQuestionChange(questionId, 'explanation', e.target.value)}
                                     rows={3}
                                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   />
@@ -2938,8 +3044,10 @@ ${allParagraphs}`;
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {editableParagraphQuestions.map((question, index) => (
-                      <div key={question.questionId || question.id} className="border border-gray-200 rounded-lg p-6">
+                    {editableParagraphQuestions.map((question, index) => {
+                      const questionId = question.id || question.questionId;
+                      return (
+                      <div key={questionId} className="border border-gray-200 rounded-lg p-6">
                         <div className="flex justify-between items-center mb-4">
                           <div>
                             <h4 className="text-lg font-medium text-gray-900">문제 {index + 1}</h4>
@@ -2967,7 +3075,7 @@ ${allParagraphs}`;
                               <label className="block text-sm font-medium text-gray-700 mb-1">문제 유형</label>
                               <select
                                 value={question.questionType}
-                                onChange={(e) => handleParagraphQuestionChange(index, 'questionType', e.target.value)}
+                                onChange={(e) => handleParagraphQuestionChange(questionId, 'questionType', e.target.value)}
                                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               >
                                 <option value="빈칸 채우기">빈칸 채우기</option>
@@ -2986,7 +3094,7 @@ ${allParagraphs}`;
                                 min="1"
                                 max="10"
                                 value={question.paragraphNumber}
-                                onChange={(e) => handleParagraphQuestionChange(index, 'paragraphNumber', parseInt(e.target.value) || 1)}
+                                onChange={(e) => handleParagraphQuestionChange(questionId, 'paragraphNumber', parseInt(e.target.value) || 1)}
                                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               />
                             </div>
@@ -3027,7 +3135,7 @@ ${allParagraphs}`;
                             <label className="block text-sm font-medium text-gray-700 mb-2">문제</label>
                             <textarea
                               value={question.question}
-                              onChange={(e) => handleParagraphQuestionChange(index, 'question', e.target.value)}
+                              onChange={(e) => handleParagraphQuestionChange(questionId, 'question', e.target.value)}
                               rows={3}
                               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
@@ -3044,7 +3152,7 @@ ${allParagraphs}`;
                                 value={(question.wordSegments || []).join(', ')}
                                 onChange={(e) => {
                                   const segments = e.target.value.split(',').map(s => s.trim()).filter(s => s);
-                                  handleParagraphQuestionChange(index, 'wordSegments', segments);
+                                  handleParagraphQuestionChange(questionId, 'wordSegments', segments);
                                 }}
                                 placeholder="어절들을 쉼표로 구분하여 입력하세요 (예: 사랑하는, 우리, 가족)"
                                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -3066,7 +3174,7 @@ ${allParagraphs}`;
                                       onChange={(e) => {
                                         const newOptions = [...question.options];
                                         newOptions[optionIndex] = e.target.value;
-                                        handleParagraphQuestionChange(index, 'options', newOptions);
+                                        handleParagraphQuestionChange(questionId, 'options', newOptions);
                                       }}
                                       className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
@@ -3085,7 +3193,7 @@ ${allParagraphs}`;
                             {(question.questionType === '주관식 단답형' || question.questionType === '어절 순서 맞추기') ? (
                               <textarea
                                 value={question.correctAnswer}
-                                onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
+                                onChange={(e) => handleParagraphQuestionChange(questionId, 'correctAnswer', e.target.value)}
                                 rows={2}
                                 placeholder={question.questionType === '어절 순서 맞추기' ? "올바른 어절 순서를 입력하세요" : "단답형 정답을 입력하세요"}
                                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -3093,7 +3201,7 @@ ${allParagraphs}`;
                             ) : (
                               <select
                                 value={question.correctAnswer}
-                                onChange={(e) => handleParagraphQuestionChange(index, 'correctAnswer', e.target.value)}
+                                onChange={(e) => handleParagraphQuestionChange(questionId, 'correctAnswer', e.target.value)}
                                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               >
                                 {question.options.map((option, optIndex) => (
@@ -3114,7 +3222,7 @@ ${allParagraphs}`;
                               <input
                                 type="text"
                                 value={question.answerInitials || ''}
-                                onChange={(e) => handleParagraphQuestionChange(index, 'answerInitials', e.target.value)}
+                                onChange={(e) => handleParagraphQuestionChange(questionId, 'answerInitials', e.target.value)}
                                 placeholder="정답의 초성을 입력하세요 (예: ㄱㄴㄷ)"
                                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               />
@@ -3126,14 +3234,15 @@ ${allParagraphs}`;
                             <label className="block text-sm font-medium text-gray-700 mb-2">해설</label>
                             <textarea
                               value={question.explanation}
-                              onChange={(e) => handleParagraphQuestionChange(index, 'explanation', e.target.value)}
+                              onChange={(e) => handleParagraphQuestionChange(questionId, 'explanation', e.target.value)}
                               rows={3}
                               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
               </div>
@@ -3220,7 +3329,7 @@ ${allParagraphs}`;
                         
                         <div className="space-y-6">
                           {questions.map((question, questionIndex) => {
-                            const globalIndex = editableComprehensive.findIndex(q => q.questionId === question.questionId);
+                            const questionId = question.questionId;
                             const isMainQuestion = !question.isSupplementary;
                             
                             // 보완문제 번호 계산 (기본문제 제외하고 카운트)
@@ -3265,7 +3374,7 @@ ${allParagraphs}`;
                                     <label className="block text-sm font-medium text-gray-700 mb-1">질문</label>
                                     <textarea
                                       value={question.question}
-                                      onChange={(e) => handleComprehensiveChange(globalIndex, 'question', e.target.value)}
+                                      onChange={(e) => handleComprehensiveChange(questionId, 'question', e.target.value)}
                                       rows={3}
                                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
@@ -3285,7 +3394,7 @@ ${allParagraphs}`;
                                                 onChange={(e) => {
                                                   const newOptions = [...(question.options || [])];
                                                   newOptions[optIndex] = e.target.value;
-                                                  handleComprehensiveChange(globalIndex, 'options', newOptions);
+                                                  handleComprehensiveChange(questionId, 'options', newOptions);
                                                 }}
                                                 className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                               />
@@ -3309,7 +3418,7 @@ ${allParagraphs}`;
                                             );
                                             return matchingIndex >= 0 ? (matchingIndex + 1).toString() : '';
                                           })()}
-                                          onChange={(e) => handleComprehensiveChange(globalIndex, 'correctAnswer', e.target.value)}
+                                          onChange={(e) => handleComprehensiveChange(questionId, 'correctAnswer', e.target.value)}
                                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         >
                                           <option value="">정답을 선택하세요</option>
@@ -3327,7 +3436,7 @@ ${allParagraphs}`;
                                         <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
                                         <textarea
                                           value={question.correctAnswer || question.answer}
-                                          onChange={(e) => handleComprehensiveChange(globalIndex, 'correctAnswer', e.target.value)}
+                                          onChange={(e) => handleComprehensiveChange(questionId, 'correctAnswer', e.target.value)}
                                           rows={2}
                                           placeholder="단답형 정답을 입력하세요"
                                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -3343,7 +3452,7 @@ ${allParagraphs}`;
                                           <input
                                             type="text"
                                             value={question.answerInitials || ''}
-                                            onChange={(e) => handleComprehensiveChange(globalIndex, 'answerInitials', e.target.value)}
+                                            onChange={(e) => handleComprehensiveChange(questionId, 'answerInitials', e.target.value)}
                                             placeholder="정답의 초성을 입력하세요 (예: ㄱㄴㄷ)"
                                             className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                           />
@@ -3356,7 +3465,7 @@ ${allParagraphs}`;
                                     <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
                                     <textarea
                                       value={question.explanation}
-                                      onChange={(e) => handleComprehensiveChange(globalIndex, 'explanation', e.target.value)}
+                                      onChange={(e) => handleComprehensiveChange(questionId, 'explanation', e.target.value)}
                                       rows={3}
                                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />

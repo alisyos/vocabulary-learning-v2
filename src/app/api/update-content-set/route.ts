@@ -181,6 +181,16 @@ export async function PUT(request: NextRequest) {
       
       for (let i = 0; i < editableVocabQuestions.length; i++) {
         const question = editableVocabQuestions[i];
+
+        // detailed_question_type 필드 디버깅
+        console.log(`🔍 어휘 문제 ${i + 1} 저장 디버깅 (ID: ${question.id}):`, {
+          detailed_question_type: question.detailed_question_type,
+          detailedQuestionType: question.detailedQuestionType,
+          question_type: question.question_type,
+          questionType: question.questionType,
+          difficulty: question.difficulty
+        });
+
         const updateData = {
           question_text: question.question,
           option_1: question.options?.[0],
@@ -190,11 +200,19 @@ export async function PUT(request: NextRequest) {
           option_5: question.options?.[4],
           correct_answer: question.answer || question.correctAnswer,
           explanation: question.explanation,
-          term: question.term || ''
+          term: question.term || '',
+          // 중요: detailed_question_type 필드 보존
+          detailed_question_type: question.detailed_question_type || question.detailedQuestionType,
+          question_type: question.question_type || question.questionType,
+          difficulty: question.difficulty,
+          answer_initials: question.answer_initials || question.answerInitials
         };
-        
+
+        console.log(`💾 실제 저장할 updateData (문제 ${i + 1}):`, updateData);
+
         if (existingVocabQuestions[i]?.id) {
           await db.updateVocabularyQuestion(existingVocabQuestions[i].id!, updateData);
+          console.log(`✅ 어휘 문제 ${i + 1} 업데이트 완료 (ID: ${existingVocabQuestions[i].id})`);
         }
       }
       console.log('❓ VocabularyQuestions 업데이트 완료');
