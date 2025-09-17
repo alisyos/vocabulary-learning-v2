@@ -56,6 +56,12 @@ export default function Header() {
       href: '/db-admin/vocabulary',
       icon: '📚',
       description: '어휘 데이터 확인, 검수, 수정'
+    },
+    {
+      name: '콘텐츠세트 검수',
+      href: '/db-admin/review',
+      icon: '✅',
+      description: '검수완료 및 승인완료 콘텐츠 확인'
     }
   ];
   
@@ -323,6 +329,12 @@ export default function Header() {
                     <>
                       <span className="mx-2">/</span>
                       <span className="text-gray-400">어휘 DB 관리</span>
+                    </>
+                  )}
+                  {pathname.startsWith('/db-admin/review') && (
+                    <>
+                      <span className="mx-2">/</span>
+                      <span className="text-gray-400">콘텐츠세트 검수</span>
                     </>
                   )}
                 </>

@@ -20,10 +20,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (status !== '검수 전' && status !== '검수완료') {
+    if (status !== '검수 전' && status !== '검수완료' && status !== '승인완료') {
       return NextResponse.json({
         success: false,
-        error: '올바르지 않은 상태값입니다. "검수 전" 또는 "검수완료"만 가능합니다.'
+        error: '올바르지 않은 상태값입니다. "검수 전", "검수완료" 또는 "승인완료"만 가능합니다.'
       }, { status: 400 });
     }
 

@@ -1530,8 +1530,8 @@ ${allParagraphs}`;
                   <div class="options" style="margin: 15px 0;">
                     <div style="font-weight: bold; margin-bottom: 10px;">선택지:</div>
                     ${q.options.slice(0, 2).map((option, optIndex) => `
-                      <div class="option ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? 'correct-answer' : ''}" style="margin-bottom: 8px; padding: 8px 12px; background-color: ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 4px;">
-                        ${optIndex + 1}. ${option} ${(optIndex + 1).toString() === (q.correct_answer || q.correctAnswer) ? ' ✓' : ''}
+                      <div class="option ${option === (q.correct_answer || q.correctAnswer) ? 'correct-answer' : ''}" style="margin-bottom: 8px; padding: 8px 12px; background-color: ${option === (q.correct_answer || q.correctAnswer) ? '#e8f5e8' : 'white'}; border: 1px solid #dee2e6; border-radius: 4px;">
+                        ${optIndex + 1}. ${option} ${option === (q.correct_answer || q.correctAnswer) ? ' ✓' : ''}
                       </div>
                     `).join('')}
                   </div>

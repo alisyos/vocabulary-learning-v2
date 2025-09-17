@@ -266,7 +266,7 @@ export interface Account {
 // ============================================================================
 
 // 콘텐츠 상태 타입
-export type ContentStatus = '검수 전' | '검수완료';
+export type ContentStatus = '검수 전' | '검수완료' | '승인완료';
 
 // 콘텐츠 세트 (content_sets 테이블) - Supabase 적용
 export interface ContentSet {
@@ -285,7 +285,7 @@ export interface ContentSet {
   total_vocabulary_questions: number;
   total_paragraph_questions?: number;
   total_comprehensive_questions: number;
-  status?: '검수 전' | '검수완료'; // 상태값
+  status?: '검수 전' | '검수완료' | '승인완료'; // 상태값
   passage_length?: string | null; // 지문 길이 (선택사항)
   text_type?: string | null; // 지문 유형 (선택사항)
   created_at?: string;

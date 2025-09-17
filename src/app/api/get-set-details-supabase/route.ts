@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
         passageLength: contentSetDetails.passage_length || '',
         textType: contentSetDetails.text_type || ''
       },
+      // 모든 지문 데이터 반환 (기존 호환성을 위한 단일 passage도 유지)
       passage: contentSetDetails.passages?.[0] ? {
         id: contentSetDetails.passages[0].id,
         title: contentSetDetails.passages[0].title,
@@ -65,18 +66,47 @@ export async function GET(request: NextRequest) {
         ].filter(p => p !== null && p !== undefined && p !== ''),
         createdAt: contentSetDetails.passages[0].created_at,
       } : null,
+      // 모든 지문들 반환
+      passages: contentSetDetails.passages?.map(passage => ({
+        id: passage.id,
+        title: passage.title,
+        paragraph_1: passage.paragraph_1,
+        paragraph_2: passage.paragraph_2,
+        paragraph_3: passage.paragraph_3,
+        paragraph_4: passage.paragraph_4,
+        paragraph_5: passage.paragraph_5,
+        paragraph_6: passage.paragraph_6,
+        paragraph_7: passage.paragraph_7,
+        paragraph_8: passage.paragraph_8,
+        paragraph_9: passage.paragraph_9,
+        paragraph_10: passage.paragraph_10,
+        created_at: passage.created_at,
+        passage_number: passage.passage_number
+      })) || [],
+      // 도입질문 추가 (content_sets 테이블에서 가져오기)
+      introductionQuestion: contentSetDetails.introduction_question || '',
       vocabularyTerms: contentSetDetails.vocabulary_terms || [],
       vocabularyQuestions: contentSetDetails.vocabulary_questions?.map(q => ({
         id: q.id,
         term: q.term || (q.question_text.includes('다음 중') ? '어휘' : q.question_text.split(' ')[0]), // Use term field if available
         question: q.question_text,
+        // 개별 옵션 필드들
+        option_1: q.option_1,
+        option_2: q.option_2,
+        option_3: q.option_3,
+        option_4: q.option_4,
+        option_5: q.option_5,
+        // 기존 호환성을 위한 options 배열도 유지
         options: [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(o => o),
-        answer: q.correct_answer,
+        correct_answer: q.correct_answer,
+        answer: q.correct_answer, // 호환성을 위한 별칭
         explanation: q.explanation,
         // 추가 필드들 - 상세 문제 유형과 난이도
         question_type: q.question_type,
         detailed_question_type: q.detailed_question_type,
-        difficulty: q.difficulty
+        difficulty: q.difficulty,
+        is_supplementary: q.is_supplementary,
+        answer_initials: q.answer_initials // 초성 힌트 필드 추가
       })) || [],
       paragraphQuestions: contentSetDetails.paragraph_questions?.map(q => {
         const isWordOrderQuestion = q.question_type === '어절 순서 맞추기';
