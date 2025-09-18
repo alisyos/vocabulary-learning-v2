@@ -9,6 +9,7 @@ import type {
 export async function PUT(request: NextRequest) {
   try {
     console.log('🚀 update-content-set API 시작');
+    const startTime = Date.now();
     
     const data = await request.json();
     console.log('📥 받은 데이터:', JSON.stringify(data, null, 2));
@@ -174,22 +175,23 @@ export async function PUT(request: NextRequest) {
       console.log('📚 VocabularyTerms 업데이트 완료:', vocabularyTerms.length, '개');
     }
 
-    // 4. VocabularyQuestions 업데이트
+    // 4. VocabularyQuestions 업데이트 (병렬 처리)
     if (editableVocabQuestions && editableVocabQuestions.length > 0) {
-      console.log('❓ VocabularyQuestions 업데이트 시작');
+      const vocabStartTime = Date.now();
+      console.log('❓ VocabularyQuestions 업데이트 시작 (병렬 처리)');
       const existingVocabQuestions = await db.getVocabularyQuestionsByContentSetId(contentSetId);
-      
-      for (let i = 0; i < editableVocabQuestions.length; i++) {
-        const question = editableVocabQuestions[i];
 
-        // detailed_question_type 필드 디버깅
-        console.log(`🔍 어휘 문제 ${i + 1} 저장 디버깅 (ID: ${question.id}):`, {
-          detailed_question_type: question.detailed_question_type,
-          detailedQuestionType: question.detailedQuestionType,
-          question_type: question.question_type,
-          questionType: question.questionType,
-          difficulty: question.difficulty
-        });
+      // 병렬 처리를 위한 Promise 배열 생성
+      const updatePromises = editableVocabQuestions.map(async (question, i) => {
+        // ID 기반 매칭을 위해 기존 문제 찾기
+        const existingQuestion = question.id
+          ? existingVocabQuestions.find(eq => eq.id === question.id)
+          : existingVocabQuestions[i];
+
+        if (!existingQuestion?.id) {
+          console.log(`⏭️ 어휘 문제 ${i + 1} 스킵 (기존 ID 없음)`);
+          return null;
+        }
 
         const updateData = {
           question_text: question.question,
@@ -201,21 +203,31 @@ export async function PUT(request: NextRequest) {
           correct_answer: question.answer || question.correctAnswer,
           explanation: question.explanation,
           term: question.term || '',
-          // 중요: detailed_question_type 필드 보존
           detailed_question_type: question.detailed_question_type || question.detailedQuestionType,
           question_type: question.question_type || question.questionType,
           difficulty: question.difficulty,
           answer_initials: question.answer_initials || question.answerInitials
         };
 
-        console.log(`💾 실제 저장할 updateData (문제 ${i + 1}):`, updateData);
+        console.log(`💾 어휘 문제 ${i + 1} 업데이트 준비 (ID: ${existingQuestion.id})`);
+        return db.updateVocabularyQuestion(existingQuestion.id!, updateData)
+          .then(() => console.log(`✅ 어휘 문제 ${i + 1} 업데이트 완료`))
+          .catch(error => {
+            console.error(`❌ 어휘 문제 ${i + 1} 업데이트 실패:`, error);
+            throw error;
+          });
+      });
 
-        if (existingVocabQuestions[i]?.id) {
-          await db.updateVocabularyQuestion(existingVocabQuestions[i].id!, updateData);
-          console.log(`✅ 어휘 문제 ${i + 1} 업데이트 완료 (ID: ${existingVocabQuestions[i].id})`);
-        }
+      // 모든 업데이트를 병렬로 실행
+      const results = await Promise.allSettled(updatePromises);
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+
+      if (failedCount > 0) {
+        console.warn(`⚠️ ${failedCount}개의 어휘 문제 업데이트 실패`);
       }
-      console.log('❓ VocabularyQuestions 업데이트 완료');
+
+      const vocabEndTime = Date.now();
+      console.log(`❓ VocabularyQuestions 업데이트 완료 (소요시간: ${vocabEndTime - vocabStartTime}ms)`);
     }
 
     // 5. ComprehensiveQuestions 업데이트 (유니크 제약조건 회피를 위한 단계별 처리)
@@ -321,20 +333,35 @@ export async function PUT(request: NextRequest) {
       }
     }
     
-    // 2단계: 기존 문제들 업데이트 (question_number 포함)
-    for (const updateItem of questionsToUpdate) {
-      try {
+    // 2단계: 기존 문제들 업데이트 (병렬 처리)
+    if (questionsToUpdate.length > 0) {
+      const compStartTime = Date.now();
+      console.log(`🧠 ${questionsToUpdate.length}개 종합문제 업데이트 시작 (병렬 처리)`);
+
+      const updatePromises = questionsToUpdate.map(async (updateItem) => {
         const updateDataWithNumber = {
           ...updateItem.data,
           question_number: updateItem.newQuestionNumber
         };
-        console.log(`🧠 업데이트 데이터 (번호 ${updateItem.newQuestionNumber}):`, updateDataWithNumber);
-        await db.updateComprehensiveQuestion(updateItem.id, updateDataWithNumber);
-        console.log(`🧠 종합문제 업데이트 성공: ${updateItem.id}`);
-      } catch (error) {
-        console.error(`🧠 종합문제 업데이트 실패: ${updateItem.id}`, error);
-        throw error;
+        console.log(`🧠 종합문제 업데이트 준비 (ID: ${updateItem.id})`);
+
+        return db.updateComprehensiveQuestion(updateItem.id, updateDataWithNumber)
+          .then(() => console.log(`✅ 종합문제 업데이트 완료: ${updateItem.id}`))
+          .catch(error => {
+            console.error(`❌ 종합문제 업데이트 실패: ${updateItem.id}`, error);
+            throw error;
+          });
+      });
+
+      const results = await Promise.allSettled(updatePromises);
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+
+      if (failedCount > 0) {
+        console.warn(`⚠️ ${failedCount}개의 종합문제 업데이트 실패`);
       }
+
+      const compEndTime = Date.now();
+      console.log(`🧠 종합문제 업데이트 완료 (소요시간: ${compEndTime - compStartTime}ms)`);
     }
     
     // 3단계: 새 문제들 생성
@@ -351,10 +378,11 @@ export async function PUT(request: NextRequest) {
     
     console.log('🧠 ComprehensiveQuestions 업데이트 완료');
 
-    // 6. ParagraphQuestions 재생성 (기존 삭제 후 새로 생성)
+    // 6. ParagraphQuestions 재생성 (병렬 처리)
     if (editableParagraphQuestions && editableParagraphQuestions.length > 0) {
-      console.log('📄 ParagraphQuestions 재생성 시작');
-      
+      const paraStartTime = Date.now();
+      console.log('📄 ParagraphQuestions 재생성 시작 (병렬 처리)');
+
       // 기존 문단문제 모두 삭제
       try {
         await db.deleteParagraphQuestionsByContentSetId?.(contentSetId);
@@ -362,10 +390,9 @@ export async function PUT(request: NextRequest) {
       } catch (error) {
         console.log('📄 문단문제 삭제 중 오류 (무시):', error);
       }
-      
-      // 새 문단문제 생성
-      for (let i = 0; i < editableParagraphQuestions.length; i++) {
-        const question = editableParagraphQuestions[i];
+
+      // 새 문단문제 병렬 생성
+      const createPromises = editableParagraphQuestions.map(async (question, i) => {
         const createData = {
           content_set_id: contentSetId,
           question_number: question.questionNumber || (i + 1),
@@ -383,18 +410,27 @@ export async function PUT(request: NextRequest) {
           explanation: question.explanation,
           word_segments: question.wordSegments || null
         };
-        
-        try {
-          await db.createParagraphQuestion?.(createData);
-        } catch (error) {
-          console.error(`📄 문단문제 ${i + 1} 생성 실패:`, error);
-        }
-      }
-      
-      console.log('📄 ParagraphQuestions 재생성 완료:', editableParagraphQuestions.length, '개');
+
+        console.log(`📄 문단문제 ${i + 1} 생성 준비`);
+        return db.createParagraphQuestion?.(createData)
+          .then(() => console.log(`✅ 문단문제 ${i + 1} 생성 완료`))
+          .catch(error => {
+            console.error(`❌ 문단문제 ${i + 1} 생성 실패:`, error);
+            // 개별 실패는 전체 프로세스를 중단시키지 않음
+            return null;
+          });
+      });
+
+      const results = await Promise.allSettled(createPromises);
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value !== null).length;
+
+      const paraEndTime = Date.now();
+      console.log(`📄 ParagraphQuestions 재생성 완료: ${successCount}/${editableParagraphQuestions.length}개 성공 (소요시간: ${paraEndTime - paraStartTime}ms)`);
     }
 
-    console.log('✅ 모든 데이터 업데이트 완료');
+    const endTime = Date.now();
+    const totalTime = endTime - startTime;
+    console.log(`✅ 모든 데이터 업데이트 완료 (총 소요시간: ${totalTime}ms)`);
 
     return NextResponse.json({
       success: true,
