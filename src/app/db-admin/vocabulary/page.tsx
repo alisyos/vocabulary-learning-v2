@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import RoleAuthGuard from '@/components/RoleAuthGuard';
 
 interface VocabularyTerm {
   id: string;
@@ -455,7 +456,8 @@ export default function VocabularyDBPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <RoleAuthGuard allowedRoles={['admin']}>
+      <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* 헤더 */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -1011,5 +1013,6 @@ export default function VocabularyDBPage() {
           </div>
         )}
       </div>
+    </RoleAuthGuard>
   );
 }

@@ -9,10 +9,14 @@ export async function GET(request: NextRequest) {
     // URL 파라미터에서 필터 조건 추출
     const { searchParams } = new URL(request.url);
     const setId = searchParams.get('setId');
+    const status = searchParams.get('status');
+    const user = searchParams.get('user');
     const filters = {
       subject: searchParams.get('subject') || undefined,
       grade: searchParams.get('grade') || undefined,
-      area: searchParams.get('area') || undefined
+      area: searchParams.get('area') || undefined,
+      status: status || undefined,
+      user_id: user || undefined
     };
     
     // setId가 있으면 개별 콘텐츠 세트 상세 정보 가져오기

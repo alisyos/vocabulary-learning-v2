@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import AuthGuard from '@/components/AuthGuard';
+import RoleAuthGuard from '@/components/RoleAuthGuard';
 import ContentEditModal from '@/components/ContentEditModal';
 
 interface DataSet {
@@ -66,13 +66,24 @@ export default function ContentSetReviewPage() {
   const [stats, setStats] = useState<ApiResponse['stats'] | null>(null);
   const [totalCount, setTotalCount] = useState<number>(0);
 
+  // 전체 옵션을 위한 별도 상태 (필터링과 무관하게 유지)
+  const [allOptions, setAllOptions] = useState<{
+    subjects: string[];
+    grades: string[];
+    areas: string[];
+  }>({
+    subjects: [],
+    grades: [],
+    areas: []
+  });
+
   // 필터 상태
   const [filters, setFilters] = useState({
     subject: '',
     grade: '',
     area: '',
     user: '',
-    status: '검수완료', // 기본값을 검수완료로 설정
+    status: '검수완료,승인완료', // 기본값을 검수완료와 승인완료로 설정
     search: ''
   });
 
@@ -80,14 +91,6 @@ export default function ContentSetReviewPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
 
-  // 상태 변경 관련 상태
-  const [statusUpdating, setStatusUpdating] = useState<{
-    setId: string;
-    loading: boolean;
-  }>({
-    setId: '',
-    loading: false
-  });
 
   // 수정 모달 상태
   const [editModal, setEditModal] = useState<{
@@ -127,6 +130,32 @@ export default function ContentSetReviewPage() {
     }
   }, [filters.subject, filters.grade, filters.area, filters.user, filters.status]);
 
+  // 초기 로드 시 전체 옵션 가져오기
+  useEffect(() => {
+    const fetchAllOptions = async () => {
+      try {
+        // 필터 없이 전체 데이터 가져오기 (상태 필터만 유지)
+        const params = new URLSearchParams();
+        params.append('status', '검수완료,승인완료');
+
+        const response = await fetch(`/api/get-curriculum-data-supabase?${params.toString()}`);
+        const result: ApiResponse = await response.json();
+
+        if (result.success && result.stats) {
+          setAllOptions({
+            subjects: result.stats.subjects || [],
+            grades: result.stats.grades || [],
+            areas: result.stats.areas || []
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch all options:', err);
+      }
+    };
+
+    fetchAllOptions();
+  }, []); // 컴포넌트 마운트 시 한 번만 실행
+
   // 데이터 로드
   useEffect(() => {
     fetchDataSets();
@@ -137,6 +166,7 @@ export default function ContentSetReviewPage() {
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
       return (
+        (item.id || item.setId || '').toLowerCase().includes(searchTerm) ||
         (item.title || item.passageTitle || '').toLowerCase().includes(searchTerm) ||
         (item.mainTopic || item.maintopic || '').toLowerCase().includes(searchTerm) ||
         (item.subTopic || item.subtopic || '').toLowerCase().includes(searchTerm) ||
@@ -181,9 +211,7 @@ export default function ContentSetReviewPage() {
   };
 
   // 상태값 변경 함수
-  const updateStatus = async (setId: string, newStatus: '검수 전' | '검수완료' | '승인완료') => {
-    setStatusUpdating({ setId, loading: true });
-
+  const updateStatus = async (setId: string, newStatus: '검수완료' | '승인완료') => {
     try {
       const response = await fetch('/api/update-status', {
         method: 'POST',
@@ -200,20 +228,22 @@ export default function ContentSetReviewPage() {
 
       if (result.success) {
         await fetchDataSets();
-        alert(`상태가 '${newStatus}'로 변경되었습니다.`);
       } else {
-        alert(result.error || '상태 변경에 실패했습니다.');
+        console.error('상태 변경 실패:', result);
+        const errorMessage = result.details ?
+          `${result.error}\n\n상세 정보: ${result.details}` :
+          result.error || '상태 변경에 실패했습니다.';
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('상태 변경 오류:', error);
       alert('상태 변경 중 오류가 발생했습니다.');
-    } finally {
-      setStatusUpdating({ setId: '', loading: false });
     }
   };
 
+
   return (
-    <AuthGuard>
+    <RoleAuthGuard allowedRoles={['admin', 'reviewer']}>
       <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 페이지 헤더 */}
@@ -226,7 +256,7 @@ export default function ContentSetReviewPage() {
 
         {/* 통계 카드 */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4">
               <div className="text-xl font-bold text-blue-600">{totalCount}</div>
               <div className="text-xs text-gray-600">검수 대상 콘텐츠</div>
@@ -243,18 +273,12 @@ export default function ContentSetReviewPage() {
               </div>
               <div className="text-xs text-gray-600">승인완료</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-xl font-bold text-purple-600">
-                {dataSets.reduce((sum, item) => sum + (item.totalQuestions || 0), 0)}
-              </div>
-              <div className="text-xs text-gray-600">총 문제 수</div>
-            </div>
           </div>
         )}
 
         {/* 필터 및 검색 */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">과목</label>
               <select
@@ -263,7 +287,7 @@ export default function ContentSetReviewPage() {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">전체</option>
-                {stats?.subjects.map(subject => (
+                {allOptions.subjects.map(subject => (
                   <option key={subject} value={subject}>{subject}</option>
                 ))}
               </select>
@@ -276,7 +300,7 @@ export default function ContentSetReviewPage() {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">전체</option>
-                {stats?.grades.map(grade => (
+                {allOptions.grades.map(grade => (
                   <option key={grade} value={grade}>{grade}</option>
                 ))}
               </select>
@@ -289,30 +313,9 @@ export default function ContentSetReviewPage() {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">전체</option>
-                {stats?.areas.map(area => (
+                {allOptions.areas.map(area => (
                   <option key={area} value={area}>{area}</option>
                 ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">사용자</label>
-              <select
-                value={filters.user}
-                onChange={(e) => setFilters(prev => ({ ...prev, user: e.target.value }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">전체</option>
-                <option value="song">song</option>
-                <option value="user1">user1</option>
-                <option value="user2">user2</option>
-                <option value="user3">user3</option>
-                <option value="user4">user4</option>
-                <option value="user5">user5</option>
-                <option value="ahn">ahn</option>
-                <option value="test">test</option>
               </select>
             </div>
             <div>
@@ -322,21 +325,22 @@ export default function ContentSetReviewPage() {
                 onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">전체</option>
+                <option value="검수완료,승인완료">검수완료+승인완료</option>
                 <option value="검수완료">검수완료</option>
                 <option value="승인완료">승인완료</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">검색</label>
-              <input
-                type="text"
-                placeholder="제목, 주제, 키워드 검색..."
-                value={filters.search}
-                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">검색</label>
+            <input
+              type="text"
+              placeholder="ID, 제목, 주제, 키워드 검색..."
+              value={filters.search}
+              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
           </div>
 
           <div className="flex justify-between items-center">
@@ -344,7 +348,7 @@ export default function ContentSetReviewPage() {
               {filteredDataSets.length}개의 콘텐츠 세트
             </p>
             <button
-              onClick={() => setFilters({ subject: '', grade: '', area: '', user: '', status: '검수완료', search: '' })}
+              onClick={() => setFilters({ subject: '', grade: '', area: '', user: '', status: '검수완료,승인완료', search: '' })}
               className="text-sm text-blue-600 hover:text-blue-800"
             >
               필터 초기화
@@ -387,6 +391,9 @@ export default function ContentSetReviewPage() {
                       생성일
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       상태
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -408,9 +415,6 @@ export default function ContentSetReviewPage() {
                       소주제
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      생성자
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       문제 수
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -427,14 +431,38 @@ export default function ContentSetReviewPage() {
                           <div className="text-gray-400">{formatDate(item.createdAt).timePart}</div>
                         </div>
                       </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <button
+                          onClick={() => {
+                            const fullId = item.id || item.setId || '';
+                            navigator.clipboard.writeText(fullId);
+                            alert('ID가 클립보드에 복사되었습니다.');
+                          }}
+                          className="font-mono text-xs hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+                          title={item.id || item.setId || ''}
+                        >
+                          {(item.id || item.setId || '').slice(0, 8)}...
+                        </button>
+                      </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          item.status === '승인완료'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}>
+                        <button
+                          onClick={() => {
+                            const currentStatus = item.status;
+                            const newStatus = currentStatus === '검수완료' ? '승인완료' : '검수완료';
+                            const setId = item.id || item.setId;
+                            if (setId) {
+                              updateStatus(setId, newStatus);
+                            }
+                          }}
+                          className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full cursor-pointer transition-all hover:shadow-md ${
+                            item.status === '승인완료'
+                              ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                              : 'bg-green-100 text-green-800 hover:bg-green-200'
+                          }`}
+                          title={`클릭하여 '${item.status === '검수완료' ? '승인완료' : '검수완료'}'로 변경`}
+                        >
                           {item.status}
-                        </span>
+                        </button>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.subject}
@@ -455,9 +483,6 @@ export default function ContentSetReviewPage() {
                         {item.subTopic || item.subtopic}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {item.userId || '-'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                         <div className="flex flex-col text-xs">
                           <span>어휘: {item.vocabularyQuestionCount || 0}</span>
                           <span>문단: {item.total_paragraph_questions || 0}</span>
@@ -465,7 +490,7 @@ export default function ContentSetReviewPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center justify-center space-x-3">
+                        <div className="flex items-center justify-center">
                           {/* 수정 */}
                           <button
                             onClick={() => {
@@ -480,25 +505,6 @@ export default function ContentSetReviewPage() {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                          </button>
-
-                          {/* 상태 변경 */}
-                          <button
-                            onClick={() => {
-                              const newStatus = item.status === '검수완료' ? '승인완료' : '검수완료';
-                              updateStatus(item.id || item.setId, newStatus);
-                            }}
-                            disabled={statusUpdating.setId === item.setId && statusUpdating.loading}
-                            className="text-purple-600 hover:text-purple-800 hover:bg-purple-50 p-1 rounded transition-colors disabled:opacity-50"
-                            title={item.status === '검수완료' ? '승인완료로 변경' : '검수완료로 변경'}
-                          >
-                            {statusUpdating.setId === item.setId && statusUpdating.loading ? (
-                              <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            )}
                           </button>
                         </div>
                       </td>
@@ -591,6 +597,6 @@ export default function ContentSetReviewPage() {
         />
       )}
       </div>
-    </AuthGuard>
+    </RoleAuthGuard>
   );
 }

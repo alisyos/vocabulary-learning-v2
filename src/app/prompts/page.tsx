@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
+import RoleAuthGuard from '@/components/RoleAuthGuard';
 import { SystemPrompt, PromptGroup, PromptsResponse, PromptUpdateRequest } from '@/types';
 
 interface EditingPrompt {
@@ -332,8 +333,9 @@ export default function PromptsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
+    <RoleAuthGuard allowedRoles={['admin']}>
+      <div className="min-h-screen bg-gray-50">
+        <Header />
       <main className="container mx-auto px-4 py-8">
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -791,6 +793,7 @@ export default function PromptsPage() {
           </div>
         )}
       </main>
-    </div>
+      </div>
+    </RoleAuthGuard>
   );
 }

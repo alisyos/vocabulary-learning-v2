@@ -15,10 +15,15 @@ export default function LoginPage() {
   const { login, user } = useAuth();
   const router = useRouter();
 
-  // 이미 로그인된 경우 메인 페이지로 리다이렉트
+  // 이미 로그인된 경우 역할에 맞는 페이지로 리다이렉트
   useEffect(() => {
     if (user?.isLoggedIn) {
-      router.push('/');
+      const userRole = user?.role || 'user';
+      if (userRole === 'reviewer') {
+        router.push('/db-admin/review');
+      } else {
+        router.push('/');
+      }
     }
   }, [user, router]);
 
@@ -35,9 +40,11 @@ export default function LoginPage() {
 
     try {
       const result = await login(credentials);
-      
+
       if (result.success) {
-        router.push('/');
+        // redirectUrl이 있으면 해당 페이지로, 없으면 메인 페이지로
+        const targetUrl = result.redirectUrl || '/';
+        router.push(targetUrl);
       } else {
         setError(result.message || '로그인에 실패했습니다.');
       }
@@ -138,43 +145,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* 계정 정보 안내 */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">이용 가능한 계정:</h3>
-            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="font-medium">song</span> / 0000
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="font-medium">user1</span> / 1111
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="font-medium">user2</span> / 2222
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="font-medium">user3</span> / 3333
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="font-medium">user4</span> / 4444
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="font-medium">user5</span> / 5555
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="font-medium">ahn</span> / 0000
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="font-medium">test</span> / 0000
-              </div>
-            </div>
-            
-            {/* 안내 문구 */}
-            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded">
-              <p className="text-xs text-red-600 font-medium">
-                ** ID 지정이 안된 사용자는 &apos;test&apos; 계정을 사용해주세요.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

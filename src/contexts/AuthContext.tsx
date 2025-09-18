@@ -6,7 +6,7 @@ import { User, LoginRequest } from '@/types';
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (credentials: LoginRequest) => Promise<{ success: boolean; message?: string }>;
+  login: (credentials: LoginRequest) => Promise<{ success: boolean; message?: string; redirectUrl?: string }>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
 }
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (data.success && data.user) {
         setUser(data.user);
-        return { success: true, message: data.message };
+        return { success: true, message: data.message, redirectUrl: data.redirectUrl };
       } else {
         return { success: false, message: data.message };
       }

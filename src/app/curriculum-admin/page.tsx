@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
-import AuthGuard from '@/components/AuthGuard';
+import RoleAuthGuard from '@/components/RoleAuthGuard';
 import { CurriculumData } from '@/types';
 
 interface CsvRow {
@@ -463,7 +463,7 @@ export default function CurriculumAdminPage() {
   };
 
   return (
-    <AuthGuard>
+    <RoleAuthGuard allowedRoles={['admin']}>
       <div className="min-h-screen bg-gray-50">
         <Header />
         
@@ -951,6 +951,6 @@ export default function CurriculumAdminPage() {
           </div>
         )}
       </div>
-    </AuthGuard>
+    </RoleAuthGuard>
   );
 } 

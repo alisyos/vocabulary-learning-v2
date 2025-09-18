@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
+import RoleAuthGuard from '@/components/RoleAuthGuard';
 import { getComprehensiveQuestionTypeLabel, getVocabularyQuestionTypeLabel } from '@/lib/supabase';
 import ComprehensiveCSVUploadModal from '@/components/ComprehensiveCSVUploadModal';
 
@@ -2197,8 +2198,9 @@ ${allParagraphs}`;
   }
   
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
+    <RoleAuthGuard allowedRoles={['admin', 'user']}>
+      <div className="min-h-screen bg-gray-50">
+        <Header />
       
       {/* 페이지 헤더 */}
       <div className="bg-white border-b border-gray-200">
@@ -3520,6 +3522,7 @@ ${allParagraphs}`;
         onUpload={handleCSVUpload}
         contentSetId={setId}
       />
-    </div>
+      </div>
+    </RoleAuthGuard>
   );
 } 

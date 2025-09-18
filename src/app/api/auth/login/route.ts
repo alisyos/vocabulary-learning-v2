@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LoginRequest, LoginResponse, Account } from '@/types';
 
+// 계정 정보 및 권한 설정
+interface AccountWithRole extends Account {
+  role?: 'admin' | 'reviewer' | 'user';
+}
+
 // 하드코딩된 계정 정보
-const ACCOUNTS: Account[] = [
-  { userId: 'song', password: '0000', name: '송선생님' },
-  { userId: 'user1', password: '1111', name: '사용자1' },
-  { userId: 'user2', password: '2222', name: '사용자2' },
-  { userId: 'user3', password: '3333', name: '사용자3' },
-  { userId: 'user4', password: '4444', name: '사용자4' },
-  { userId: 'user5', password: '5555', name: '사용자5' },
-  { userId: 'ahn', password: '0000', name: '안선생님' },
-  { userId: 'test', password: '0000', name: '테스트계정' },
+const ACCOUNTS: AccountWithRole[] = [
+  { userId: 'song', password: '0000', name: '송선생님', role: 'admin' },
+  { userId: 'user1', password: '1111', name: '사용자1', role: 'user' },
+  { userId: 'user2', password: '2222', name: '사용자2', role: 'user' },
+  { userId: 'user3', password: '3333', name: '사용자3', role: 'user' },
+  { userId: 'user4', password: '4444', name: '사용자4', role: 'user' },
+  { userId: 'user5', password: '5555', name: '사용자5', role: 'user' },
+  { userId: 'ahn', password: '0000', name: '안선생님', role: 'admin' },
+  { userId: 'test', password: '0000', name: '테스트계정', role: 'admin' },
+  { userId: 'almond', password: 'almond11@', name: '검수담당자', role: 'reviewer' },
 ];
 
 export async function POST(request: NextRequest) {
@@ -33,13 +39,21 @@ export async function POST(request: NextRequest) {
     const user = {
       userId: account.userId,
       name: account.name,
-      isLoggedIn: true
+      isLoggedIn: true,
+      role: account.role || 'user'
     };
+
+    // 역할별 기본 리다이렉트 URL 설정
+    let redirectUrl = '/';
+    if (account.role === 'reviewer') {
+      redirectUrl = '/db-admin/review';
+    }
 
     const response: LoginResponse = {
       success: true,
       user,
-      message: '로그인에 성공했습니다.'
+      message: '로그인에 성공했습니다.',
+      redirectUrl
     };
 
     const nextResponse = NextResponse.json(response);

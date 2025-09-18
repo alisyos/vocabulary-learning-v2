@@ -12,8 +12,11 @@ export async function POST(request: NextRequest) {
     const body: UpdateStatusRequest = await request.json();
     const { setId, status } = body;
 
+    console.log('상태 변경 요청 받음:', { setId, status });
+
     // 입력값 검증
     if (!setId || !status) {
+      console.error('필수 파라미터 누락:', { setId, status });
       return NextResponse.json({
         success: false,
         error: 'setId와 status가 필요합니다.'
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // 1. 먼저 콘텐츠 세트가 존재하는지 확인
     const existingContentSet = await db.getContentSetById(setId);
-    
+
     if (!existingContentSet) {
       return NextResponse.json({
         success: false,
@@ -41,9 +44,9 @@ export async function POST(request: NextRequest) {
 
     // 2. Supabase에서 상태값 업데이트
     try {
+      // updated_at 필드를 제거하고 status만 업데이트
       const updatedContentSet = await db.updateContentSet(setId, {
-        status: status,
-        updated_at: new Date().toISOString()
+        status: status
       });
 
       console.log(`✅ Supabase에서 상태값 변경 완료: ${setId} -> ${status}`);
@@ -59,10 +62,26 @@ export async function POST(request: NextRequest) {
 
     } catch (updateError) {
       console.error('Supabase 상태값 업데이트 중 오류:', updateError);
+
+      // 더 상세한 에러 정보 추출
+      let errorDetails = '알 수 없는 오류';
+      if (updateError instanceof Error) {
+        errorDetails = updateError.message;
+        // Supabase 에러인 경우 더 상세한 정보 포함
+        if ('code' in updateError) {
+          errorDetails += ` (코드: ${(updateError as any).code})`;
+        }
+        if ('hint' in updateError) {
+          errorDetails += ` (힌트: ${(updateError as any).hint})`;
+        }
+      }
+
       return NextResponse.json({
         success: false,
         error: 'Supabase에서 상태값 업데이트 중 오류가 발생했습니다.',
-        details: updateError instanceof Error ? updateError.message : '알 수 없는 오류'
+        details: errorDetails,
+        setId,
+        attemptedStatus: status
       }, { status: 500 });
     }
 

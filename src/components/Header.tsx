@@ -13,19 +13,29 @@ export default function Header() {
   const [isDbDropdownOpen, setIsDbDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dbDropdownRef = useRef<HTMLDivElement>(null);
-  
+
+  // 사용자 역할 확인
+  const userRole = user?.role || 'user';
+
+  // 디버깅용 로그 (개발 환경에서만)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Current user role:', userRole, 'User:', user);
+  }
+
   const navigation = [
     {
       name: '콘텐츠 생성',
       href: '/',
       icon: '✏️',
-      description: '새로운 학습 콘텐츠 생성'
+      description: '새로운 학습 콘텐츠 생성',
+      allowedRoles: ['admin', 'user'] // reviewer는 콘텐츠 생성 불가
     },
     {
       name: '콘텐츠 관리',
       href: '/manage',
       icon: '📚',
-      description: '저장된 콘텐츠 관리'
+      description: '저장된 콘텐츠 관리',
+      allowedRoles: ['admin', 'user'] // reviewer는 콘텐츠 관리 불가
     }
   ];
 
@@ -34,13 +44,15 @@ export default function Header() {
       name: '프롬프트 관리',
       href: '/prompts',
       icon: '📝',
-      description: 'AI 생성 프롬프트 확인 및 수정'
+      description: 'AI 생성 프롬프트 확인 및 수정',
+      allowedRoles: ['admin'] // admin만 접근 가능
     },
     {
       name: '필드데이터 관리',
       href: '/curriculum-admin',
       icon: '🗂️',
-      description: '교육과정 데이터 관리'
+      description: '교육과정 데이터 관리',
+      allowedRoles: ['admin'] // admin만 접근 가능
     }
   ];
 
@@ -49,21 +61,35 @@ export default function Header() {
       name: 'DB 다운로드',
       href: '/db-admin/download',
       icon: '💾',
-      description: '데이터베이스 테이블 CSV 다운로드'
+      description: '데이터베이스 테이블 CSV 다운로드',
+      allowedRoles: ['admin'] // admin만 접근 가능
     },
     {
       name: '어휘 DB 관리',
       href: '/db-admin/vocabulary',
       icon: '📚',
-      description: '어휘 데이터 확인, 검수, 수정'
+      description: '어휘 데이터 확인, 검수, 수정',
+      allowedRoles: ['admin'] // admin만 접근 가능
     },
     {
       name: '콘텐츠세트 검수',
       href: '/db-admin/review',
       icon: '✅',
-      description: '검수완료 및 승인완료 콘텐츠 확인'
+      description: '검수완료 및 승인완료 콘텐츠 확인',
+      allowedRoles: ['admin', 'reviewer'] // admin과 reviewer 접근 가능
     }
   ];
+
+  // 사용자 역할에 따라 필터링된 메뉴
+  const filteredNavigation = navigation.filter(item =>
+    item.allowedRoles.includes(userRole)
+  );
+  const filteredSystemMenuItems = systemMenuItems.filter(item =>
+    item.allowedRoles.includes(userRole)
+  );
+  const filteredDbMenuItems = dbMenuItems.filter(item =>
+    item.allowedRoles.includes(userRole)
+  );
   
   const isActive = (href: string) => {
     if (href === '/') {
@@ -118,7 +144,7 @@ export default function Header() {
           
           {/* 네비게이션 메뉴 */}
           <nav className="flex items-center space-x-8">
-            {navigation.map((item) => (
+            {filteredNavigation.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
@@ -142,7 +168,8 @@ export default function Header() {
               </Link>
             ))}
             
-            {/* 시스템 설정 드롭다운 */}
+            {/* 시스템 설정 드롭다운 - 권한이 있는 경우만 표시 */}
+            {filteredSystemMenuItems.length > 0 && (
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsSystemDropdownOpen(!isSystemDropdownOpen)}
@@ -165,7 +192,7 @@ export default function Header() {
               {/* 드롭다운 메뉴 */}
               {isSystemDropdownOpen && (
                 <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-20">
-                  {systemMenuItems.map((item) => (
+                  {filteredSystemMenuItems.map((item) => (
                     <Link
                       key={item.name}
                       href={item.href}
@@ -186,8 +213,10 @@ export default function Header() {
                 </div>
               )}
             </div>
-            
-            {/* DB 관리 드롭다운 */}
+            )}
+
+            {/* DB 관리 드롭다운 - 권한이 있는 경우만 표시 */}
+            {filteredDbMenuItems.length > 0 && (
             <div className="relative" ref={dbDropdownRef}>
               <button
                 onClick={() => setIsDbDropdownOpen(!isDbDropdownOpen)}
@@ -210,7 +239,7 @@ export default function Header() {
               {/* 드롭다운 메뉴 */}
               {isDbDropdownOpen && (
                 <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-20">
-                  {dbMenuItems.map((item) => (
+                  {filteredDbMenuItems.map((item) => (
                     <Link
                       key={item.name}
                       href={item.href}
@@ -231,6 +260,7 @@ export default function Header() {
                 </div>
               )}
             </div>
+            )}
           </nav>
           
           {/* 사용자 정보 및 액션 */}

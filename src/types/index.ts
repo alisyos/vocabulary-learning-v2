@@ -233,6 +233,7 @@ export interface User {
   userId: string;
   name: string;
   isLoggedIn: boolean;
+  role?: 'admin' | 'reviewer' | 'user';
 }
 
 // 로그인 요청
@@ -246,6 +247,7 @@ export interface LoginResponse {
   success: boolean;
   user?: User;
   message?: string;
+  redirectUrl?: string;
 }
 
 // 세션 정보

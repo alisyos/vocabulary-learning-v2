@@ -153,7 +153,7 @@ export const db = {
     return result as ContentSet
   },
 
-  async getContentSets(filters: { grade?: string; subject?: string; area?: string } = {}) {
+  async getContentSets(filters: { grade?: string; subject?: string; area?: string; status?: string; user_id?: string } = {}) {
     let query = supabase.from('content_sets').select(`
       id,
       user_id,
@@ -174,13 +174,26 @@ export const db = {
       created_at,
       updated_at
     `)
-    
+
     if (filters.grade) query = query.eq('grade', filters.grade)
     if (filters.subject) query = query.eq('subject', filters.subject)
     if (filters.area) query = query.eq('area', filters.area)
-    
+    if (filters.user_id) query = query.eq('user_id', filters.user_id)
+
+    // status 필터 처리 - 콤마로 구분된 복수 상태 지원
+    if (filters.status) {
+      if (filters.status.includes(',')) {
+        // 복수 상태 (예: "검수완료,승인완료")
+        const statuses = filters.status.split(',').map(s => s.trim());
+        query = query.in('status', statuses);
+      } else {
+        // 단일 상태
+        query = query.eq('status', filters.status);
+      }
+    }
+
     query = query.order('created_at', { ascending: false })
-    
+
     const { data, error } = await query
     if (error) throw error
     return data as ContentSet[]
@@ -205,14 +218,21 @@ export const db = {
   },
 
   async updateContentSet(id: string, data: Partial<ContentSet>) {
+    console.log('Updating content set:', { id, data });
+
     const { data: result, error } = await supabase
       .from('content_sets')
       .update(data)
       .eq('id', id)
       .select()
       .single()
-    
-    if (error) throw error
+
+    if (error) {
+      console.error('Supabase update error:', error);
+      throw error;
+    }
+
+    console.log('Update result:', result);
     return result as ContentSet
   },
 

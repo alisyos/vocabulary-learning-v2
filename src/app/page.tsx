@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Header from '@/components/Header';
-import AuthGuard from '@/components/AuthGuard';
+import RoleAuthGuard from '@/components/RoleAuthGuard';
 import PassageForm from '@/components/PassageForm';
 import PassageDisplay from '@/components/PassageDisplay';
 import PassageReview from '@/components/PassageReview';
@@ -718,7 +718,7 @@ export default function Home() {
   };
 
   return (
-    <AuthGuard>
+    <RoleAuthGuard allowedRoles={['admin', 'user']}>
       <div className="min-h-screen bg-gray-50">
         <Header />
         <div className="container mx-auto px-4 py-8">
@@ -750,6 +750,6 @@ export default function Home() {
           )}
         </div>
       </div>
-    </AuthGuard>
+    </RoleAuthGuard>
   );
 }

@@ -63,11 +63,10 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
     ));
   };
 
-  // 상태 옵션 정의
+  // 상태 옵션 정의 (검수 전 제외)
   const statusOptions = [
-    { value: '검수 전', label: '검수 전', color: 'bg-gray-100 text-gray-800' },
-    { value: '검수완료', label: '검수완료', color: 'bg-yellow-100 text-yellow-800' },
-    { value: '승인완료', label: '승인완료', color: 'bg-green-100 text-green-800' }
+    { value: '검수완료', label: '검수완료', color: 'bg-green-100 text-green-800' },
+    { value: '승인완료', label: '승인완료', color: 'bg-blue-100 text-blue-800' }
   ];
 
   // 데이터 로드

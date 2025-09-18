@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
-import AuthGuard from '@/components/AuthGuard';
+import RoleAuthGuard from '@/components/RoleAuthGuard';
 
 interface DataSet {
   id: string; // UUID
@@ -364,7 +364,7 @@ export default function ManagePage() {
   };
   
   return (
-    <AuthGuard>
+    <RoleAuthGuard allowedRoles={['admin', 'user']}>
       <div className="min-h-screen bg-gray-50">
       <Header />
       
@@ -951,6 +951,6 @@ export default function ManagePage() {
         )}
       </div>
       </div>
-    </AuthGuard>
+    </RoleAuthGuard>
   );
 } 
