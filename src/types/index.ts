@@ -137,6 +137,8 @@ export interface VocabularyQuestionWorkflow {
   answer: string;                  // 정답
   answerInitials?: string;         // 단답형인 경우 초성 힌트 (예: 'ㅈㄹㅎㅁ')
   explanation: string;             // 해설
+  difficulty?: '일반' | '보완';     // 난이도/유형 구분 (기본 문제: '일반', 보완 문제: '보완')
+  isSupplementary?: boolean;       // 보완 문제 여부 (호환성)
 }
 
 // 문단 문제 유형

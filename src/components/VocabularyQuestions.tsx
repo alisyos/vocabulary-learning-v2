@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { VocabularyQuestion, EditablePassage, VocabularyQuestionType, VOCABULARY_QUESTION_TYPES } from '@/types';
+import { VocabularyQuestion, VocabularyQuestionWorkflow, EditablePassage, VocabularyQuestionType, VOCABULARY_QUESTION_TYPES } from '@/types';
 import PromptModal from './PromptModal';
 
 interface VocabularyQuestionsProps {
@@ -9,8 +9,8 @@ interface VocabularyQuestionsProps {
   division: string;
   keywords?: string; // 1단계에서 입력한 핵심 개념어
   keywords_for_questions?: string; // 어휘문제용 키워드
-  vocabularyQuestions: VocabularyQuestion[];
-  onUpdate: (questions: VocabularyQuestion[], usedPrompt?: string) => void;
+  vocabularyQuestions: VocabularyQuestionWorkflow[];
+  onUpdate: (questions: VocabularyQuestionWorkflow[], usedPrompt?: string) => void;
   onNext: () => void;
   loading?: boolean;
   currentStep: 'generation' | 'review';
@@ -30,7 +30,7 @@ export default function VocabularyQuestions({
   lastUsedPrompt = ''
 }: VocabularyQuestionsProps) {
   // 초기 state에도 기본값 보장
-  const [localQuestions, setLocalQuestions] = useState<VocabularyQuestion[]>(() => {
+  const [localQuestions, setLocalQuestions] = useState<VocabularyQuestionWorkflow[]>(() => {
     return vocabularyQuestions.map(question => ({
       ...question,
       difficulty: question.difficulty || '일반'
@@ -965,11 +965,24 @@ export default function VocabularyQuestions({
         <div className="space-y-6">
           {filteredQuestions.map((question, displayIndex) => {
             return (
-              <div key={question.id} className="border border-gray-200 rounded-lg p-4">
+              <div key={question.id} className={`border rounded-lg p-4 ${
+                question.difficulty === '보완'
+                  ? 'border-orange-200 bg-orange-50'
+                  : 'border-blue-200 bg-blue-50'
+              }`}>
               <div className="flex justify-between items-start mb-4">
-                <h4 className="text-md font-medium text-gray-800">
-                  문제 {displayIndex + 1}
-                </h4>
+                <div className="flex items-center space-x-2">
+                  <h4 className="text-md font-medium text-gray-800">
+                    문제 {displayIndex + 1}
+                  </h4>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    question.difficulty === '보완'
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {question.difficulty === '보완' ? '보완 문제' : '기본 문제'}
+                  </span>
+                </div>
                 <button
                   onClick={() => removeQuestion(question.id)}
                   className="text-red-500 hover:text-red-700 text-sm"

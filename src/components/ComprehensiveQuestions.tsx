@@ -53,8 +53,8 @@ export default function ComprehensiveQuestions({
   const [generatingSupplementary, setGeneratingSupplementary] = useState(false);
   // 🚀 병렬 스트리밍 진행률 추적
   const [typeProgress, setTypeProgress] = useState<Record<string, { progress: number; status: string }>>({});
-  // 📚 문단별 탭 관리
-  const [activeQuestionTab, setActiveQuestionTab] = useState<number>(0);
+  // 📚 문단별 탭 관리 - edit 페이지에서는 전체 보기로 시작
+  const [activeQuestionTab, setActiveQuestionTab] = useState<number>(currentStep === 'review' ? -1 : 0);
 
   // props가 변경될 때 localQuestions 업데이트 (초기 로드 포함)
   useEffect(() => {
@@ -68,16 +68,22 @@ export default function ComprehensiveQuestions({
     // props에서 온 문제들로 로컬 상태 업데이트
     setLocalQuestions(comprehensiveQuestions);
 
-    // 문제가 새로 생성되었을 때 첫 번째 탭으로 초기화 (단, 기본 문제가 여러 개인 경우에만)
+    // 문제가 새로 생성되었을 때 탭 초기화
     if (comprehensiveQuestions.length > 0) {
       const basicQuestions = comprehensiveQuestions.filter(q => !q.isSupplementary);
-      if (basicQuestions.length > 1) {
+
+      if (currentStep === 'review') {
+        // edit 페이지(review 모드)에서는 항상 전체 보기로 시작
+        setActiveQuestionTab(-1);
+      } else if (basicQuestions.length > 1) {
+        // 생성 모드에서는 기본 문제가 여러 개인 경우 첫 번째 탭
         setActiveQuestionTab(0);
       } else {
-        setActiveQuestionTab(-1); // 기본 문제가 1개 이하인 경우 전체 보기
+        // 기본 문제가 1개 이하인 경우 전체 보기
+        setActiveQuestionTab(-1);
       }
     }
-  }, [comprehensiveQuestions]);
+  }, [comprehensiveQuestions, currentStep]);
 
   // 병렬 스트리밍 진행률 실시간 업데이트
   useEffect(() => {
@@ -1030,7 +1036,7 @@ export default function ComprehensiveQuestions({
                 <span className="text-sm font-medium text-gray-700 mr-2">문제별 검토:</span>
                 {basicQuestions.map((basicQ, index) => {
                   const supplementaryCount = localQuestions.filter(
-                    q => q.isSupplementary && q.originalQuestionId === basicQ.id
+                    q => q.isSupplementary && q.originalQuestionId === basicQ.originalQuestionId
                   ).length;
                   
                   return (
@@ -1083,9 +1089,22 @@ export default function ComprehensiveQuestions({
                 id: q.id,
                 type: q.type,
                 isSupplementary: q.isSupplementary,
+                originalQuestionId: q.originalQuestionId,
                 question: q.question.substring(0, 30) + '...'
               }))
             });
+
+            // 보완 문제 연결 관계 디버깅
+            if (supplementaryQuestions.length > 0) {
+              console.log('🔍 보완 문제 연결 관계 분석:');
+              supplementaryQuestions.forEach((supQ, index) => {
+                // original_question_id가 같은 기본 문제 찾기
+                const relatedBasic = basicQuestions.find(basicQ =>
+                  basicQ.originalQuestionId === supQ.originalQuestionId
+                );
+                console.log(`  보완${index + 1}: ${supQ.type} -> 연결된 기본문제: ${relatedBasic ? relatedBasic.type : 'NOT FOUND'} (original_question_id: ${supQ.originalQuestionId})`);
+              });
+            }
             
             let questionsToShow: ComprehensiveQuestion[] = [];
             
@@ -1094,18 +1113,33 @@ export default function ComprehensiveQuestions({
               basicQuestions.forEach(basicQ => {
                 questionsToShow.push(basicQ);
                 const relatedSupplementary = supplementaryQuestions.filter(
-                  supQ => supQ.originalQuestionId === basicQ.id
+                  supQ => supQ.originalQuestionId === basicQ.originalQuestionId
                 );
                 questionsToShow.push(...relatedSupplementary);
               });
             } else {
               // 특정 탭 선택: 해당 기본 문제와 보완 문제들만 표시
               const selectedBasicQuestion = basicQuestions[activeQuestionTab];
+              console.log(`🎯 탭 ${activeQuestionTab} 선택됨:`, {
+                selectedBasicQuestion: selectedBasicQuestion ? {
+                  id: selectedBasicQuestion.id,
+                  type: selectedBasicQuestion.type,
+                  originalQuestionId: selectedBasicQuestion.originalQuestionId
+                } : 'NOT FOUND'
+              });
+
               if (selectedBasicQuestion) {
                 questionsToShow.push(selectedBasicQuestion);
                 const relatedSupplementary = supplementaryQuestions.filter(
-                  supQ => supQ.originalQuestionId === selectedBasicQuestion.id
+                  supQ => supQ.originalQuestionId === selectedBasicQuestion.originalQuestionId
                 );
+                console.log(`🔗 연결된 보완 문제 수: ${relatedSupplementary.length}`, {
+                  searchingFor: selectedBasicQuestion.originalQuestionId,
+                  foundSupplementary: relatedSupplementary.map(s => ({
+                    type: s.type,
+                    originalQuestionId: s.originalQuestionId
+                  }))
+                });
                 questionsToShow.push(...relatedSupplementary);
               }
             }

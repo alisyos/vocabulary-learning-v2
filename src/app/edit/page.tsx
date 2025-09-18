@@ -162,7 +162,9 @@ function convertDBToWorkflowData(dbData: any): WorkflowData {
     options: [vq.option_1, vq.option_2, vq.option_3, vq.option_4, vq.option_5],
     answer: vq.answer || vq.correct_answer, // 워크플로우는 answer 필드 사용
     answerInitials: vq.answer_initials, // 초성 힌트 추가
-    explanation: vq.explanation
+    explanation: vq.explanation,
+    difficulty: vq.difficulty || '일반', // difficulty 값 추가
+    isSupplementary: vq.difficulty === '보완' || false // 호환성을 위한 필드
   })) || [];
 
   // ParagraphQuestion 생성
@@ -182,15 +184,15 @@ function convertDBToWorkflowData(dbData: any): WorkflowData {
   // ComprehensiveQuestion 생성
   const comprehensiveQuestionsConverted: ComprehensiveQuestion[] = dbData.comprehensiveQuestions?.map((cq: any) => ({
     id: cq.id || cq.questionId,
-    type: cq.type || cq.questionType,
+    type: cq.type || cq.questionType || cq.question_type,
     questionFormat: cq.questionFormat === '객관식' ? 'multiple_choice' : 'short_answer',
-    question: cq.question,
+    question: cq.question || cq.question_text,
     options: cq.options,
     correctAnswer: cq.answer || cq.correctAnswer || cq.correct_answer,
     explanation: cq.explanation,
-    isSupplementary: cq.isSupplementary || cq.is_supplementary || false,
-    questionSetNumber: cq.questionSetNumber || 1,
-    originalQuestionId: cq.originalQuestionId
+    isSupplementary: cq.difficulty === '보완' || cq.isSupplementary || cq.is_supplementary || false,
+    questionSetNumber: cq.questionSetNumber || cq.question_set_number || 1,
+    originalQuestionId: cq.originalQuestionId || cq.original_question_id
   })) || [];
 
   console.log('📋 변환된 문단 문제 수:', paragraphQuestionsConverted.length);
@@ -202,6 +204,12 @@ function convertDBToWorkflowData(dbData: any): WorkflowData {
   console.log('📊 종합 문제 분류:');
   console.log('  - 기본 문제:', basicQuestions.length, '개');
   console.log('  - 보완 문제:', supplementaryQuestions.length, '개');
+
+  // 상세 분류 로그
+  console.log('🔍 종합 문제 상세 분석:');
+  comprehensiveQuestionsConverted.forEach((q, index) => {
+    console.log(`  ${index + 1}. ${q.isSupplementary ? '[보완]' : '[기본]'} ${q.type} - Set: ${q.questionSetNumber}, Original: ${q.originalQuestionId || 'N/A'}`);
+  });
 
   // 유형별 분포
   const questionTypes = comprehensiveQuestionsConverted.reduce((acc, q) => {
