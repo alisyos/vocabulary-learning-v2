@@ -16,6 +16,7 @@ import {
   Passage,
   EditablePassage,
   VocabularyQuestion,
+  VocabularyQuestionWorkflow,
   ParagraphQuestionWorkflow,
   ComprehensiveQuestion,
   WorkflowData,
@@ -153,14 +154,14 @@ function convertDBToWorkflowData(dbData: any): WorkflowData {
   }
 
   // VocabularyQuestion 생성
-  const vocabularyQuestionsConverted: VocabularyQuestion[] = vocabularyQuestions?.map((vq: any) => ({
+  const vocabularyQuestionsConverted: VocabularyQuestionWorkflow[] = vocabularyQuestions?.map((vq: any) => ({
     id: vq.id,
-    questionNumber: vq.question_number,
     questionType: vq.detailed_question_type || vq.question_type || '5지선다 객관식',
     term: vq.term,
     question: vq.question,
     options: [vq.option_1, vq.option_2, vq.option_3, vq.option_4, vq.option_5],
-    correctAnswer: vq.correct_answer,
+    answer: vq.answer || vq.correct_answer, // 워크플로우는 answer 필드 사용
+    answerInitials: vq.answer_initials, // 초성 힌트 추가
     explanation: vq.explanation
   })) || [];
 
