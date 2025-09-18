@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Header from '@/components/Header';
 import RoleAuthGuard from '@/components/RoleAuthGuard';
 import { getComprehensiveQuestionTypeLabel, getVocabularyQuestionTypeLabel } from '@/lib/supabase';
@@ -410,12 +411,19 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     }
   });
 
-  // 저장 중 로딩 모달 컴포넌트
+  // 저장 중 로딩 모달 컴포넌트 (Portal 사용)
   const SavingModal = () => {
-    if (!saving) return null;
+    const [mounted, setMounted] = useState(false);
 
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center">
+    useEffect(() => {
+      setMounted(true);
+      return () => setMounted(false);
+    }, []);
+
+    if (!saving || !mounted) return null;
+
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ position: 'fixed' }}>
         {/* 배경 오버레이 */}
         <div className="absolute inset-0 bg-black bg-opacity-70"></div>
 
@@ -435,7 +443,8 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
             </div>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   };
 
