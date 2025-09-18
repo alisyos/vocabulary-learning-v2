@@ -156,6 +156,7 @@ function convertDBToWorkflowData(dbData: any): WorkflowData {
   const vocabularyQuestionsConverted: VocabularyQuestion[] = vocabularyQuestions?.map((vq: any) => ({
     id: vq.id,
     questionNumber: vq.question_number,
+    questionType: vq.detailed_question_type || vq.question_type || '5지선다 객관식',
     term: vq.term,
     question: vq.question,
     options: [vq.option_1, vq.option_2, vq.option_3, vq.option_4, vq.option_5],
