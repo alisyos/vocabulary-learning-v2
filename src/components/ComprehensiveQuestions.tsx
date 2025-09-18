@@ -31,7 +31,7 @@ export default function ComprehensiveQuestions({
   lastUsedPrompt = '',
   onSupplementaryStatusChange
 }: ComprehensiveQuestionsProps) {
-  const [localQuestions, setLocalQuestions] = useState<ComprehensiveQuestion[]>(comprehensiveQuestions);
+  const [localQuestions, setLocalQuestions] = useState<ComprehensiveQuestion[]>([]);
   
   // Props 변경 시 디버깅
   console.log('ComprehensiveQuestions props:', {
@@ -56,14 +56,18 @@ export default function ComprehensiveQuestions({
   // 📚 문단별 탭 관리
   const [activeQuestionTab, setActiveQuestionTab] = useState<number>(0);
 
-  // props가 변경될 때 localQuestions 업데이트
+  // props가 변경될 때 localQuestions 업데이트 (초기 로드 포함)
   useEffect(() => {
     console.log('useEffect triggered - updating localQuestions from props:', {
       propsLength: comprehensiveQuestions.length,
-      localLength: localQuestions.length
+      localLength: localQuestions.length,
+      basicQuestions: comprehensiveQuestions.filter(q => !q.isSupplementary).length,
+      supplementaryQuestions: comprehensiveQuestions.filter(q => q.isSupplementary).length
     });
+
+    // props에서 온 문제들로 로컬 상태 업데이트
     setLocalQuestions(comprehensiveQuestions);
-    
+
     // 문제가 새로 생성되었을 때 첫 번째 탭으로 초기화 (단, 기본 문제가 여러 개인 경우에만)
     if (comprehensiveQuestions.length > 0) {
       const basicQuestions = comprehensiveQuestions.filter(q => !q.isSupplementary);

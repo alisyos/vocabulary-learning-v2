@@ -58,6 +58,13 @@ export default function Header() {
 
   const dbMenuItems = [
     {
+      name: '콘텐츠 수정',
+      href: '/edit',
+      icon: '✏️',
+      description: '기존 콘텐츠 세트 수정',
+      allowedRoles: ['admin', 'user'] // admin과 user 접근 가능
+    },
+    {
       name: 'DB 다운로드',
       href: '/db-admin/download',
       icon: '💾',
@@ -103,7 +110,7 @@ export default function Header() {
   };
 
   const isDbMenuActive = () => {
-    return pathname.startsWith('/db-admin');
+    return pathname.startsWith('/db-admin') || pathname.startsWith('/edit');
   };
 
   // 외부 클릭 감지
@@ -343,6 +350,14 @@ export default function Header() {
                   <Link href="/curriculum-admin" className="hover:text-gray-900">시스템 설정</Link>
                   <span className="mx-2">/</span>
                   <span className="text-gray-400">필드데이터 관리</span>
+                </>
+              )}
+              {pathname.startsWith('/edit') && (
+                <>
+                  <span className="mx-2">/</span>
+                  <span className="text-gray-600">DB 관리</span>
+                  <span className="mx-2">/</span>
+                  <span className="text-gray-400">콘텐츠 수정</span>
                 </>
               )}
               {pathname.startsWith('/db-admin') && (

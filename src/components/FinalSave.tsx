@@ -241,16 +241,16 @@ export default function FinalSave({
   // 최종 저장 실행
   const handleFinalSave = async () => {
     setSaving(true);
-    
+
     try {
       // 저장 전 데이터 확인
       console.log('🔍 저장할 데이터 확인:');
       console.log('  - 문단 문제 수:', paragraphQuestions?.length || 0);
       console.log('  - 문단 문제 데이터:', JSON.stringify(paragraphQuestions, null, 2));
-      
+
       // Supabase를 기본으로 사용
       const endpoint = '/api/save-final-supabase';
-      
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -274,7 +274,7 @@ export default function FinalSave({
       } else {
         console.error('Final save failed:', result.error);
       }
-      
+
     } catch (error) {
       console.error('Error during final save:', error);
       setSaveResult({

@@ -519,7 +519,12 @@ export async function POST(request: NextRequest) {
         const originalQuestionId = typeToSetIdMap[questionType] || `comp_unknown_${Date.now()}_${index}`;
         
         console.log(`문제 ${index + 1} (${questionType}, ${isSupplementary ? '보완' : '기본'}) - original_question_id:`, originalQuestionId);
-        
+        console.log(`문제 ${index + 1} 답안 필드 확인:`, {
+          answer: q.answer,
+          correctAnswer: q.correctAnswer,
+          correct_answer: q.correct_answer
+        });
+
         return {
           question_number: index + 1,
           question_type: questionType,
@@ -531,7 +536,7 @@ export async function POST(request: NextRequest) {
           option_3: q.options?.[2],
           option_4: q.options?.[3],
           option_5: q.options?.[4],
-          correct_answer: q.answer,
+          correct_answer: q.answer || q.correctAnswer || q.correct_answer || '1',
           answer_initials: questionType === '단답형' ? (q.answerInitials || null) : null,
           explanation: q.explanation,
           is_supplementary: q.isSupplementary || false,
