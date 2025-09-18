@@ -338,6 +338,35 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
     { id: 'comprehensive', name: '종합 문제', icon: '🧠' }
   ];
 
+  // 저장 중 로딩 모달
+  const SavingModal = () => {
+    if (!saving) return null;
+
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center">
+        {/* 배경 오버레이 */}
+        <div className="absolute inset-0 bg-black bg-opacity-70"></div>
+
+        {/* 로딩 내용 */}
+        <div className="relative bg-white rounded-lg p-8 shadow-2xl max-w-sm w-full mx-4">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">변경사항 저장 중</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              콘텐츠를 저장하고 있습니다.<br />
+              잠시만 기다려 주세요.
+            </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-xs text-yellow-800">
+                ⚠️ 저장이 완료될 때까지 브라우저를 닫지 마세요.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('ko-KR', {
@@ -367,7 +396,9 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
         <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose}></div>
 
         {/* 모달 내용 */}
-        <div className="relative bg-white rounded-lg max-w-[95vw] w-full max-h-[95vh] overflow-hidden">
+        <div className={`relative bg-white rounded-lg max-w-[95vw] w-full max-h-[95vh] overflow-hidden ${
+          saving ? 'pointer-events-none opacity-75' : ''
+        }`}>
           {/* 헤더 */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
             <div className="flex justify-between items-start">
@@ -412,8 +443,13 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                 )}
 
                 <button
-                  onClick={onClose}
-                  className="text-white hover:text-gray-200 text-2xl"
+                  onClick={saving ? undefined : onClose}
+                  disabled={saving}
+                  className={`text-white text-2xl ${
+                    saving
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:text-gray-200 cursor-pointer'
+                  }`}
                 >
                   ✕
                 </button>
@@ -433,11 +469,14 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                 {tabs.map(tab => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={saving ? undefined : () => setActiveTab(tab.id)}
+                    disabled={saving}
                     className={`px-6 py-3 text-sm font-medium transition-all ${
                       activeTab === tab.id
                         ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        : saving
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                     }`}
                   >
                     <span className="mr-2">{tab.icon}</span>
@@ -1586,8 +1625,13 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
               <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
                 <div className="flex justify-end space-x-3">
                   <button
-                    onClick={onClose}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
+                    onClick={saving ? undefined : onClose}
+                    disabled={saving}
+                    className={`px-4 py-2 border border-gray-300 rounded-md ${
+                      saving
+                        ? 'text-gray-400 cursor-not-allowed opacity-50'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
                   >
                     취소
                   </button>
@@ -1608,6 +1652,9 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
           )}
         </div>
       </div>
+
+      {/* 저장 중 로딩 모달 */}
+      <SavingModal />
     </div>
   );
 }// Force rebuild: Thu Sep 18 18:05:46 KST 2025

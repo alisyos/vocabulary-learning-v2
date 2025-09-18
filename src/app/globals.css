@@ -24,3 +24,35 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* 스크롤 동작 제어 */
+html {
+  scroll-behavior: auto; /* smooth 스크롤 비활성화 */
+}
+
+/* 포커스 시 자동 스크롤 방지 */
+input, textarea, select, button {
+  scroll-margin: 0;
+  scroll-margin-top: 0;
+  scroll-margin-bottom: 0;
+}
+
+/* 포커스 이동 시 스크롤 방지 */
+*:focus {
+  scroll-margin: 0;
+}
+
+/* 브라우저의 자동 스크롤 최소화 */
+.scroll-preserve {
+  scroll-behavior: auto !important;
+}
+
+/* 입력 요소 포커스 시 스크롤 방지 클래스 */
+.prevent-focus-scroll:focus {
+  scroll-margin: 0 !important;
+}
+
+/* 레이아웃 변경으로 인한 스크롤 점프 방지 */
+.stable-layout {
+  contain: layout style;
+}

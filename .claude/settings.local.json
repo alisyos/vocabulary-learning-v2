@@ -25,7 +25,9 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git config:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(xargs:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }

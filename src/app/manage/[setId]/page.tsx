@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import RoleAuthGuard from '@/components/RoleAuthGuard';
 import { getComprehensiveQuestionTypeLabel, getVocabularyQuestionTypeLabel } from '@/lib/supabase';
 import ComprehensiveCSVUploadModal from '@/components/ComprehensiveCSVUploadModal';
+import { useScrollPreservation, handleClickWithFocusManagement, handleInputBlurWithScrollCheck } from '@/hooks/useScrollPreservation';
 
 interface SetDetails {
   id: string; // UUID
@@ -135,6 +136,9 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   const [activeTab, setActiveTab] = useState<'passage' | 'vocabulary' | 'vocab-questions' | 'paragraph-questions' | 'comprehensive'>('passage');
   const [setId, setSetId] = useState<string>('');
   const [saving, setSaving] = useState(false);
+
+  // 스크롤 보존 Hook 초기화
+  const { withScrollPreservation, blurActiveElement, preventAutoScroll, cleanup } = useScrollPreservation();
   
   // 편집 상태
   const [editablePassage, setEditablePassage] = useState<{title: string; paragraphs: string[]}>({title: '', paragraphs: []});
@@ -333,9 +337,16 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       setSetId(resolvedParams.setId);
       fetchSetDetails(resolvedParams.setId);
     };
-    
+
     initializeParams();
   }, [params, fetchSetDetails]);
+
+  // 스크롤 보존 Hook 정리
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
   
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('ko-KR', {
@@ -348,7 +359,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   };
 
   // 저장 함수
-  const handleSave = async () => {
+  const handleSave = withScrollPreservation(async () => {
     if (!data || !setId) return;
     
     setSaving(true);
@@ -397,16 +408,45 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
     } finally {
       setSaving(false);
     }
+  });
+
+  // 저장 중 로딩 모달 컴포넌트
+  const SavingModal = () => {
+    if (!saving) return null;
+
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center">
+        {/* 배경 오버레이 */}
+        <div className="absolute inset-0 bg-black bg-opacity-70"></div>
+
+        {/* 로딩 내용 */}
+        <div className="relative bg-white rounded-lg p-8 shadow-2xl max-w-sm w-full mx-4">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-600 border-t-transparent mx-auto mb-4"></div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">수정사항 저장 중</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              콘텐츠를 저장하고 있습니다.<br />
+              잠시만 기다려 주세요.
+            </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-xs text-yellow-800">
+                ⚠️ 저장이 완료될 때까지 브라우저를 닫지 마세요.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
-  // 어휘 문제를 어휘별로 그룹화 (React 편집 탭용, originalIndex 포함)
-  const vocabularyQuestionsByTermForEdit: { [key: string]: (typeof editableVocabQuestions[0] & {originalIndex: number})[] } = {};
+  // 어휘 문제를 어휘별로 그룹화 (React 편집 탭용)
+  const vocabularyQuestionsByTermForEdit: { [key: string]: (typeof editableVocabQuestions[0] & {arrayIndex: number})[] } = {};
   editableVocabQuestions.forEach((q, index) => {
     const term = q.term || '미분류';
     if (!vocabularyQuestionsByTermForEdit[term]) {
       vocabularyQuestionsByTermForEdit[term] = [];
     }
-    vocabularyQuestionsByTermForEdit[term].push({ ...q, originalIndex: index });
+    vocabularyQuestionsByTermForEdit[term].push({ ...q, arrayIndex: index });
   });
 
   // 각 어휘별로 난이도순 정렬 (일반문제 먼저, 보완문제 나중에)
@@ -415,13 +455,13 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       // difficulty 또는 question_type을 기준으로 정렬
       const aDifficulty = a.difficulty || a.question_type || '일반';
       const bDifficulty = b.difficulty || b.question_type || '일반';
-      
+
       // '일반' 또는 '일반' 아닌 다른 값은 앞에, '보완'은 뒤에
       if (aDifficulty === '보완' && bDifficulty !== '보완') return 1;
       if (aDifficulty !== '보완' && bDifficulty === '보완') return -1;
-      
-      // 둘 다 같은 카테고리면 원래 순서 유지 (originalIndex 기준)
-      return a.originalIndex - b.originalIndex;
+
+      // 둘 다 같은 카테고리면 배열 순서 유지 (arrayIndex 기준)
+      return a.arrayIndex - b.arrayIndex;
     });
   });
 
@@ -1880,9 +1920,39 @@ ${allParagraphs}`;
     setVocabularyTermsData(prev => prev.filter((_, i) => i !== index));
   };
 
-  // 어휘문제 편집 함수들 (ID 기반으로 수정)
+  // 안전한 ID 매칭 함수
+  const findQuestionIndex = (questions: any[], targetId: string) => {
+    // 먼저 정확한 ID 매칭 시도
+    let index = questions.findIndex(q => q.id === targetId);
+    if (index !== -1) {
+      console.log(`✅ ID로 찾음: ${targetId} -> index ${index}`);
+      return index;
+    }
+
+    // questionId로 매칭 시도
+    index = questions.findIndex(q => q.questionId === targetId);
+    if (index !== -1) {
+      console.log(`✅ questionId로 찾음: ${targetId} -> index ${index}`);
+      return index;
+    }
+
+    // temp ID 패턴 매칭 (마지막 수단)
+    if (targetId.startsWith('temp-')) {
+      const parts = targetId.split('-');
+      const tempIndex = parseInt(parts[parts.length - 1]);
+      if (!isNaN(tempIndex) && tempIndex >= 0 && tempIndex < questions.length) {
+        console.log(`✅ temp ID로 찾음: ${targetId} -> index ${tempIndex}`);
+        return tempIndex;
+      }
+    }
+
+    console.error(`❌ 문제를 찾을 수 없음: ${targetId}`);
+    return -1;
+  };
+
+  // 어휘문제 편집 함수들 (ID 기반으로 수정) - 포커스 해제 없이 스크롤만 보존
   const handleVocabQuestionChange = (questionId: string, field: keyof VocabularyQuestion, value: string | string[]) => {
-    console.log(`🔧 어휘 문제 수정: ID=${questionId}, field=${field}, value=`, value);
+    console.log(`🔧 어휘 문제 수정 시도: ID=${questionId}, field=${field}, value=`, value);
 
     if (!questionId) {
       console.error('❌ questionId가 없습니다. 수정할 수 없습니다.');
@@ -1890,21 +1960,46 @@ ${allParagraphs}`;
     }
 
     setEditableVocabQuestions(prev => {
-      const updated = prev.map(q =>
-        q.id === questionId ? { ...q, [field]: value } : q
+      console.log(`📊 현재 어휘 문제 배열:`, prev.map((q, i) => ({
+        index: i,
+        id: q.id,
+        questionId: q.questionId,
+        term: q.term
+      })));
+
+      const targetIndex = findQuestionIndex(prev, questionId);
+
+      if (targetIndex === -1) {
+        console.error(`❌ 어휘 문제를 찾을 수 없습니다: ID=${questionId}`);
+        console.error(`❌ 검색된 배열:`, prev.map(q => ({ id: q.id, questionId: q.questionId })));
+        return prev;
+      }
+
+      // 수정 전 데이터 확인
+      const beforeUpdate = prev[targetIndex];
+      console.log(`📝 수정 전 데이터 (index ${targetIndex}):`, {
+        id: beforeUpdate.id,
+        questionId: beforeUpdate.questionId,
+        term: beforeUpdate.term,
+        currentValue: beforeUpdate[field]
+      });
+
+      const updated = prev.map((q, index) =>
+        index === targetIndex ? { ...q, [field]: value } : q
       );
 
-      // 수정이 실제로 적용되었는지 확인
-      const updatedQuestion = updated.find(q => q.id === questionId);
-      if (updatedQuestion) {
-        console.log(`✅ 문제 수정 완료: ID=${questionId}, ${field}=${updatedQuestion[field]}`);
-      } else {
-        console.error(`❌ 문제를 찾을 수 없습니다: ID=${questionId}`);
-      }
+      // 수정 후 데이터 확인
+      const afterUpdate = updated[targetIndex];
+      console.log(`✅ 어휘 문제 수정 완료 (index ${targetIndex}):`, {
+        id: afterUpdate.id,
+        questionId: afterUpdate.questionId,
+        term: afterUpdate.term,
+        newValue: afterUpdate[field]
+      });
 
       return updated;
     });
-  };
+  }; // 🆕 스크롤 보존 완전 제거
 
   // 기존 인덱스 기반 함수 (호환성용)
   const handleVocabQuestionChangeByIndex = (index: number, field: keyof VocabularyQuestion, value: string | string[]) => {
@@ -1913,7 +2008,7 @@ ${allParagraphs}`;
     ));
   };
 
-  const addVocabQuestion = () => {
+  const addVocabQuestion = withScrollPreservation(() => {
     const newQuestion: VocabularyQuestion = {
       id: '',
       questionId: `vocab_${Date.now()}`,
@@ -1924,26 +2019,26 @@ ${allParagraphs}`;
       explanation: '해설을 입력하세요.'
     };
     setEditableVocabQuestions(prev => [...prev, newQuestion]);
-  };
+  });
 
   // 어휘 문제 삭제 함수 (ID 기반으로 수정)
-  const removeVocabQuestion = (questionId: string) => {
+  const removeVocabQuestion = withScrollPreservation((questionId: string) => {
     console.log(`🗑️ 어휘 문제 삭제: ID=${questionId}`);
     setEditableVocabQuestions(prev => {
       const filtered = prev.filter(q => q.id !== questionId);
       console.log(`✅ 삭제 완료. 남은 문제 수: ${filtered.length}`);
       return filtered;
     });
-  };
+  });
 
   // 기존 인덱스 기반 함수 (호환성용)
   const removeVocabQuestionByIndex = (index: number) => {
     setEditableVocabQuestions(prev => prev.filter((_, i) => i !== index));
   };
 
-  // 문단문제 편집 함수들 (ID 기반으로 수정)
-  const handleParagraphQuestionChange = (questionId: string, field: keyof ParagraphQuestion, value: string | string[]) => {
-    console.log(`🔧 문단 문제 수정: ID=${questionId}, field=${field}, value=`, value);
+  // 문단문제 편집 함수들 (ID 기반으로 수정) - 포커스 해제 없이 스크롤만 보존
+  const handleParagraphQuestionChange = withScrollPreservation((questionId: string, field: keyof ParagraphQuestion, value: string | string[]) => {
+    console.log(`🔧 문단 문제 수정 시도: ID=${questionId}, field=${field}, value=`, value);
 
     if (!questionId) {
       console.error('❌ questionId가 없습니다. 문단 문제를 수정할 수 없습니다.');
@@ -1951,21 +2046,46 @@ ${allParagraphs}`;
     }
 
     setEditableParagraphQuestions(prev => {
-      const updated = prev.map(q =>
-        q.id === questionId ? { ...q, [field]: value } : q
+      console.log(`📊 현재 문단 문제 배열:`, prev.map((q, i) => ({
+        index: i,
+        id: q.id,
+        questionId: q.questionId,
+        questionType: q.questionType
+      })));
+
+      const targetIndex = findQuestionIndex(prev, questionId);
+
+      if (targetIndex === -1) {
+        console.error(`❌ 문단 문제를 찾을 수 없습니다: ID=${questionId}`);
+        console.error(`❌ 검색된 배열:`, prev.map(q => ({ id: q.id, questionId: q.questionId })));
+        return prev;
+      }
+
+      // 수정 전 데이터 확인
+      const beforeUpdate = prev[targetIndex];
+      console.log(`📝 수정 전 데이터 (index ${targetIndex}):`, {
+        id: beforeUpdate.id,
+        questionId: beforeUpdate.questionId,
+        questionType: beforeUpdate.questionType,
+        currentValue: beforeUpdate[field]
+      });
+
+      const updated = prev.map((q, index) =>
+        index === targetIndex ? { ...q, [field]: value } : q
       );
 
-      // 수정이 실제로 적용되었는지 확인
-      const updatedQuestion = updated.find(q => q.id === questionId);
-      if (updatedQuestion) {
-        console.log(`✅ 문단 문제 수정 완료: ID=${questionId}, ${field}=${updatedQuestion[field]}`);
-      } else {
-        console.error(`❌ 문단 문제를 찾을 수 없습니다: ID=${questionId}`);
-      }
+      // 수정 후 데이터 확인
+      const afterUpdate = updated[targetIndex];
+      console.log(`✅ 문단 문제 수정 완료 (index ${targetIndex}):`, {
+        id: afterUpdate.id,
+        questionId: afterUpdate.questionId,
+        questionType: afterUpdate.questionType,
+        newValue: afterUpdate[field]
+      });
 
       return updated;
     });
-  };
+  }, { forceBlur: false, delay: 0 }); // 입력 중에는 포커스 해제하지 않음
 
   // 기존 인덱스 기반 함수 (호환성용)
   const handleParagraphQuestionChangeByIndex = (index: number, field: keyof ParagraphQuestion, value: string | string[]) => {
@@ -1974,7 +2094,7 @@ ${allParagraphs}`;
     ));
   };
 
-  const addParagraphQuestion = () => {
+  const addParagraphQuestion = withScrollPreservation(() => {
     const newQuestion: ParagraphQuestion = {
       id: '',
       questionId: `paragraph_${Date.now()}`,
@@ -1989,15 +2109,15 @@ ${allParagraphs}`;
       explanation: '해설을 입력하세요.'
     };
     setEditableParagraphQuestions(prev => [...prev, newQuestion]);
-  };
+  });
 
-  const removeParagraphQuestion = (index: number) => {
+  const removeParagraphQuestion = withScrollPreservation((index: number) => {
     setEditableParagraphQuestions(prev => prev.filter((_, i) => i !== index));
-  };
+  });
 
-  // 종합문제 편집 함수들 (ID 기반으로 수정)
-  const handleComprehensiveChange = (questionId: string, field: keyof ComprehensiveQuestion, value: string | string[] | boolean) => {
-    console.log(`🔧 종합 문제 수정: ID=${questionId}, field=${field}, value=`, value);
+  // 종합문제 편집 함수들 (ID 기반으로 수정) - 포커스 해제 없이 스크롤만 보존
+  const handleComprehensiveChange = withScrollPreservation((questionId: string, field: keyof ComprehensiveQuestion, value: string | string[] | boolean) => {
+    console.log(`🔧 종합 문제 수정 시도: ID=${questionId}, field=${field}, value=`, value);
 
     if (!questionId) {
       console.error('❌ questionId가 없습니다. 종합 문제를 수정할 수 없습니다.');
@@ -2005,21 +2125,49 @@ ${allParagraphs}`;
     }
 
     setEditableComprehensive(prev => {
-      const updated = prev.map(q =>
-        q.questionId === questionId ? { ...q, [field]: value } : q
+      console.log(`📊 현재 종합 문제 배열:`, prev.map((q, i) => ({
+        index: i,
+        id: q.id,
+        questionId: q.questionId,
+        questionType: q.questionType,
+        isSupplementary: q.isSupplementary
+      })));
+
+      const targetIndex = findQuestionIndex(prev, questionId);
+
+      if (targetIndex === -1) {
+        console.error(`❌ 종합 문제를 찾을 수 없습니다: ID=${questionId}`);
+        console.error(`❌ 검색된 배열:`, prev.map(q => ({ id: q.id, questionId: q.questionId })));
+        return prev;
+      }
+
+      // 수정 전 데이터 확인
+      const beforeUpdate = prev[targetIndex];
+      console.log(`📝 수정 전 데이터 (index ${targetIndex}):`, {
+        id: beforeUpdate.id,
+        questionId: beforeUpdate.questionId,
+        questionType: beforeUpdate.questionType,
+        isSupplementary: beforeUpdate.isSupplementary,
+        currentValue: beforeUpdate[field]
+      });
+
+      const updated = prev.map((q, index) =>
+        index === targetIndex ? { ...q, [field]: value } : q
       );
 
-      // 수정이 실제로 적용되었는지 확인
-      const updatedQuestion = updated.find(q => q.questionId === questionId);
-      if (updatedQuestion) {
-        console.log(`✅ 종합 문제 수정 완료: ID=${questionId}, ${field}=${updatedQuestion[field]}`);
-      } else {
-        console.error(`❌ 종합 문제를 찾을 수 없습니다: ID=${questionId}`);
-      }
+      // 수정 후 데이터 확인
+      const afterUpdate = updated[targetIndex];
+      console.log(`✅ 종합 문제 수정 완료 (index ${targetIndex}):`, {
+        id: afterUpdate.id,
+        questionId: afterUpdate.questionId,
+        questionType: afterUpdate.questionType,
+        isSupplementary: afterUpdate.isSupplementary,
+        newValue: afterUpdate[field]
+      });
 
       return updated;
     });
-  };
+  }, { forceBlur: false, delay: 0 }); // 입력 중에는 포커스 해제하지 않음
 
   // 기존 인덱스 기반 함수 (호환성용)
   const handleComprehensiveChangeByIndex = (index: number, field: keyof ComprehensiveQuestion, value: string | string[] | boolean) => {
@@ -2028,7 +2176,7 @@ ${allParagraphs}`;
     ));
   };
 
-  const addComprehensiveQuestion = () => {
+  const addComprehensiveQuestion = withScrollPreservation(() => {
     const baseId = `comp_${Date.now()}`;
     
     // 기존 문제들의 최대 questionSetNumber 찾기
@@ -2083,7 +2231,7 @@ ${allParagraphs}`;
     };
     
     setEditableComprehensive(prev => [...prev, mainQuestion, supplementary1, supplementary2]);
-  };
+  });
 
   const handleCSVUpload = (questions: any[]) => {
     // 기존 문제들의 최대 questionSetNumber 찾기
@@ -2129,9 +2277,9 @@ ${allParagraphs}`;
     setIsCSVModalOpen(false);
   };
 
-  const removeComprehensiveQuestion = (index: number) => {
+  const removeComprehensiveQuestion = withScrollPreservation((index: number) => {
     setEditableComprehensive(prev => prev.filter((_, i) => i !== index));
-  };
+  });
 
   if (loading) {
     return (
@@ -2199,7 +2347,7 @@ ${allParagraphs}`;
   
   return (
     <RoleAuthGuard allowedRoles={['admin', 'user']}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 scroll-preserve stable-layout">
         <Header />
       
       {/* 페이지 헤더 */}
@@ -2231,9 +2379,18 @@ ${allParagraphs}`;
                 txt
               </button>
               <button
-                onClick={handleSave}
+                onClick={saving ? undefined : (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  blurActiveElement();
+                  handleSave();
+                }}
                 disabled={saving}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                className={`px-4 py-2 rounded-md transition-colors prevent-focus-scroll ${
+                  saving
+                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
               >
                 {saving ? '저장 중...' : '수정 저장'}
               </button>
@@ -2277,51 +2434,76 @@ ${allParagraphs}`;
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex">
               <button
-                onClick={() => setActiveTab('passage')}
-                className={`py-4 px-6 text-sm font-medium border-b-2 ${
+                onClick={saving ? undefined : (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  blurActiveElement();
+                  setActiveTab('passage');
+                }}
+                disabled={saving}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors prevent-focus-scroll ${
                   activeTab === 'passage'
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : saving
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 지문
               </button>
               <button
-                onClick={() => setActiveTab('vocabulary')}
-                className={`py-4 px-6 text-sm font-medium border-b-2 ${
+                onClick={saving ? undefined : (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  blurActiveElement();
+                  setActiveTab('vocabulary');
+                }}
+                disabled={saving}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors prevent-focus-scroll ${
                   activeTab === 'vocabulary'
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : saving
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 어휘 ({editableVocabulary.length})
               </button>
               <button
-                onClick={() => setActiveTab('vocab-questions')}
-                className={`py-4 px-6 text-sm font-medium border-b-2 ${
+                onClick={saving ? undefined : () => setActiveTab('vocab-questions')}
+                disabled={saving}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'vocab-questions'
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : saving
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 어휘문제 ({editableVocabQuestions.length})
               </button>
               <button
-                onClick={() => setActiveTab('paragraph-questions')}
-                className={`py-4 px-6 text-sm font-medium border-b-2 ${
+                onClick={saving ? undefined : () => setActiveTab('paragraph-questions')}
+                disabled={saving}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'paragraph-questions'
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : saving
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 문단문제 ({setDetails?.total_paragraph_questions || 0})
               </button>
               <button
-                onClick={() => setActiveTab('comprehensive')}
-                className={`py-4 px-6 text-sm font-medium border-b-2 ${
+                onClick={saving ? undefined : () => setActiveTab('comprehensive')}
+                disabled={saving}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'comprehensive'
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : saving
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 종합문제 ({editableComprehensive.length})
@@ -2329,7 +2511,7 @@ ${allParagraphs}`;
             </nav>
           </div>
           
-          <div className="p-6">
+          <div className={`p-6 ${saving ? 'pointer-events-none opacity-75' : ''}`}>
             {/* 지문 탭 */}
             {activeTab === 'passage' && (
               <div className="space-y-6">
@@ -2343,7 +2525,7 @@ ${allParagraphs}`;
                     onChange={(e) => setEditableIntroductionQuestion(e.target.value)}
                     placeholder="학생들의 흥미를 유발하고 주제에 대한 호기심을 자극하는 도입 질문을 입력하세요."
                     rows={3}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 prevent-focus-scroll"
                   />
                 </div>
 
@@ -2728,7 +2910,10 @@ ${allParagraphs}`;
                           <div className="flex justify-between items-start mb-3">
                             <label className="text-sm font-medium text-gray-600">용어 {index + 1}</label>
                             <button
-                              onClick={() => removeVocabulary(index)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeVocabulary(index);
+                              }}
                               className="text-red-600 hover:text-red-800 text-sm"
                             >
                               삭제
@@ -2832,12 +3017,17 @@ ${allParagraphs}`;
             
             {/* 어휘문제 탭 */}
             {activeTab === 'vocab-questions' && (
-              <div className="space-y-6">
+              <div className="space-y-6 stable-layout scroll-preserve">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-medium text-gray-900">어휘 문제 ({editableVocabQuestions.length}개)</h3>
                   <button
-                    onClick={addVocabQuestion}
-                    className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      blurActiveElement();
+                      addVocabQuestion();
+                    }}
+                    className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm prevent-focus-scroll"
                   >
                     + 문제 추가
                   </button>
@@ -2846,7 +3036,7 @@ ${allParagraphs}`;
                 {Object.keys(vocabularyQuestionsByTermForEdit).sort().map(term => {
                   const questions = vocabularyQuestionsByTermForEdit[term];
                   return (
-                    <div key={term} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                    <div key={term} className="bg-gray-50 rounded-lg p-6 border border-gray-200" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center mb-4">
                         <h4 className="text-lg font-semibold text-gray-900">📚 어휘: {term}</h4>
                         <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -2856,16 +3046,16 @@ ${allParagraphs}`;
                       
                       <div className="space-y-6">
                         {questions.map((question, questionIndex) => {
-                          const originalIndex = (question as any).originalIndex;
-                          const questionId = question.id || question.questionId;
+                          const arrayIndex = (question as any).arrayIndex;
+                          const questionId = question.id || question.questionId || `temp-vocab-${questionIndex}`;
                           // 문제 유형 디버깅
-                          console.log(`🔍 문제 ${questionIndex + 1} 유형 디버깅 (ID: ${questionId}, originalIndex: ${originalIndex}):`, {
+                          console.log(`🔍 문제 ${questionIndex + 1} 유형 디버깅 (ID: ${questionId}, arrayIndex: ${arrayIndex}):`, {
                             question_type: question.question_type,
                             questionType: question.questionType,
                             detailed_question_type: question.detailed_question_type,
                             detailedQuestionType: question.detailedQuestionType,
                             questionId: questionId,
-                            originalIndex: originalIndex
+                            arrayIndex: arrayIndex
                           });
 
                           const questionTypeLabel = getVocabularyQuestionTypeLabel(
@@ -2877,7 +3067,7 @@ ${allParagraphs}`;
                           console.log(`📋 최종 표시될 유형: ${question.detailed_question_type || question.detailedQuestionType || questionTypeLabel}`);
                           
                           return (
-                            <div key={question.questionId} className="bg-white border border-gray-200 rounded-lg p-6">
+                            <div key={`vocab-${questionId}-${questionIndex}`} className="bg-white border border-gray-200 rounded-lg p-6" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-between items-center mb-4">
                                 <div className="flex items-center space-x-3">
                                   <h5 className="text-md font-medium text-gray-900">문제 {questionIndex + 1}</h5>
@@ -2895,8 +3085,13 @@ ${allParagraphs}`;
                                   )}
                                 </div>
                                 <button
-                                  onClick={() => removeVocabQuestion(questionId)}
-                                  className="text-red-600 hover:text-red-800 text-sm"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    blurActiveElement();
+                                    removeVocabQuestion(questionId);
+                                  }}
+                                  className="text-red-600 hover:text-red-800 text-sm prevent-focus-scroll"
                                 >
                                   삭제
                                 </button>
@@ -2910,7 +3105,11 @@ ${allParagraphs}`;
                                       type="text"
                                       value={question.term}
                                       onChange={(e) => handleVocabQuestionChange(questionId, 'term', e.target.value)}
-                                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.target.focus();
+                                      }}
+                                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 prevent-focus-scroll"
                                     />
                                   </div>
                                   <div>
@@ -2973,8 +3172,16 @@ ${allParagraphs}`;
                                   <textarea
                                     value={question.question}
                                     onChange={(e) => handleVocabQuestionChange(questionId, 'question', e.target.value)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.target.focus();
+                                    }}
+                                    onBlur={() => {
+                                      // 어휘 문제 탭에서는 스크롤 복원 방지
+                                      console.log('📝 질문 입력 완료 - 스크롤 복원 생략');
+                                    }}
                                     rows={2}
-                                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 prevent-focus-scroll"
                                   />
                                 </div>
                                 
@@ -2998,7 +3205,11 @@ ${allParagraphs}`;
                                                 newOptions[optIndex] = e.target.value;
                                                 handleVocabQuestionChange(questionId, 'options', newOptions);
                                               }}
-                                              className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.target.focus();
+                                              }}
+                                              className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 prevent-focus-scroll"
                                             />
                                           </div>
                                         ))}
@@ -3012,8 +3223,16 @@ ${allParagraphs}`;
                                   <textarea
                                     value={question.explanation}
                                     onChange={(e) => handleVocabQuestionChange(questionId, 'explanation', e.target.value)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.target.focus();
+                                    }}
+                                    onBlur={() => {
+                                      // 어휘 문제 탭에서는 스크롤 복원 방지
+                                      console.log('📝 해설 입력 완료 - 스크롤 복원 생략');
+                                    }}
                                     rows={3}
-                                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 prevent-focus-scroll"
                                   />
                                 </div>
                               </div>
@@ -3033,7 +3252,10 @@ ${allParagraphs}`;
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-medium text-gray-900">문단 문제</h3>
                   <button
-                    onClick={addParagraphQuestion}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addParagraphQuestion();
+                    }}
                     className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
                   >
                     + 문제 추가
@@ -3047,9 +3269,9 @@ ${allParagraphs}`;
                 ) : (
                   <div className="space-y-6">
                     {editableParagraphQuestions.map((question, index) => {
-                      const questionId = question.id || question.questionId;
+                      const questionId = question.id || question.questionId || `temp-paragraph-${index}`;
                       return (
-                      <div key={questionId} className="border border-gray-200 rounded-lg p-6">
+                      <div key={`paragraph-${questionId}-${index}`} className="border border-gray-200 rounded-lg p-6">
                         <div className="flex justify-between items-center mb-4">
                           <div>
                             <h4 className="text-lg font-medium text-gray-900">문제 {index + 1}</h4>
@@ -3063,7 +3285,10 @@ ${allParagraphs}`;
                             </div>
                           </div>
                           <button
-                            onClick={() => removeParagraphQuestion(index)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeParagraphQuestion(index);
+                            }}
                             className="text-red-600 hover:text-red-800 text-sm"
                           >
                             삭제
@@ -3266,7 +3491,10 @@ ${allParagraphs}`;
                       CSV 업로드
                     </button>
                     <button
-                      onClick={addComprehensiveQuestion}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addComprehensiveQuestion();
+                      }}
                       className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
                     >
                       + 문제 세트 추가
@@ -3331,7 +3559,7 @@ ${allParagraphs}`;
                         
                         <div className="space-y-6">
                           {questions.map((question, questionIndex) => {
-                            const questionId = question.questionId;
+                            const questionId = question.id || question.questionId || `temp-comprehensive-${questionIndex}`;
                             const isMainQuestion = !question.isSupplementary;
                             
                             // 보완문제 번호 계산 (기본문제 제외하고 카운트)
@@ -3342,7 +3570,7 @@ ${allParagraphs}`;
                             }
                             
                             return (
-                              <div key={question.questionId} className={`border rounded-lg p-4 ${isMainQuestion ? 'bg-white border-blue-200' : 'bg-blue-50 border-blue-100'}`}>
+                              <div key={`comprehensive-${questionId}-${questionIndex}`} className={`border rounded-lg p-4 ${isMainQuestion ? 'bg-white border-blue-200' : 'bg-blue-50 border-blue-100'}`}>
                                 <div className="flex justify-between items-center mb-4">
                                   <div>
                                     <h5 className="text-md font-medium text-gray-900">
@@ -3363,7 +3591,10 @@ ${allParagraphs}`;
                                   </div>
                                   {!isMainQuestion && (
                                     <button
-                                      onClick={() => removeComprehensiveQuestion(globalIndex)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeComprehensiveQuestion(globalIndex);
+                                      }}
                                       className="text-red-600 hover:text-red-800 text-sm"
                                     >
                                       삭제
@@ -3477,7 +3708,8 @@ ${allParagraphs}`;
                                 {isMainQuestion && (
                                   <div className="mt-4 pt-4 border-t border-gray-200">
                                     <button
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         // 보완 문제 추가
                                         const newSupplementary: ComprehensiveQuestion = {
                                           id: '',
@@ -3522,6 +3754,9 @@ ${allParagraphs}`;
         onUpload={handleCSVUpload}
         contentSetId={setId}
       />
+
+      {/* 저장 중 로딩 모달 */}
+      <SavingModal />
       </div>
     </RoleAuthGuard>
   );
