@@ -1036,7 +1036,12 @@ export default function ComprehensiveQuestions({
                 <span className="text-sm font-medium text-gray-700 mr-2">문제별 검토:</span>
                 {basicQuestions.map((basicQ, index) => {
                   const supplementaryCount = localQuestions.filter(
-                    q => q.isSupplementary && q.originalQuestionId === basicQ.id
+                    q => q.isSupplementary && (
+                      // edit 페이지: originalQuestionId끼리 비교
+                      (basicQ.originalQuestionId && q.originalQuestionId === basicQ.originalQuestionId) ||
+                      // 생성 페이지: 기본 문제 id와 보완 문제 originalQuestionId 비교
+                      (!basicQ.originalQuestionId && q.originalQuestionId === basicQ.id)
+                    )
                   ).length;
                   
                   return (
@@ -1100,7 +1105,10 @@ export default function ComprehensiveQuestions({
               supplementaryQuestions.forEach((supQ, index) => {
                 // original_question_id가 같은 기본 문제 찾기
                 const relatedBasic = basicQuestions.find(basicQ =>
-                  basicQ.id === supQ.originalQuestionId
+                  // edit 페이지: originalQuestionId끼리 비교
+                  (basicQ.originalQuestionId && basicQ.originalQuestionId === supQ.originalQuestionId) ||
+                  // 생성 페이지: 기본 문제 id와 보완 문제 originalQuestionId 비교
+                  (!basicQ.originalQuestionId && basicQ.id === supQ.originalQuestionId)
                 );
                 console.log(`  보완${index + 1}: ${supQ.type} -> 연결된 기본문제: ${relatedBasic ? relatedBasic.type : 'NOT FOUND'} (original_question_id: ${supQ.originalQuestionId})`);
               });
@@ -1113,7 +1121,11 @@ export default function ComprehensiveQuestions({
               basicQuestions.forEach(basicQ => {
                 questionsToShow.push(basicQ);
                 const relatedSupplementary = supplementaryQuestions.filter(
-                  supQ => supQ.originalQuestionId === basicQ.id
+                  supQ =>
+                    // edit 페이지: originalQuestionId끼리 비교
+                    (basicQ.originalQuestionId && supQ.originalQuestionId === basicQ.originalQuestionId) ||
+                    // 생성 페이지: 기본 문제 id와 보완 문제 originalQuestionId 비교
+                    (!basicQ.originalQuestionId && supQ.originalQuestionId === basicQ.id)
                 );
                 questionsToShow.push(...relatedSupplementary);
               });
@@ -1131,10 +1143,14 @@ export default function ComprehensiveQuestions({
               if (selectedBasicQuestion) {
                 questionsToShow.push(selectedBasicQuestion);
                 const relatedSupplementary = supplementaryQuestions.filter(
-                  supQ => supQ.originalQuestionId === selectedBasicQuestion.id
+                  supQ =>
+                    // edit 페이지: originalQuestionId끼리 비교
+                    (selectedBasicQuestion.originalQuestionId && supQ.originalQuestionId === selectedBasicQuestion.originalQuestionId) ||
+                    // 생성 페이지: 기본 문제 id와 보완 문제 originalQuestionId 비교
+                    (!selectedBasicQuestion.originalQuestionId && supQ.originalQuestionId === selectedBasicQuestion.id)
                 );
                 console.log(`🔗 연결된 보완 문제 수: ${relatedSupplementary.length}`, {
-                  searchingFor: selectedBasicQuestion.id,
+                  searchingFor: selectedBasicQuestion.originalQuestionId || selectedBasicQuestion.id,
                   foundSupplementary: relatedSupplementary.map(s => ({
                     type: s.type,
                     originalQuestionId: s.originalQuestionId
