@@ -1036,7 +1036,7 @@ export default function ComprehensiveQuestions({
                 <span className="text-sm font-medium text-gray-700 mr-2">문제별 검토:</span>
                 {basicQuestions.map((basicQ, index) => {
                   const supplementaryCount = localQuestions.filter(
-                    q => q.isSupplementary && q.originalQuestionId === basicQ.originalQuestionId
+                    q => q.isSupplementary && q.originalQuestionId === basicQ.id
                   ).length;
                   
                   return (
@@ -1100,7 +1100,7 @@ export default function ComprehensiveQuestions({
               supplementaryQuestions.forEach((supQ, index) => {
                 // original_question_id가 같은 기본 문제 찾기
                 const relatedBasic = basicQuestions.find(basicQ =>
-                  basicQ.originalQuestionId === supQ.originalQuestionId
+                  basicQ.id === supQ.originalQuestionId
                 );
                 console.log(`  보완${index + 1}: ${supQ.type} -> 연결된 기본문제: ${relatedBasic ? relatedBasic.type : 'NOT FOUND'} (original_question_id: ${supQ.originalQuestionId})`);
               });
@@ -1113,7 +1113,7 @@ export default function ComprehensiveQuestions({
               basicQuestions.forEach(basicQ => {
                 questionsToShow.push(basicQ);
                 const relatedSupplementary = supplementaryQuestions.filter(
-                  supQ => supQ.originalQuestionId === basicQ.originalQuestionId
+                  supQ => supQ.originalQuestionId === basicQ.id
                 );
                 questionsToShow.push(...relatedSupplementary);
               });
@@ -1131,10 +1131,10 @@ export default function ComprehensiveQuestions({
               if (selectedBasicQuestion) {
                 questionsToShow.push(selectedBasicQuestion);
                 const relatedSupplementary = supplementaryQuestions.filter(
-                  supQ => supQ.originalQuestionId === selectedBasicQuestion.originalQuestionId
+                  supQ => supQ.originalQuestionId === selectedBasicQuestion.id
                 );
                 console.log(`🔗 연결된 보완 문제 수: ${relatedSupplementary.length}`, {
-                  searchingFor: selectedBasicQuestion.originalQuestionId,
+                  searchingFor: selectedBasicQuestion.id,
                   foundSupplementary: relatedSupplementary.map(s => ({
                     type: s.type,
                     originalQuestionId: s.originalQuestionId
