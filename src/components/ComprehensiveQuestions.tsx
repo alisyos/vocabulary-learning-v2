@@ -1002,23 +1002,53 @@ export default function ComprehensiveQuestions({
               const supplementaryCount = localQuestions.filter(q => q.type === type && q.isSupplementary).length;
               const mainCount = count - supplementaryCount;
               return (
-                <div key={type} className="bg-white p-2 rounded text-center">
-                  <div className="font-medium">{type}</div>
-                  <div className="text-gray-600">{count}개</div>
-                  {supplementaryCount > 0 && (
-                    <div className="text-xs text-blue-600">
-                      (기본 {mainCount}개 + 보완 {supplementaryCount}개)
+                <div key={type} className="bg-white p-2 rounded border">
+                  <div className="font-medium text-gray-800">{type}</div>
+                  <div className="text-gray-600 font-semibold">{count}개</div>
+                  {count > 0 && (
+                    <div className="mt-1 space-y-1">
+                      <div className="flex items-center justify-center space-x-1">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
+                          기본 {mainCount}
+                        </span>
+                        {supplementaryCount > 0 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-orange-100 text-orange-800">
+                            보완 {supplementaryCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
               );
             })}
           </div>
-          {localQuestions.some(q => q.isSupplementary) && (
-            <div className="text-xs text-center text-gray-600 bg-white p-2 rounded">
-              총 {localQuestions.length}개 문제 (기본 {localQuestions.filter(q => !q.isSupplementary).length}개 + 보완 {localQuestions.filter(q => q.isSupplementary).length}개)
+
+          {/* 전체 통계 */}
+          <div className="bg-white p-3 rounded border border-gray-200">
+            <div className="text-center">
+              <div className="text-sm font-medium text-gray-800 mb-2">전체 문제 통계</div>
+              <div className="flex justify-center items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 font-medium">
+                    기본 문제 {localQuestions.filter(q => !q.isSupplementary).length}개
+                  </span>
+                  {localQuestions.some(q => q.isSupplementary) && (
+                    <>
+                      <span className="text-gray-400">+</span>
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800 font-medium">
+                        보완 문제 {localQuestions.filter(q => q.isSupplementary).length}개
+                      </span>
+                      <span className="text-gray-400">=</span>
+                    </>
+                  )}
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800 font-semibold">
+                    총 {localQuestions.length}개
+                  </span>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* 📚 문단별 탭 네비게이션 */}

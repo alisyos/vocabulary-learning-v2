@@ -951,6 +951,29 @@ export default function VocabularyQuestions({
                     </span>
                   )}
                 </div>
+
+                {/* 어휘별 분포 표시 */}
+                {uniqueTerms.length > 1 && (
+                  <div className="mt-2">
+                    <span className="text-xs text-gray-500 mr-2">어휘별 분포:</span>
+                    <div className="inline-flex items-center space-x-1 flex-wrap">
+                      {uniqueTerms.map((term, index) => {
+                        const termQuestions = localQuestions.filter(q => q.term === term);
+                        const basicCount = termQuestions.filter(q => q.difficulty === '일반').length;
+                        const supplementCount = termQuestions.filter(q => q.difficulty === '보완').length;
+                        return (
+                          <span
+                            key={index}
+                            className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full mr-1 mb-1"
+                            title={`${term}: 기본 ${basicCount}개${supplementCount > 0 ? `, 보완 ${supplementCount}개` : ''}`}
+                          >
+                            {term} ({basicCount + supplementCount})
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </h3>

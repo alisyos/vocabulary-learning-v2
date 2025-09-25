@@ -884,6 +884,59 @@ export default function ParagraphQuestions({
             <span className="ml-2 text-sm text-gray-500">
               전체 {localQuestions.length}개 중
             </span>
+
+            {/* 유형별 분포 */}
+            <div className="mt-2">
+              <span className="text-xs text-gray-500 mr-2">유형별 분포:</span>
+              <div className="inline-flex items-center space-x-1 flex-wrap">
+                {(() => {
+                  const typeDistribution: { [key: string]: number } = {};
+                  localQuestions.forEach(q => {
+                    const type = q.type || '미분류';
+                    typeDistribution[type] = (typeDistribution[type] || 0) + 1;
+                  });
+                  return Object.entries(typeDistribution).map(([type, count], index) => (
+                    <span
+                      key={index}
+                      className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full mr-1 mb-1"
+                      title={`${type}: ${count}개`}
+                    >
+                      {type} ({count})
+                    </span>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            {/* 문단별 분포 */}
+            <div className="mt-2">
+              <span className="text-xs text-gray-500 mr-2">문단별 분포:</span>
+              <div className="inline-flex items-center space-x-1 flex-wrap">
+                {(() => {
+                  const paragraphDistribution: { [key: number]: number } = {};
+                  localQuestions.forEach(q => {
+                    if (q.paragraphNumber) {
+                      paragraphDistribution[q.paragraphNumber] = (paragraphDistribution[q.paragraphNumber] || 0) + 1;
+                    }
+                  });
+                  return Object.entries(paragraphDistribution)
+                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                    .map(([paragraphNum, count], index) => (
+                      <span
+                        key={index}
+                        className={`text-xs px-2 py-0.5 rounded-full mr-1 mb-1 ${
+                          selectedParagraphTab === parseInt(paragraphNum)
+                            ? 'bg-orange-200 text-orange-800 font-medium'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                        title={`문단 ${paragraphNum}: ${count}개 문제`}
+                      >
+                        문단 {paragraphNum} ({count})
+                      </span>
+                    ));
+                })()}
+              </div>
+            </div>
           </h3>
         </div>
 

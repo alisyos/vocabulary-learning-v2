@@ -60,6 +60,10 @@ export default function FinalSave({
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
+  const [validationModal, setValidationModal] = useState<{
+    isOpen: boolean;
+    errors: string[];
+  }>({ isOpen: false, errors: [] });
   const [testingSupabase, setTestingSupabase] = useState(false);
   const [supabaseTest, setSupabaseTest] = useState<{
     success: boolean;
@@ -105,11 +109,31 @@ export default function FinalSave({
         // 상세 유형이 있으면 우선 사용, 없으면 기본 유형 사용
         const detailedType = (q as any).detailed_question_type || (q as any).detailedQuestionType;
         const questionType = q.question_type || (q as any).questionType || '객관식';
-        
+
         // 라벨 생성 (getVocabularyQuestionTypeLabel 함수 사용)
         const label = getVocabularyQuestionTypeLabel(questionType, detailedType);
-        
+
         distribution[label] = (distribution[label] || 0) + 1;
+      });
+      return distribution;
+    })() : null,
+    // 어휘별 분포 계산
+    vocabularyTermDistribution: vocabularyQuestions && vocabularyQuestions.length > 0 ? (() => {
+      const distribution: { [key: string]: { total: number; basic: number; supplement: number } } = {};
+      vocabularyQuestions.forEach(q => {
+        const term = q.term || '알 수 없는 용어';
+        const difficulty = q.difficulty || '일반';
+
+        if (!distribution[term]) {
+          distribution[term] = { total: 0, basic: 0, supplement: 0 };
+        }
+
+        distribution[term].total += 1;
+        if (difficulty === '보완') {
+          distribution[term].supplement += 1;
+        } else {
+          distribution[term].basic += 1;
+        }
       });
       return distribution;
     })() : null,
@@ -120,12 +144,38 @@ export default function FinalSave({
       'OX문제': paragraphQuestions.filter(q => q.type === 'OX문제').length,
       '객관식 일반형': paragraphQuestions.filter(q => q.type === '객관식 일반형').length
     } : null,
+    // 문단 문제 문단별 분포 계산
+    paragraphDistribution: paragraphQuestions && paragraphQuestions.length > 0 ? (() => {
+      const distribution: { [key: number]: number } = {};
+      paragraphQuestions.forEach(q => {
+        if (q.paragraphNumber) {
+          distribution[q.paragraphNumber] = (distribution[q.paragraphNumber] || 0) + 1;
+        }
+      });
+      return distribution;
+    })() : null,
     typeDistribution: comprehensiveQuestions && comprehensiveQuestions.length > 0 ? {
       '정보 확인': comprehensiveQuestions.filter(q => q.type === '정보 확인').length,
       '주제 파악': comprehensiveQuestions.filter(q => q.type === '주제 파악').length,
       '자료해석': comprehensiveQuestions.filter(q => q.type === '자료해석').length,
       '추론': comprehensiveQuestions.filter(q => q.type === '추론').length
-    } : null
+    } : null,
+    // 종합 문제 기본/보완 분포 계산
+    comprehensiveDistribution: comprehensiveQuestions && comprehensiveQuestions.length > 0 ? (() => {
+      const distribution: { [key: string]: { total: number; basic: number; supplement: number } } = {};
+      ['정보 확인', '주제 파악', '자료해석', '추론'].forEach(type => {
+        const allQuestions = comprehensiveQuestions.filter(q => q.type === type);
+        const basicQuestions = allQuestions.filter(q => !q.isSupplementary);
+        const supplementQuestions = allQuestions.filter(q => q.isSupplementary);
+
+        distribution[type] = {
+          total: allQuestions.length,
+          basic: basicQuestions.length,
+          supplement: supplementQuestions.length
+        };
+      });
+      return distribution;
+    })() : null
   };
 
   // Supabase 연결 테스트
@@ -159,6 +209,49 @@ export default function FinalSave({
     } finally {
       setTestingSupabase(false);
     }
+  };
+
+  // 저장 조건 검증 함수
+  const validateSaveConditions = () => {
+    const errors: string[] = [];
+
+    // 1. 어휘 문제 검증: 어휘별 기본문제 3개 보완문제 2개 (합계 5개)
+    if (summary.vocabularyTermDistribution) {
+      Object.entries(summary.vocabularyTermDistribution).forEach(([term, counts]) => {
+        if (counts.basic !== 3 || counts.supplement !== 2) {
+          errors.push(`어휘 "${term}": 기본문제 ${counts.basic}개, 보완문제 ${counts.supplement}개 (요구사항: 기본 3개, 보완 2개)`);
+        }
+      });
+    }
+
+    // 2. 문단 문제 검증: 문단별 2개 문제
+    if (summary.paragraphDistribution) {
+      Object.entries(summary.paragraphDistribution).forEach(([paragraphNum, count]) => {
+        if (count !== 2) {
+          errors.push(`문단 ${paragraphNum}: ${count}개 문제 (요구사항: 2개 문제)`);
+        }
+      });
+    }
+
+    // 3. 종합 문제 검증: 3개 유형, 유형별 기본문제 1개 보완문제 2개 (합계 3개)
+    if (summary.comprehensiveDistribution) {
+      const activeTypes = Object.entries(summary.comprehensiveDistribution).filter(([_, counts]) => counts.total > 0);
+
+      if (activeTypes.length !== 3) {
+        errors.push(`종합 문제 유형: ${activeTypes.length}개 (요구사항: 3개 유형)`);
+      }
+
+      activeTypes.forEach(([type, counts]) => {
+        if (counts.basic !== 1 || counts.supplement !== 2) {
+          errors.push(`종합 문제 "${type}": 기본문제 ${counts.basic}개, 보완문제 ${counts.supplement}개 (요구사항: 기본 1개, 보완 2개)`);
+        }
+      });
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
   };
 
   // Supabase 스키마 설정
@@ -240,6 +333,18 @@ export default function FinalSave({
 
   // 최종 저장 실행
   const handleFinalSave = async () => {
+    // 저장 조건 검증
+    const validation = validateSaveConditions();
+
+    if (!validation.isValid) {
+      // 조건에 맞지 않는 경우 커스텀 모달 표시
+      setValidationModal({
+        isOpen: true,
+        errors: validation.errors
+      });
+      return; // 저장 중단
+    }
+
     setSaving(true);
 
     try {
@@ -361,7 +466,7 @@ export default function FinalSave({
                 {/* 어휘 문제 유형별 분포 */}
                 {summary.vocabularyTypeDistribution && (
                   <div className="mt-4">
-                    <h4 className="font-medium text-gray-800 mb-2">어휘 문제 유형별 분포</h4>
+                    <h4 className="font-medium text-gray-800 mb-3">어휘 문제 유형별 분포</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
                       {Object.entries(summary.vocabularyTypeDistribution).map(([type, count]) => (
                         <div key={type} className="bg-purple-100 p-2 rounded text-center">
@@ -372,11 +477,33 @@ export default function FinalSave({
                     </div>
                   </div>
                 )}
+
+                {/* 어휘별 분포 */}
+                {summary.vocabularyTermDistribution && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-gray-800 mb-3">어휘별 분포</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                      {Object.entries(summary.vocabularyTermDistribution).map(([term, counts]) => (
+                        <div key={term} className="bg-purple-50 border border-purple-200 p-2 rounded">
+                          <div className="font-medium text-purple-900">{term}</div>
+                          <div className="text-purple-700">
+                            총 {counts.total}개
+                            {counts.supplement > 0 && (
+                              <span className="block text-xs text-purple-600">
+                                기본 {counts.basic}개, 보완 {counts.supplement}개
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 {/* 문단 문제 유형별 분포 */}
                 {summary.paragraphTypeDistribution && (
                   <div className="mt-4">
-                    <h4 className="font-medium text-gray-800 mb-2">문단 문제 유형별 분포</h4>
+                    <h4 className="font-medium text-gray-800 mb-3">문단 문제 유형별 분포</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                       {Object.entries(summary.paragraphTypeDistribution).map(([type, count]) => (
                         <div key={type} className="bg-yellow-100 p-2 rounded text-center">
@@ -387,16 +514,62 @@ export default function FinalSave({
                     </div>
                   </div>
                 )}
+
+                {/* 문단 문제 문단별 분포 */}
+                {summary.paragraphDistribution && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-gray-800 mb-3">문단별 분포</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                      {Object.entries(summary.paragraphDistribution)
+                        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                        .map(([paragraphNum, count]) => (
+                          <div key={paragraphNum} className="bg-yellow-50 border border-yellow-200 p-2 rounded text-center">
+                            <div className="font-medium text-yellow-900">문단 {paragraphNum}</div>
+                            <div className="text-yellow-700">{count as number}개</div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
                 
                 {/* 종합 문제 유형별 분포 */}
                 {summary.typeDistribution && (
                   <div className="mt-4">
-                    <h4 className="font-medium text-gray-800 mb-2">종합 문제 유형별 분포</h4>
+                    <h4 className="font-medium text-gray-800 mb-3">종합 문제 유형별 분포</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                       {Object.entries(summary.typeDistribution).map(([type, count]) => (
                         <div key={type} className="bg-orange-100 p-2 rounded text-center">
                           <div className="font-medium">{type}</div>
                           <div className="text-gray-600">{count}개</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 종합 문제 기본/보완 분포 */}
+                {summary.comprehensiveDistribution && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-gray-800 mb-3">종합 문제 기본/보완 분포</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                      {Object.entries(summary.comprehensiveDistribution).map(([type, counts]) => (
+                        <div key={type} className="bg-orange-50 border border-orange-200 p-2 rounded">
+                          <div className="font-medium text-orange-900">{type}</div>
+                          <div className="text-orange-700 font-semibold">{counts.total}개</div>
+                          {counts.total > 0 && (
+                            <div className="mt-1 space-y-1">
+                              <div className="flex items-center justify-center space-x-1">
+                                <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-blue-100 text-blue-800">
+                                  기본 {counts.basic}
+                                </span>
+                                {counts.supplement > 0 && (
+                                  <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-orange-200 text-orange-800">
+                                    보완 {counts.supplement}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -507,6 +680,23 @@ export default function FinalSave({
                   </ul>
                 </div>
               )}
+              {summary.vocabularyTermDistribution && (
+                <div className="mt-3">
+                  <p><strong>어휘별 분포:</strong></p>
+                  <ul className="ml-4 space-y-1">
+                    {Object.entries(summary.vocabularyTermDistribution).map(([term, counts]) => (
+                      <li key={term}>
+                        • {term}: {counts.total}개
+                        {counts.supplement > 0 && (
+                          <span className="text-xs text-gray-600 ml-1">
+                            (기본 {counts.basic}, 보완 {counts.supplement})
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
 
@@ -525,6 +715,20 @@ export default function FinalSave({
                   </ul>
                 </div>
               )}
+              {summary.paragraphDistribution && (
+                <div className="mt-3">
+                  <p><strong>문단별 분포:</strong></p>
+                  <ul className="ml-4 space-y-1">
+                    {Object.entries(summary.paragraphDistribution)
+                      .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                      .map(([paragraphNum, count]) => (
+                        <li key={paragraphNum}>
+                          • 문단 {paragraphNum}: {count as number}개
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
 
@@ -537,8 +741,25 @@ export default function FinalSave({
                 <div className="mt-3">
                   <p className="font-medium mb-1">유형별 분포:</p>
                   {Object.entries(summary.typeDistribution).map(([type, count]) => (
-                    <p key={type} className="text-xs">• {type}: {count}개</p>
+                    <p key={type} className="text-sm">• {type}: {count}개</p>
                   ))}
+                </div>
+              )}
+              {summary.comprehensiveDistribution && (
+                <div className="mt-3">
+                  <p className="font-medium mb-1">기본/보완 분포:</p>
+                  <ul className="space-y-1">
+                    {Object.entries(summary.comprehensiveDistribution).map(([type, counts]) => (
+                      <li key={type} className="text-sm">
+                        • {type}: {counts.total}개
+                        {counts.supplement > 0 && (
+                          <span className="ml-1 text-gray-500">
+                            (기본 {counts.basic}, 보완 {counts.supplement})
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
@@ -761,6 +982,69 @@ export default function FinalSave({
           </p>
         </div>
       </div>
+
+      {/* 검증 오류 모달 */}
+      {validationModal.isOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+        >
+          <div className="bg-white backdrop-blur-sm p-6 rounded-xl shadow-2xl border border-gray-200 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            {/* 헤더 */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xl font-bold text-red-800 flex items-center gap-2">
+                  <span className="text-2xl">⚠️</span>
+                  저장 조건 미충족
+                </h3>
+                <button
+                  onClick={() => setValidationModal({ isOpen: false, errors: [] })}
+                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                  title="닫기"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-sm text-gray-600">
+                다음 조건들을 모두 충족한 후 다시 저장해 주세요.
+              </p>
+            </div>
+
+            {/* 조건 설명 */}
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="font-medium text-blue-900 mb-2">📋 필수 저장 조건</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• <strong>어휘 문제:</strong> 각 어휘별 기본문제 3개 + 보완문제 2개 = 총 5개</li>
+                <li>• <strong>문단 문제:</strong> 각 문단별 2개 문제</li>
+                <li>• <strong>종합 문제:</strong> 3개 유형, 각 유형별 기본문제 1개 + 보완문제 2개 = 총 3개</li>
+              </ul>
+            </div>
+
+            {/* 오류 목록 */}
+            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+              <h4 className="font-medium text-red-900 mb-3">❌ 현재 미충족 조건</h4>
+              <ul className="space-y-2">
+                {validationModal.errors.map((error, index) => (
+                  <li key={index} className="flex items-start gap-2 text-sm text-red-700">
+                    <span className="text-red-500 mt-0.5">•</span>
+                    <span>{error}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* 버튼 */}
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setValidationModal({ isOpen: false, errors: [] })}
+                className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
