@@ -12,10 +12,57 @@ interface PassageReviewProps {
   lastUsedPrompt?: string; // GPT에 보낸 프롬프트
 }
 
-export default function PassageReview({ 
-  editablePassage, 
-  onUpdate, 
-  onNext, 
+// 어휘 데이터 파싱 함수
+const parseFootnoteToVocabularyTerm = (footnote: string): { term: string; definition: string; example_sentence: string } => {
+  // 첫 번째 콜론으로 term과 나머지 부분 분리
+  const colonIndex = footnote.indexOf(':');
+
+  if (colonIndex === -1) {
+    // 콜론이 없는 경우 전체를 term으로
+    return { term: footnote.trim(), definition: '', example_sentence: '' };
+  }
+
+  const term = footnote.substring(0, colonIndex).trim();
+  const definitionPart = footnote.substring(colonIndex + 1).trim();
+
+  // 다양한 예시 패턴 매칭
+  // 1. "(예:" 또는 "(예시:" 패턴
+  let exampleMatch = definitionPart.match(/\(예시?:\s*([^)]+)\)/);
+
+  // 2. "(예:"나 "(예시:" 없이 단순히 괄호만 있는 경우
+  if (!exampleMatch) {
+    // 마지막 괄호 안의 내용을 예시로 간주 (단, 너무 짧지 않은 경우)
+    // 공백이 있는 경우: " (예시문장)" 또는 " (예시문장)."
+    // 공백이 없는 경우: "(예시문장)" 또는 "(예시문장)."
+    exampleMatch = definitionPart.match(/\s*\(([^)]{5,})\)\.?$/);
+  }
+
+  let definition = definitionPart;
+  let example_sentence = '';
+
+  if (exampleMatch) {
+    // 예시 부분 제거한 정의
+    definition = definitionPart.replace(exampleMatch[0], '').trim();
+    // 예시 문장
+    example_sentence = exampleMatch[1].trim();
+  }
+
+  return { term, definition, example_sentence };
+};
+
+// 어휘 데이터를 footnote 형식으로 변환
+const vocabularyTermToFootnote = (term: string, definition: string, example_sentence: string): string => {
+  let result = `${term}: ${definition}`;
+  if (example_sentence && example_sentence.trim()) {
+    result += ` (예: ${example_sentence})`;
+  }
+  return result;
+};
+
+export default function PassageReview({
+  editablePassage,
+  onUpdate,
+  onNext,
   loading = false,
   lastUsedPrompt = ''
 }: PassageReviewProps) {
@@ -78,6 +125,19 @@ export default function PassageReview({
     const updated = { ...localPassage, footnote: updatedFootnote };
     setLocalPassage(updated);
     onUpdate(updated);
+  };
+
+  // 어휘 개별 필드 변경 핸들러 (단일 지문)
+  const handleVocabularyFieldChange = (index: number, field: 'term' | 'definition' | 'example_sentence', value: string) => {
+    const currentFootnote = localPassage.footnote[index];
+    const parsed = parseFootnoteToVocabularyTerm(currentFootnote);
+
+    // 필드 업데이트
+    parsed[field] = value;
+
+    // footnote 형식으로 재조합
+    const newFootnote = vocabularyTermToFootnote(parsed.term, parsed.definition, parsed.example_sentence);
+    handleFootnoteChange(index, newFootnote);
   };
 
   const addFootnote = () => {
@@ -155,7 +215,7 @@ export default function PassageReview({
 
   const handlePassageFootnoteChange = (passageIndex: number, footnoteIndex: number, newContent: string) => {
     if (!localPassage.passages) return;
-    
+
     const updatedPassages = [...localPassage.passages];
     const updatedFootnote = [...updatedPassages[passageIndex].footnote];
     updatedFootnote[footnoteIndex] = newContent;
@@ -163,6 +223,26 @@ export default function PassageReview({
     const updated = { ...localPassage, passages: updatedPassages };
     setLocalPassage(updated);
     onUpdate(updated);
+  };
+
+  // 어휘 개별 필드 변경 핸들러 (2개 지문)
+  const handlePassageVocabularyFieldChange = (
+    passageIndex: number,
+    footnoteIndex: number,
+    field: 'term' | 'definition' | 'example_sentence',
+    value: string
+  ) => {
+    if (!localPassage.passages) return;
+
+    const currentFootnote = localPassage.passages[passageIndex].footnote[footnoteIndex];
+    const parsed = parseFootnoteToVocabularyTerm(currentFootnote);
+
+    // 필드 업데이트
+    parsed[field] = value;
+
+    // footnote 형식으로 재조합
+    const newFootnote = vocabularyTermToFootnote(parsed.term, parsed.definition, parsed.example_sentence);
+    handlePassageFootnoteChange(passageIndex, footnoteIndex, newFootnote);
   };
 
   const addPassageFootnote = (passageIndex: number) => {
@@ -341,29 +421,69 @@ export default function PassageReview({
                     + 용어 추가
                   </button>
                 </div>
-                
-                <div className="space-y-2">
-                  {passage.footnote.map((footnote, footnoteIndex) => (
-                    <div key={footnoteIndex} className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500 min-w-[40px]">
-                        {passageIndex === 0 ? footnoteIndex + 1 : footnoteIndex + 11}.
-                      </span>
-                      <input
-                        type="text"
-                        value={footnote}
-                        onChange={(e) => handlePassageFootnoteChange(passageIndex, footnoteIndex, e.target.value)}
-                        className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                        placeholder="용어: 설명 (예시: 예시문장)"
-                      />
-                      <button
-                        onClick={() => removePassageFootnote(passageIndex, footnoteIndex)}
-                        className="text-red-500 hover:text-red-700 p-2"
-                        title="용어 삭제"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
+
+                <div className="space-y-3">
+                  {passage.footnote.map((footnote, footnoteIndex) => {
+                    const parsed = parseFootnoteToVocabularyTerm(footnote);
+                    const globalIndex = passageIndex === 0 ? footnoteIndex + 1 : footnoteIndex + 11;
+
+                    return (
+                      <div key={footnoteIndex} className="bg-white border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-start gap-3">
+                          <span className="text-sm text-gray-500 min-w-[25px] mt-1">
+                            {globalIndex}.
+                          </span>
+                          <div className="flex-1 space-y-2">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">
+                                  용어
+                                </label>
+                                <input
+                                  type="text"
+                                  value={parsed.term}
+                                  onChange={(e) => handlePassageVocabularyFieldChange(passageIndex, footnoteIndex, 'term', e.target.value)}
+                                  className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                  placeholder="용어 입력"
+                                />
+                              </div>
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-medium text-gray-600 mb-1">
+                                  뜻
+                                </label>
+                                <input
+                                  type="text"
+                                  value={parsed.definition}
+                                  onChange={(e) => handlePassageVocabularyFieldChange(passageIndex, footnoteIndex, 'definition', e.target.value)}
+                                  className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                  placeholder="용어의 뜻 입력"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                예시 문장 (선택사항)
+                              </label>
+                              <input
+                                type="text"
+                                value={parsed.example_sentence}
+                                onChange={(e) => handlePassageVocabularyFieldChange(passageIndex, footnoteIndex, 'example_sentence', e.target.value)}
+                                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                placeholder="예시 문장 입력 (선택사항)"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => removePassageFootnote(passageIndex, footnoteIndex)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            title="용어 삭제"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -392,13 +512,24 @@ export default function PassageReview({
                       <h5 className="text-sm font-medium text-gray-800 mb-2">
                         용어 설명 {passageIndex === 0 ? '(1-10)' : '(11-20)'}
                       </h5>
-                      <ul className="text-sm text-gray-600 space-y-1">
-                        {passage.footnote.map((footnote, footnoteIndex) => (
-                          <li key={footnoteIndex}>
-                            • {footnote}
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="grid grid-cols-1 gap-2 text-sm">
+                        {passage.footnote.map((footnote, footnoteIndex) => {
+                          const parsed = parseFootnoteToVocabularyTerm(footnote);
+                          const globalIndex = passageIndex === 0 ? footnoteIndex + 1 : footnoteIndex + 11;
+                          return (
+                            <div key={footnoteIndex} className="flex items-start gap-2 p-2 bg-white rounded border border-gray-100">
+                              <span className="text-blue-600 font-medium">{globalIndex}.</span>
+                              <div className="flex-1">
+                                <span className="font-medium text-gray-800">{parsed.term}</span>
+                                <span className="text-gray-600">: {parsed.definition}</span>
+                                {parsed.example_sentence && (
+                                  <span className="text-gray-500 italic"> (예: {parsed.example_sentence})</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -476,29 +607,68 @@ export default function PassageReview({
                 + 용어 추가
               </button>
             </div>
-            
+
             <div className="space-y-3">
-              {localPassage.footnote.map((footnote, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500 min-w-[40px]">
-                    {index + 1}.
-                  </span>
-                  <input
-                    type="text"
-                    value={footnote}
-                    onChange={(e) => handleFootnoteChange(index, e.target.value)}
-                    className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    placeholder="용어: 설명"
-                  />
-                  <button
-                    onClick={() => removeFootnote(index)}
-                    className="text-red-500 hover:text-red-700 p-2"
-                    title="용어 삭제"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+              {localPassage.footnote.map((footnote, index) => {
+                const parsed = parseFootnoteToVocabularyTerm(footnote);
+
+                return (
+                  <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-start gap-3">
+                      <span className="text-sm text-gray-500 min-w-[25px] mt-1">
+                        {index + 1}.
+                      </span>
+                      <div className="flex-1 space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              용어
+                            </label>
+                            <input
+                              type="text"
+                              value={parsed.term}
+                              onChange={(e) => handleVocabularyFieldChange(index, 'term', e.target.value)}
+                              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              placeholder="용어 입력"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              뜻
+                            </label>
+                            <input
+                              type="text"
+                              value={parsed.definition}
+                              onChange={(e) => handleVocabularyFieldChange(index, 'definition', e.target.value)}
+                              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              placeholder="용어의 뜻 입력"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            예시 문장 (선택사항)
+                          </label>
+                          <input
+                            type="text"
+                            value={parsed.example_sentence}
+                            onChange={(e) => handleVocabularyFieldChange(index, 'example_sentence', e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            placeholder="예시 문장 입력 (선택사항)"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeFootnote(index)}
+                        className="text-red-500 hover:text-red-700 p-1"
+                        title="용어 삭제"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -516,11 +686,23 @@ export default function PassageReview({
               {localPassage.footnote.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-300">
                   <h5 className="text-sm font-medium text-gray-800 mb-2">용어 설명</h5>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    {localPassage.footnote.map((footnote, index) => (
-                      <li key={index}>• {footnote}</li>
-                    ))}
-                  </ul>
+                  <div className="grid grid-cols-1 gap-2 text-sm">
+                    {localPassage.footnote.map((footnote, index) => {
+                      const parsed = parseFootnoteToVocabularyTerm(footnote);
+                      return (
+                        <div key={index} className="flex items-start gap-2 p-2 bg-white rounded border border-gray-100">
+                          <span className="text-blue-600 font-medium">{index + 1}.</span>
+                          <div className="flex-1">
+                            <span className="font-medium text-gray-800">{parsed.term}</span>
+                            <span className="text-gray-600">: {parsed.definition}</span>
+                            {parsed.example_sentence && (
+                              <span className="text-gray-500 italic"> (예: {parsed.example_sentence})</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

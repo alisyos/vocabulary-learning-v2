@@ -79,6 +79,13 @@ export default function Header() {
       allowedRoles: ['admin'] // admin만 접근 가능
     },
     {
+      name: '어휘 데이터 검수',
+      href: '/db-admin/fix-vocabulary',
+      icon: '🔧',
+      description: '어휘 파싱 오류 수정 및 데이터 정리',
+      allowedRoles: ['admin'] // admin만 접근 가능
+    },
+    {
       name: '콘텐츠세트 검수',
       href: '/db-admin/review',
       icon: '✅',
@@ -374,6 +381,12 @@ export default function Header() {
                     <>
                       <span className="mx-2">/</span>
                       <span className="text-gray-400">어휘 DB 관리</span>
+                    </>
+                  )}
+                  {pathname.startsWith('/db-admin/fix-vocabulary') && (
+                    <>
+                      <span className="mx-2">/</span>
+                      <span className="text-gray-400">어휘 데이터 검수</span>
                     </>
                   )}
                   {pathname.startsWith('/db-admin/review') && (
