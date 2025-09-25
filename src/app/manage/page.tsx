@@ -73,6 +73,7 @@ export default function ManagePage() {
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<ApiResponse['stats'] | null>(null);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [selectedSets, setSelectedSets] = useState<Set<string>>(new Set());
   
   // 필터 상태
   const [filters, setFilters] = useState({
@@ -115,6 +116,18 @@ export default function ManagePage() {
     field: string;
     value: string;
   } | null>(null);
+
+  // 일괄 작업 상태
+  const [batchOperation, setBatchOperation] = useState<{
+    loading: boolean;
+    type: 'delete' | 'duplicate' | 'status' | null;
+  }>({ loading: false, type: null });
+
+  // 일괄 상태값 변경 모달 상태
+  const [statusModal, setStatusModal] = useState<{
+    isOpen: boolean;
+    selectedStatus: string;
+  }>({ isOpen: false, selectedStatus: '' });
   
   const fetchDataSets = useCallback(async () => {
     setLoading(true);
@@ -334,19 +347,19 @@ export default function ManagePage() {
   // 콘텐츠 세트 삭제
   const handleDelete = async () => {
     if (!deleteModal.setId) return;
-    
+
     console.log('삭제 요청 ID:', deleteModal.setId); // 디버깅용 로그
-    
+
     setDeleting(true);
     try {
       const response = await fetch(`/api/delete-set?setId=${deleteModal.setId}`, {
         method: 'DELETE',
       });
-      
+
       const result = await response.json();
-      
+
       console.log('삭제 응답:', result); // 디버깅용 로그
-      
+
       if (result.success) {
         // 성공 시 데이터 새로고침
         await fetchDataSets();
@@ -360,6 +373,174 @@ export default function ManagePage() {
       alert('삭제 중 오류가 발생했습니다.');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // 전체 선택/해제 토글
+  const toggleSelectAll = () => {
+    if (selectedSets.size === paginatedData.length) {
+      setSelectedSets(new Set());
+    } else {
+      const newSelected = new Set<string>();
+      paginatedData.forEach(item => {
+        const id = item.id || item.setId;
+        if (id) newSelected.add(id);
+      });
+      setSelectedSets(newSelected);
+    }
+  };
+
+  // 개별 항목 선택 토글
+  const toggleSelectItem = (itemId: string) => {
+    const newSelected = new Set(selectedSets);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedSets(newSelected);
+  };
+
+  // 일괄 삭제
+  const handleBatchDelete = async () => {
+    if (selectedSets.size === 0) {
+      alert('삭제할 콘텐츠를 선택해주세요.');
+      return;
+    }
+
+    // 선택된 항목들의 상태 확인
+    const selectedItems = dataSets.filter(item => {
+      const id = item.id || item.setId;
+      return selectedSets.has(id);
+    });
+
+    const nonDeletableItems = selectedItems.filter(item => item.status !== '검수 전');
+    if (nonDeletableItems.length > 0) {
+      alert('"검수 전" 상태가 아닌 콘텐츠가 포함되어 있습니다.\n"검수 전" 상태의 콘텐츠만 삭제할 수 있습니다.');
+      return;
+    }
+
+    if (!confirm(`선택한 ${selectedSets.size}개의 콘텐츠를 정말 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    setBatchOperation({ loading: true, type: 'delete' });
+    try {
+      const deletePromises = Array.from(selectedSets).map(setId =>
+        fetch(`/api/delete-set?setId=${setId}`, { method: 'DELETE' })
+      );
+
+      const results = await Promise.all(deletePromises);
+      const jsonResults = await Promise.all(results.map(r => r.json()));
+
+      const successCount = jsonResults.filter(r => r.success).length;
+      const failCount = jsonResults.filter(r => !r.success).length;
+
+      await fetchDataSets();
+      setSelectedSets(new Set());
+
+      if (failCount === 0) {
+        alert(`${successCount}개의 콘텐츠가 성공적으로 삭제되었습니다.`);
+      } else {
+        alert(`${successCount}개 삭제 성공, ${failCount}개 삭제 실패`);
+      }
+    } catch (error) {
+      console.error('일괄 삭제 중 오류:', error);
+      alert('일괄 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setBatchOperation({ loading: false, type: null });
+    }
+  };
+
+  // 일괄 복제
+  const handleBatchDuplicate = async () => {
+    if (selectedSets.size === 0) {
+      alert('복제할 콘텐츠를 선택해주세요.');
+      return;
+    }
+
+    if (!confirm(`선택한 ${selectedSets.size}개의 콘텐츠를 복제하시겠습니까?`)) {
+      return;
+    }
+
+    setBatchOperation({ loading: true, type: 'duplicate' });
+    try {
+      const response = await fetch('/api/duplicate-sets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          setIds: Array.from(selectedSets),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        await fetchDataSets();
+        setSelectedSets(new Set());
+        alert(`${result.duplicatedCount}개의 콘텐츠가 성공적으로 복제되었습니다.`);
+      } else {
+        alert(result.error || '복제에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('일괄 복제 중 오류:', error);
+      alert('일괄 복제 중 오류가 발생했습니다.');
+    } finally {
+      setBatchOperation({ loading: false, type: null });
+    }
+  };
+
+  // 일괄 상태값 변경 모달 열기
+  const openStatusModal = () => {
+    if (selectedSets.size === 0) {
+      alert('상태를 변경할 콘텐츠를 선택해주세요.');
+      return;
+    }
+    setStatusModal({ isOpen: true, selectedStatus: '검수 전' });
+  };
+
+  // 일괄 상태값 변경 모달 닫기
+  const closeStatusModal = () => {
+    setStatusModal({ isOpen: false, selectedStatus: '' });
+  };
+
+  // 일괄 상태값 변경
+  const handleBatchStatusChange = async () => {
+    if (!statusModal.selectedStatus) {
+      alert('상태를 선택해주세요.');
+      return;
+    }
+
+    setBatchOperation({ loading: true, type: 'status' });
+    try {
+      const response = await fetch('/api/batch-update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          setIds: Array.from(selectedSets),
+          status: statusModal.selectedStatus,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        await fetchDataSets();
+        setSelectedSets(new Set());
+        closeStatusModal();
+        alert(`${result.updatedCount}개의 콘텐츠 상태가 '${statusModal.selectedStatus}'로 변경되었습니다.`);
+      } else {
+        alert(result.error || '상태 변경에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('일괄 상태 변경 중 오류:', error);
+      alert('일괄 상태 변경 중 오류가 발생했습니다.');
+    } finally {
+      setBatchOperation({ loading: false, type: null });
     }
   };
   
@@ -481,6 +662,7 @@ export default function ManagePage() {
                 <option value="2차검수">2차검수</option>
                 <option value="검수완료">검수완료</option>
                 <option value="승인완료">승인완료</option>
+                <option value="복제">복제</option>
               </select>
             </div>
             <div>
@@ -507,7 +689,83 @@ export default function ManagePage() {
             </button>
           </div>
         </div>
-        
+
+        {/* 일괄 작업 버튼 */}
+        {selectedSets.size > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedSets.size}개 항목 선택됨
+              </span>
+              <button
+                onClick={() => setSelectedSets(new Set())}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                선택 해제
+              </button>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handleBatchDuplicate}
+                disabled={batchOperation.loading}
+                className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {batchOperation.loading && batchOperation.type === 'duplicate' ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>복제 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <span>일괄 복제</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={openStatusModal}
+                disabled={batchOperation.loading}
+                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {batchOperation.loading && batchOperation.type === 'status' ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>상태 변경 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>일괄 상태변경</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleBatchDelete}
+                disabled={batchOperation.loading}
+                className="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {batchOperation.loading && batchOperation.type === 'delete' ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>삭제 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>일괄 삭제</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 데이터 목록 */}
         {loading ? (
           <div className="bg-white rounded-lg shadow p-8 text-center">
@@ -547,6 +805,15 @@ export default function ManagePage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-3 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={paginatedData.length > 0 && selectedSets.size === paginatedData.length}
+                        indeterminate={selectedSets.size > 0 && selectedSets.size < paginatedData.length}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       생성일
                     </th>
@@ -595,8 +862,18 @@ export default function ManagePage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedData.map((item) => (
-                    <tr key={item.setId} className="hover:bg-gray-50">
+                  {paginatedData.map((item) => {
+                    const itemId = item.id || item.setId;
+                    return (
+                    <tr key={itemId} className="hover:bg-gray-50">
+                      <td className="px-3 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedSets.has(itemId)}
+                          onChange={() => toggleSelectItem(itemId)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                      </td>
                       <td className="px-2 py-3 text-xs text-gray-500 text-center">
                         <div className="leading-tight space-y-0.5">
                           <div className="font-medium">{formatDate(item.createdAt).datePart}</div>
@@ -830,7 +1107,8 @@ export default function ManagePage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -914,6 +1192,63 @@ export default function ManagePage() {
           </>
         )}
 
+        {/* 상태값 변경 모달 */}
+        {statusModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900">일괄 상태값 변경</h3>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-3">
+                  선택한 {selectedSets.size}개 콘텐츠의 상태를 변경합니다.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">새로운 상태</label>
+                  <select
+                    value={statusModal.selectedStatus}
+                    onChange={(e) => setStatusModal(prev => ({ ...prev, selectedStatus: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="검수 전">검수 전</option>
+                    <option value="1차검수">1차검수</option>
+                    <option value="2차검수">2차검수</option>
+                    <option value="검수완료">검수완료</option>
+                    <option value="승인완료">승인완료</option>
+                    <option value="복제">복제</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 justify-end">
+                <button
+                  onClick={closeStatusModal}
+                  disabled={batchOperation.loading}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleBatchStatusChange}
+                  disabled={batchOperation.loading || !statusModal.selectedStatus}
+                  className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+                >
+                  {batchOperation.loading && batchOperation.type === 'status' && (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                  <span>{batchOperation.loading && batchOperation.type === 'status' ? '변경 중...' : '변경'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 삭제 확인 모달 */}
         {deleteModal.isOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -926,7 +1261,7 @@ export default function ManagePage() {
                 </div>
                 <h3 className="text-lg font-medium text-gray-900">콘텐츠 삭제 확인</h3>
               </div>
-              
+
               <div className="mb-4">
                 <p className="text-sm text-gray-600 mb-2">
                   다음 콘텐츠를 정말 삭제하시겠습니까?
@@ -938,7 +1273,7 @@ export default function ManagePage() {
                   ⚠️ 이 작업은 되돌릴 수 없습니다. 모든 관련 데이터가 완전히 삭제됩니다.
                 </p>
               </div>
-              
+
               <div className="flex space-x-3 justify-end">
                 <button
                   onClick={closeDeleteModal}
