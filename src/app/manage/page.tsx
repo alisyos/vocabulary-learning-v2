@@ -195,6 +195,9 @@ export default function ManagePage() {
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
       return (
+        // 콘텐츠 세트 ID로 검색 (UUID 부분 일치 또는 전체 일치)
+        (item.id || '').toLowerCase().includes(searchTerm) ||
+        // 기존 검색 필드들
         (item.title || item.passageTitle || '').toLowerCase().includes(searchTerm) ||
         (item.mainTopic || item.maintopic || '').toLowerCase().includes(searchTerm) ||
         (item.subTopic || item.subtopic || '').toLowerCase().includes(searchTerm) ||
@@ -666,10 +669,10 @@ export default function ManagePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">검색</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">통합 검색</label>
               <input
                 type="text"
-                placeholder="제목, 주제, 키워드 검색..."
+                placeholder="제목, 주제, 키워드, 콘텐츠 세트 ID 검색..."
                 value={filters.search}
                 onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
