@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
       editablePassage,
       vocabularyQuestions,
       paragraphQuestions,
-      comprehensiveQuestions
+      comprehensiveQuestions,
+      status
     } = data;
 
     // Validate required data
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
       total_vocabulary_questions: vocabularyQuestions?.length || 0,
       total_paragraph_questions: paragraphQuestions?.length || 0,
       total_comprehensive_questions: comprehensiveQuestions?.length || 0,
-      status: '검수 전',
+      status: status || '검수 전',
       // 지문 길이와 유형 정보 (스키마에 컬럼 추가 완료)
       passage_length: input.length || null,
       text_type: input.textType || null,

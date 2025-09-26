@@ -60,6 +60,7 @@ export default function FinalSave({
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<'검수 전' | '1차검수' | '2차검수' | '검수완료' | '승인완료' | '복제'>('검수 전');
   const [validationModal, setValidationModal] = useState<{
     isOpen: boolean;
     errors: string[];
@@ -367,7 +368,8 @@ export default function FinalSave({
           vocabularyQuestions,
           paragraphQuestions,
           comprehensiveQuestions,
-          userId: user?.userId || ''
+          userId: user?.userId || '',
+          status: selectedStatus
         }),
       });
 
@@ -621,6 +623,27 @@ export default function FinalSave({
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-4">
           <h2 className="text-xl font-bold text-gray-800">9단계: 최종 저장</h2>
+
+          {/* 상태 선택 드롭다운 */}
+          <div className="flex items-center space-x-2">
+            <label htmlFor="status-select" className="text-sm font-medium text-gray-700">
+              상태:
+            </label>
+            <select
+              id="status-select"
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value as '검수 전' | '1차검수' | '2차검수' | '검수완료' | '승인완료' | '복제')}
+              className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="검수 전">검수 전</option>
+              <option value="1차검수">1차검수</option>
+              <option value="2차검수">2차검수</option>
+              <option value="검수완료">검수완료</option>
+              <option value="승인완료">승인완료</option>
+              <option value="복제">복제</option>
+            </select>
+          </div>
+
           <button
             onClick={handleFinalSave}
             disabled={saving}
