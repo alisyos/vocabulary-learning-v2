@@ -195,12 +195,12 @@ export async function PUT(request: NextRequest) {
 
         const updateData = {
           question_text: question.question,
-          option_1: question.options?.[0],
-          option_2: question.options?.[1],
-          option_3: question.options?.[2],
-          option_4: question.options?.[3],
-          option_5: question.options?.[4],
-          correct_answer: question.answer || question.correctAnswer,
+          option_1: question.options?.[0] || null,
+          option_2: question.options?.[1] || null,
+          option_3: question.options?.[2] || null,
+          option_4: question.options?.[3] || null,
+          option_5: question.options?.[4] || null,
+          correct_answer: question.correctAnswer || question.answer || '',
           explanation: question.explanation,
           term: question.term || '',
           detailed_question_type: question.detailed_question_type || question.detailedQuestionType,
@@ -208,6 +208,15 @@ export async function PUT(request: NextRequest) {
           difficulty: question.difficulty,
           answer_initials: question.answer_initials || question.answerInitials
         };
+
+        console.log(`📝 어휘 문제 ${i + 1} 업데이트 데이터:`, {
+          id: existingQuestion.id,
+          correctAnswer_frontend: question.correctAnswer,
+          answer_frontend: question.answer,
+          options_frontend: question.options,
+          updateData_correctAnswer: updateData.correct_answer,
+          updateData_options: [updateData.option_1, updateData.option_2, updateData.option_3, updateData.option_4, updateData.option_5]
+        });
 
         console.log(`💾 어휘 문제 ${i + 1} 업데이트 준비 (ID: ${existingQuestion.id})`);
         return db.updateVocabularyQuestion(existingQuestion.id!, updateData)

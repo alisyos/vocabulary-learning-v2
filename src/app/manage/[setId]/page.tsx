@@ -265,7 +265,14 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
             return {
               ...q,
               term: q.term || '', // term이 없을 경우 빈 문자열로 설정
-              options: q.options || [],
+              // 🔧 프론트엔드 호환성 필드 매핑
+              question: q.question_text || q.question || '',
+              correctAnswer: q.correct_answer || q.correctAnswer || '',
+              answer: q.correct_answer || q.answer || '',
+              options: q.options || [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(opt => opt && opt.trim() !== '') || [],
+              questionType: q.question_type || q.questionType || '객관식',
+              detailedQuestionType: q.detailed_question_type || q.detailedQuestionType || '',
+              answerInitials: q.answer_initials || q.answerInitials || '',
               // 상세 문제 유형과 난이도 필드 보존
               detailed_question_type: q.detailed_question_type,
               difficulty: q.difficulty

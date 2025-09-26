@@ -344,10 +344,20 @@ export interface VocabularyQuestion {
   correct_answer: string;
   explanation: string;
   created_at?: string;
-  
+
   // ✅ 확장 필드들 (DB 컬럼 추가 완료)
   detailed_question_type?: string; // 6가지 상세 유형 저장
   answer_initials?: string; // 단답형인 경우 초성 힌트
+
+  // 🔧 프론트엔드 호환성 필드들 (실제로는 위 필드들과 매핑됨)
+  question?: string; // question_text와 동일
+  correctAnswer?: string; // correct_answer와 동일
+  answer?: string; // correct_answer와 동일 (또 다른 별명)
+  options?: string[]; // [option_1, option_2, option_3, option_4, option_5]의 배열 형태
+  questionId?: string; // 임시 ID (신규 생성 시 사용)
+  questionType?: string; // question_type과 동일
+  detailedQuestionType?: string; // detailed_question_type과 동일
+  answerInitials?: string; // answer_initials와 동일
 }
 
 // 문단 문제 (paragraph_questions 테이블) - Supabase 적용
