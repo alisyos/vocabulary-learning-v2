@@ -206,7 +206,7 @@ export async function PUT(request: NextRequest) {
           detailed_question_type: question.detailed_question_type || question.detailedQuestionType,
           question_type: question.question_type || question.questionType,
           difficulty: question.difficulty,
-          answer_initials: question.answer_initials || question.answerInitials
+          answer_initials: question.answerInitials || question.answer_initials
         };
 
         console.log(`📝 어휘 문제 ${i + 1} 업데이트 데이터:`, {
@@ -214,7 +214,10 @@ export async function PUT(request: NextRequest) {
           correctAnswer_frontend: question.correctAnswer,
           answer_frontend: question.answer,
           options_frontend: question.options,
+          answerInitials_frontend: question.answerInitials,
+          answer_initials_frontend: question.answer_initials,
           updateData_correctAnswer: updateData.correct_answer,
+          updateData_answerInitials: updateData.answer_initials,
           updateData_options: [updateData.option_1, updateData.option_2, updateData.option_3, updateData.option_4, updateData.option_5]
         });
 

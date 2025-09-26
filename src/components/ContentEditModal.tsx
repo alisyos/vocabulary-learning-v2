@@ -58,9 +58,29 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
 
   const updateComprehensiveQuestion = (questionId: string, field: string, value: any) => {
     console.log(`🔧 종합 문제 수정: ID=${questionId}, field=${field}, value=`, value);
-    setEditableComprehensive(prev => prev.map(question =>
-      question.id === questionId ? { ...question, [field]: value } : question
-    ));
+
+    setEditableComprehensive(prev => {
+      const updated = prev.map(question => {
+        if (question.id === questionId) {
+          const updatedQuestion = { ...question, [field]: value };
+
+          // options 필드 업데이트 시 디버깅 로그
+          if (field === 'options') {
+            console.log('📝 종합 문제 options 배열 업데이트:', {
+              questionId,
+              oldOptions: question.options,
+              newOptions: value,
+              updatedQuestion: updatedQuestion
+            });
+          }
+
+          return updatedQuestion;
+        }
+        return question;
+      });
+
+      return updated;
+    });
   };
 
   // 상태 옵션 정의 (검수 전 제외)
@@ -154,7 +174,30 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
         }
         console.log('=== 어휘 문제 디버깅 끝 ===');
 
-        setEditableVocabQuestions(result.data.vocabularyQuestions || []);
+        // 어휘 문제 데이터 필드 매핑 (ContentSet 관리 페이지와 동일하게)
+        const mappedVocabQuestions = (result.data.vocabularyQuestions || []).map((q: any) => {
+          console.log('🔄 ContentEditModal 어휘 문제 매핑:', {
+            id: q.id,
+            term: q.term,
+            question_text: q.question_text,
+            correct_answer: q.correct_answer,
+            answer_initials: q.answer_initials
+          });
+
+          return {
+            ...q,
+            // 🔧 프론트엔드 호환성 필드 매핑
+            question: q.question_text || q.question || '',
+            correctAnswer: q.correct_answer || q.correctAnswer || '',
+            answer: q.correct_answer || q.answer || '',
+            options: q.options || [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(opt => opt && opt.trim() !== '') || [],
+            questionType: q.question_type || q.questionType || '객관식',
+            detailedQuestionType: q.detailed_question_type || q.detailedQuestionType || '',
+            answerInitials: q.answer_initials || q.answerInitials || '',
+          };
+        });
+
+        setEditableVocabQuestions(mappedVocabQuestions);
 
         // 문단 문제 데이터 디버깅
         console.log('Paragraph Questions Raw Data:', result.data.paragraphQuestions);
@@ -178,8 +221,54 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
           console.log('지문별 문단 문제 개수:', questionsByPassage);
         }
 
-        setEditableParagraphQuestions(result.data.paragraphQuestions || []);
-        setEditableComprehensive(result.data.comprehensiveQuestions || []);
+        // 문단 문제 데이터 필드 매핑 (어휘 문제와 동일한 방식)
+        const mappedParagraphQuestions = (result.data.paragraphQuestions || []).map((q: any) => {
+          console.log('🔄 ContentEditModal 문단 문제 매핑:', {
+            id: q.id,
+            questionType: q.questionType,
+            question_text: q.question_text,
+            correct_answer: q.correct_answer,
+            answer_initials: q.answer_initials
+          });
+
+          return {
+            ...q,
+            // 🔧 프론트엔드 호환성 필드 매핑
+            question: q.question_text || q.question || '',
+            correctAnswer: q.correct_answer || q.correctAnswer || '',
+            answer: q.correct_answer || q.answer || '',
+            options: q.options || [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(opt => opt && opt.trim() !== '') || [],
+            questionType: q.question_type || q.questionType || '객관식',
+            answerInitials: q.answer_initials || q.answerInitials || '',
+          };
+        });
+
+        setEditableParagraphQuestions(mappedParagraphQuestions);
+
+        // 종합 문제 데이터 필드 매핑 (어휘/문단 문제와 동일한 방식)
+        const mappedComprehensiveQuestions = (result.data.comprehensiveQuestions || []).map((q: any) => {
+          console.log('🔄 ContentEditModal 종합 문제 매핑:', {
+            id: q.id,
+            question_type: q.question_type,
+            question_text: q.question_text,
+            correct_answer: q.correct_answer,
+            option_1: q.option_1,
+            option_2: q.option_2
+          });
+
+          return {
+            ...q,
+            // 🔧 프론트엔드 호환성 필드 매핑
+            question: q.question_text || q.question || '',
+            correctAnswer: q.correct_answer || q.correctAnswer || '',
+            answer: q.correct_answer || q.answer || '',
+            options: q.options || [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(opt => opt && opt.trim() !== '') || [],
+            questionType: q.question_type || q.questionType || '객관식',
+            answerInitials: q.answer_initials || q.answerInitials || '',
+          };
+        });
+
+        setEditableComprehensive(mappedComprehensiveQuestions);
       }
     } catch (error) {
       console.error('콘텐츠 로드 오류:', error);
@@ -213,6 +302,20 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
       };
 
       console.log('저장할 데이터:', saveData);
+
+      // 종합 문제 options 배열 디버깅
+      console.log('🔍 종합 문제 저장 데이터 디버깅:');
+      editableComprehensive.slice(0, 2).forEach((question, index) => {
+        console.log(`종합 문제 ${index + 1}:`, {
+          id: question.id,
+          question: question.question,
+          options: question.options,
+          option_1: question.option_1,
+          option_2: question.option_2,
+          correctAnswer: question.correctAnswer,
+          answer: question.answer
+        });
+      });
 
       // 저장 API 호출 (기존 API 구조에 맞춰 데이터 재구성)
       // editablePassages의 paragraph_1, paragraph_2... 형태를 paragraphs 배열로 변환
@@ -878,8 +981,8 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             </label>
                                             <input
                                               type="text"
-                                              value={question.answer_initials || ''}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'answer_initials', e.target.value)}
+                                              value={question.answerInitials || question.answer_initials || ''}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'answerInitials', e.target.value)}
                                               className="w-full border border-blue-300 rounded-md px-3 py-2 text-sm bg-white"
                                               placeholder={
                                                 question.detailed_question_type === '단답형 초성 문제'
@@ -910,15 +1013,20 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             return (
                                               <div className={`grid ${gridCols} gap-2`}>
                                                 {Array.from({ length: optionCount }, (_, i) => i + 1).map(num => {
-                                                  const optionValue = question[`option_${num}`];
+                                                  const optionValue = (question.options && question.options[num - 1]) || question[`option_${num}`] || '';
                                                   console.log(`Question ${question.term} - Option ${num}:`, optionValue);
                                                   return (
                                                     <div key={num}>
                                                       <label className="block text-xs text-gray-500 mb-1">보기 {num}</label>
                                                       <input
                                                         type="text"
-                                                        value={optionValue || ''}
-                                                        onChange={(e) => updateVocabQuestion(questionId, `option_${num}`, e.target.value)}
+                                                        value={optionValue}
+                                                        onChange={(e) => {
+                                                          // options 배열 우선 업데이트
+                                                          const newOptions = question.options ? [...question.options] : Array(5).fill('');
+                                                          newOptions[num - 1] = e.target.value;
+                                                          updateVocabQuestion(questionId, 'options', newOptions);
+                                                        }}
                                                         className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                         placeholder={`보기 ${num}`}
                                                       />
@@ -935,8 +1043,8 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
                                             <input
                                               type="text"
-                                              value={question.correct_answer || ''}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'correct_answer', e.target.value)}
+                                              value={question.correctAnswer || question.correct_answer || ''}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'correctAnswer', e.target.value)}
                                               className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                               placeholder={
                                                 (question.detailed_question_type === '단답형 초성 문제' ||
@@ -1042,8 +1150,8 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             </label>
                                             <input
                                               type="text"
-                                              value={question.answer_initials || ''}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'answer_initials', e.target.value)}
+                                              value={question.answerInitials || question.answer_initials || ''}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'answerInitials', e.target.value)}
                                               className="w-full border border-blue-300 rounded-md px-3 py-2 text-sm bg-white"
                                               placeholder={
                                                 question.detailed_question_type === '단답형 초성 문제'
@@ -1074,15 +1182,20 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             return (
                                               <div className={`grid ${gridCols} gap-2`}>
                                                 {Array.from({ length: optionCount }, (_, i) => i + 1).map(num => {
-                                                  const optionValue = question[`option_${num}`];
+                                                  const optionValue = (question.options && question.options[num - 1]) || question[`option_${num}`] || '';
                                                   console.log(`Question ${question.term} - Option ${num}:`, optionValue);
                                                   return (
                                                     <div key={num}>
                                                       <label className="block text-xs text-gray-500 mb-1">보기 {num}</label>
                                                       <input
                                                         type="text"
-                                                        value={optionValue || ''}
-                                                        onChange={(e) => updateVocabQuestion(questionId, `option_${num}`, e.target.value)}
+                                                        value={optionValue}
+                                                        onChange={(e) => {
+                                                          // options 배열 우선 업데이트
+                                                          const newOptions = question.options ? [...question.options] : Array(5).fill('');
+                                                          newOptions[num - 1] = e.target.value;
+                                                          updateVocabQuestion(questionId, 'options', newOptions);
+                                                        }}
                                                         className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                         placeholder={`보기 ${num}`}
                                                       />
@@ -1099,8 +1212,8 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                             <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
                                             <input
                                               type="text"
-                                              value={question.correct_answer || ''}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'correct_answer', e.target.value)}
+                                              value={question.correctAnswer || question.correct_answer || ''}
+                                              onChange={(e) => updateVocabQuestion(questionId, 'correctAnswer', e.target.value)}
                                               className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                               placeholder={
                                                 (question.detailed_question_type === '단답형 초성 문제' ||
@@ -1334,7 +1447,14 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                 <input
                                                   type="text"
                                                   value={optionValue || ''}
-                                                  onChange={(e) => updateParagraphQuestion(questionId, optionKey, e.target.value)}
+                                                  onChange={(e) => {
+                                                    // options 배열 우선 업데이트
+                                                    const newOptions = question.options ? [...question.options] : Array(5).fill('');
+                                                    newOptions[num - 1] = e.target.value;
+                                                    updateParagraphQuestion(questionId, 'options', newOptions);
+                                                    // 호환성을 위한 개별 필드도 함께 업데이트
+                                                    updateParagraphQuestion(questionId, optionKey, e.target.value);
+                                                  }}
                                                   className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                 />
                                               </div>
@@ -1460,7 +1580,14 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                   <input
                                                     type="text"
                                                     value={optionValue || ''}
-                                                    onChange={(e) => updateComprehensiveQuestion(questionId, optionKey, e.target.value)}
+                                                    onChange={(e) => {
+                                                      // options 배열 우선 업데이트
+                                                      const newOptions = question.options ? [...question.options] : Array(5).fill('');
+                                                      newOptions[num - 1] = e.target.value;
+                                                      updateComprehensiveQuestion(questionId, 'options', newOptions);
+                                                      // 호환성을 위한 개별 필드도 함께 업데이트
+                                                      updateComprehensiveQuestion(questionId, optionKey, e.target.value);
+                                                    }}
                                                     className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                     placeholder={`보기 ${num} 내용을 입력하세요`}
                                                   />
@@ -1565,7 +1692,14 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                   <input
                                                     type="text"
                                                     value={optionValue || ''}
-                                                    onChange={(e) => updateComprehensiveQuestion(questionId, optionKey, e.target.value)}
+                                                    onChange={(e) => {
+                                                      // options 배열 우선 업데이트
+                                                      const newOptions = question.options ? [...question.options] : Array(5).fill('');
+                                                      newOptions[num - 1] = e.target.value;
+                                                      updateComprehensiveQuestion(questionId, 'options', newOptions);
+                                                      // 호환성을 위한 개별 필드도 함께 업데이트
+                                                      updateComprehensiveQuestion(questionId, optionKey, e.target.value);
+                                                    }}
                                                     className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                     placeholder={`보기 ${num} 내용을 입력하세요`}
                                                   />
