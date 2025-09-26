@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '../../../lib/supabase';
-import type { 
-  ContentSet, 
-  Passage, 
-  VocabularyTerm, 
-  VocabularyQuestion, 
-  ComprehensiveQuestionDB 
+import { parseFootnoteToVocabularyTerm } from '../../../lib/vocabularyParser';
+import type {
+  ContentSet,
+  Passage,
+  VocabularyTerm,
+  VocabularyQuestion,
+  ComprehensiveQuestionDB
 } from '../../../types';
 
 export async function POST(request: NextRequest) {
@@ -211,68 +212,18 @@ export async function POST(request: NextRequest) {
       vocabularyTermsWithPassageInfo?.map((item, index: number) => {
         const { footnote, passageIndex } = item;
         console.log(`어휘 용어 ${index + 1} 원본 footnote:`, footnote, '(지문', passageIndex + 1, ')');
-        
-        // 첫 번째 콜론만 기준으로 분리
-        const colonIndex = footnote.indexOf(':');
-        if (colonIndex === -1) {
-          // 콜론이 없는 경우
-          const term = footnote.trim();
-          const hasQuestion = vocabularyQuestionTerms.has(term.toLowerCase());
-          
-          return {
-            term: term,
-            definition: '',
-            example_sentence: null,
-            has_question_generated: hasQuestion
-          };
-        }
-        
-        const term = footnote.substring(0, colonIndex).trim();
-        const definitionPart = footnote.substring(colonIndex + 1).trim();
-        
-        // 정의 부분에서 예시 문장 분리
-        let definition = definitionPart;
-        let exampleSentence = null;
-        
-        // 패턴 1: "정의 (예시: 예시문장)"
-        const exampleMatch = definitionPart.match(/^(.+?)\s*\(예시:\s*(.+?)\)\s*$/);
-        if (exampleMatch) {
-          definition = exampleMatch[1].trim();
-          exampleSentence = exampleMatch[2].trim();
-        } else {
-          // 패턴 2: "정의 (예시:" (불완전한 경우)
-          const incompleteMatch = definitionPart.match(/^(.+?)\s*\(예시:\s*(.*)$/);
-          if (incompleteMatch) {
-            definition = incompleteMatch[1].trim();
-            const examplePart = incompleteMatch[2].trim();
-            if (examplePart && examplePart !== '') {
-              exampleSentence = examplePart;
-            }
-          } else {
-            // 패턴 3: "정의. 예시: 예시문장" (괄호 없는 경우)
-            const noParenthesesMatch = definitionPart.match(/^(.+?)\.\s*예시:\s*(.+)$/);
-            if (noParenthesesMatch) {
-              definition = noParenthesesMatch[1].trim();
-              exampleSentence = noParenthesesMatch[2].trim();
-            } else {
-              // 패턴 4: "정의 예시: 예시문장" (마침표 없는 경우)
-              const simpleMatch = definitionPart.match(/^(.+?)\s+예시:\s*(.+)$/);
-              if (simpleMatch) {
-                definition = simpleMatch[1].trim();
-                exampleSentence = simpleMatch[2].trim();
-              }
-            }
-          }
-        }
-        
+
+        // 공통 파싱 라이브러리 사용
+        const parsed = parseFootnoteToVocabularyTerm(footnote);
+
         // 이 용어에 대한 문제가 생성되었는지 확인
-        const hasQuestion = vocabularyQuestionTerms.has(term.toLowerCase());
-        console.log(`용어 "${term}" 문제 생성 여부:`, hasQuestion);
-        
+        const hasQuestion = vocabularyQuestionTerms.has(parsed.term.toLowerCase());
+        console.log(`용어 "${parsed.term}" 문제 생성 여부:`, hasQuestion);
+
         const result = {
-          term: term || '',
-          definition: definition || footnote,
-          example_sentence: exampleSentence,
+          term: parsed.term || '',
+          definition: parsed.definition || footnote,
+          example_sentence: parsed.example_sentence || null,
           has_question_generated: hasQuestion,
           passageIndex: passageIndex // 임시로 지문 인덱스 저장
         };

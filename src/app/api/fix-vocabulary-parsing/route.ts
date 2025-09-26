@@ -1,48 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { parseFootnoteToVocabularyTerm } from '../../../lib/vocabularyParser';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// 어휘 데이터 파싱 함수 (PassageReview.tsx와 동일한 로직)
-const parseFootnoteToVocabularyTerm = (footnote: string): { term: string; definition: string; example_sentence: string } => {
-  // 첫 번째 콜론으로 term과 나머지 부분 분리
-  const colonIndex = footnote.indexOf(':');
-
-  if (colonIndex === -1) {
-    // 콜론이 없는 경우 전체를 term으로
-    return { term: footnote.trim(), definition: '', example_sentence: '' };
-  }
-
-  const term = footnote.substring(0, colonIndex).trim();
-  const definitionPart = footnote.substring(colonIndex + 1).trim();
-
-  // 다양한 예시 패턴 매칭
-  // 1. "(예:" 또는 "(예시:" 패턴
-  let exampleMatch = definitionPart.match(/\(예시?:\s*([^)]+)\)/);
-
-  // 2. "(예:"나 "(예시:" 없이 단순히 괄호만 있는 경우
-  if (!exampleMatch) {
-    // 마지막 괄호 안의 내용을 예시로 간주 (단, 너무 짧지 않은 경우)
-    // 공백이 있는 경우: " (예시문장)" 또는 " (예시문장)."
-    // 공백이 없는 경우: "(예시문장)" 또는 "(예시문장)."
-    exampleMatch = definitionPart.match(/\s*\(([^)]{5,})\)\.?$/);
-  }
-
-  let definition = definitionPart;
-  let example_sentence = '';
-
-  if (exampleMatch) {
-    // 예시 부분 제거한 정의
-    definition = definitionPart.replace(exampleMatch[0], '').trim();
-    // 예시 문장
-    example_sentence = exampleMatch[1].trim();
-  }
-
-  return { term, definition, example_sentence };
-};
+// 어휘 파싱 함수는 공통 라이브러리에서 import
 
 export async function POST(request: NextRequest) {
   try {
