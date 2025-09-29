@@ -80,10 +80,11 @@ export default function VocabularyDBPage() {
 
     // 검색어 필터
     if (searchQuery) {
-      filtered = filtered.filter(term => 
+      filtered = filtered.filter(term =>
         term.term.toLowerCase().includes(searchQuery.toLowerCase()) ||
         term.definition.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (term.example_sentence && term.example_sentence.toLowerCase().includes(searchQuery.toLowerCase()))
+        (term.example_sentence && term.example_sentence.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        term.content_set_id.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -211,16 +212,16 @@ export default function VocabularyDBPage() {
 
   const downloadCSV = (data: VocabularyTerm[]) => {
     const headers = [
-      'id', 
-      'grade', 
-      'subject', 
-      'area', 
-      'main_topic', 
-      'sub_topic', 
+      'id',
+      'grade',
+      'subject',
+      'area',
+      'main_topic',
+      'sub_topic',
       'keywords',
-      'term', 
-      'definition', 
-      'example_sentence', 
+      'term',
+      'definition',
+      'example_sentence',
       'has_question_generated'
     ];
     const csvContent = [
@@ -246,6 +247,41 @@ export default function VocabularyDBPage() {
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
     link.setAttribute('download', `vocabulary_terms_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 재생성 결과를 엑셀로 다운로드
+  const downloadRegeneratedResultsAsExcel = () => {
+    const headers = [
+      'ID',
+      '용어',
+      '원본 정의',
+      '원본 예문',
+      '재생성 정의',
+      '재생성 예문'
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      ...regeneratedTerms.map(term => [
+        term.id,
+        `"${term.term.replace(/"/g, '""')}"`,
+        `"${(term.original_definition || '').replace(/"/g, '""')}"`,
+        `"${(term.original_example || '').replace(/"/g, '""')}"`,
+        `"${(term.new_definition || '').replace(/"/g, '""')}"`,
+        `"${(term.new_example_sentence || '').replace(/"/g, '""')}"`
+      ].join(','))
+    ].join('\n');
+
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `regenerated_vocabulary_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -578,7 +614,7 @@ export default function VocabularyDBPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="용어, 정의, 예문 검색..."
+                  placeholder="용어, 정의, 예문, 콘텐츠ID 검색..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -901,8 +937,16 @@ export default function VocabularyDBPage() {
             <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-semibold mb-4">재생성 결과 확인</h3>
 
-              <div className="mb-4 text-sm text-gray-600">
-                {regeneratedTerms.length}개 항목이 재생성되었습니다. 각 항목을 확인하고 저장하세요.
+              <div className="mb-4 flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  {regeneratedTerms.length}개 항목이 재생성되었습니다. 각 항목을 확인하고 저장하세요.
+                </div>
+                <button
+                  onClick={() => downloadRegeneratedResultsAsExcel()}
+                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                >
+                  엑셀 다운로드
+                </button>
               </div>
 
               <div className="space-y-4 mb-6">
