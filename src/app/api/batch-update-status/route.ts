@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 유효한 상태값인지 확인
-    const validStatuses = ['검수 전', '1차검수', '2차검수', '검수완료', '승인완료', '복제'];
+    const validStatuses = ['검수 전', '1차검수', '2차검수', '3차검수', '검수완료', '승인완료', '복제'];
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { success: false, error: 'Invalid status value' },

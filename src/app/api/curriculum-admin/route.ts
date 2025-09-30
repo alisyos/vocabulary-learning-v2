@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
       subject: body.subject,
       grade: body.grade,
       area: body.area,
+      session_number: body.session_number || '',
       main_topic: body.main_topic,
       sub_topic: body.sub_topic,
       keywords: body.keywords,

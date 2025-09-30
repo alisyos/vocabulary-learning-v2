@@ -9,6 +9,7 @@ interface CsvRow {
   subject: string;
   grade: string;
   area: string;
+  session_number?: string;
   main_topic: string;
   sub_topic: string;
   keywords: string;
@@ -36,6 +37,7 @@ export default function CurriculumAdminPage() {
     subject: '사회',
     grade: '',
     area: '',
+    session_number: '',
     main_topic: '',
     sub_topic: '',
     keywords: '',
@@ -79,11 +81,11 @@ export default function CurriculumAdminPage() {
 
   // CSV 템플릿 다운로드
   const downloadCsvTemplate = () => {
-    const headers = ['subject', 'grade', 'area', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
+    const headers = ['subject', 'grade', 'area', 'session_number', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
     const sampleData = [
-      ['사회', '5학년', '일반사회', '우리나라의 정치', '민주주의와 시민 참여', '민주주의, 시민 참여, 선거', '국회, 대통령, 삼권분립', '민주주의 원리, 시민 권리, 정치 참여', 'true'],
-      ['과학', '6학년', '물리', '에너지와 생활', '전기 에너지', '전기, 에너지, 전자회로', '전압, 전류, 저항', '전기 회로, 에너지 변환, 전기 안전', 'true'],
-      ['사회', '4학년', '지리', '우리 지역의 모습', '지역의 특성과 생활', '지역, 지형, 기후', '산맥, 평야, 하천', '지형 특징, 기후 영향, 생활 모습', 'true']
+      ['사회', '5학년', '일반사회', '1', '우리나라의 정치', '민주주의와 시민 참여', '민주주의, 시민 참여, 선거', '국회, 대통령, 삼권분립', '민주주의 원리, 시민 권리, 정치 참여', 'true'],
+      ['과학', '6학년', '물리', '2', '에너지와 생활', '전기 에너지', '전기, 에너지, 전자회로', '전압, 전류, 저항', '전기 회로, 에너지 변환, 전기 안전', 'true'],
+      ['사회', '4학년', '지리', '3', '우리 지역의 모습', '지역의 특성과 생활', '지역, 지형, 기후', '산맥, 평야, 하천', '지형 특징, 기후 영향, 생활 모습', 'true']
     ];
     
     // CSV 필드 이스케이프 함수 (템플릿용)
@@ -113,11 +115,12 @@ export default function CurriculumAdminPage() {
       return;
     }
 
-    const headers = ['subject', 'grade', 'area', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
+    const headers = ['subject', 'grade', 'area', 'session_number', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
     const csvRows = data.map(item => [
       item.subject,
       item.grade,
       item.area,
+      item.session_number || '',
       item.main_topic,
       item.sub_topic,
       item.keywords,
@@ -194,7 +197,7 @@ export default function CurriculumAdminPage() {
       };
       
       const headers = parseCsvLine(lines[0]).map(h => h.replace(/"/g, '').trim());
-      const expectedHeaders = ['subject', 'grade', 'area', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
+      const expectedHeaders = ['subject', 'grade', 'area', 'session_number', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
       
       if (!expectedHeaders.every(h => headers.includes(h))) {
         alert('CSV 파일의 헤더가 올바르지 않습니다. 템플릿을 다운로드하여 확인해주세요.');
@@ -209,6 +212,7 @@ export default function CurriculumAdminPage() {
             subject: values[headers.indexOf('subject')] || '',
             grade: values[headers.indexOf('grade')] || '',
             area: values[headers.indexOf('area')] || '',
+            session_number: values[headers.indexOf('session_number')] || '',
             main_topic: values[headers.indexOf('main_topic')] || '',
             sub_topic: values[headers.indexOf('sub_topic')] || '',
             keywords: values[headers.indexOf('keywords')] || '',
@@ -271,6 +275,7 @@ export default function CurriculumAdminPage() {
           subject: row.subject,
           grade: row.grade,
           area: row.area,
+          session_number: row.session_number || '',
           main_topic: row.main_topic,
           sub_topic: row.sub_topic,
           keywords: row.keywords,
@@ -390,6 +395,7 @@ export default function CurriculumAdminPage() {
       subject: item.subject,
       grade: item.grade,
       area: item.area,
+      session_number: item.session_number || '',
       main_topic: item.main_topic,
       sub_topic: item.sub_topic,
       keywords: item.keywords,
@@ -414,6 +420,7 @@ export default function CurriculumAdminPage() {
       subject: '사회',
       grade: '',
       area: '',
+      session_number: '',
       main_topic: '',
       sub_topic: '',
       keywords: '',
@@ -597,6 +604,9 @@ export default function CurriculumAdminPage() {
                           과목/학년/영역
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          세션
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           대주제
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -635,6 +645,11 @@ export default function CurriculumAdminPage() {
                               <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
                                 {item.area}
                               </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {item.session_number || '-'}
                             </div>
                           </td>
                           <td className="px-4 py-4">
@@ -753,6 +768,17 @@ export default function CurriculumAdminPage() {
                       <option key={area} value={area}>{area}</option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">세션 번호</label>
+                  <input
+                    type="text"
+                    value={formData.session_number}
+                    onChange={(e) => setFormData({ ...formData, session_number: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="예: 1, 2-1, A-3"
+                  />
                 </div>
 
                 <div>
@@ -892,6 +918,7 @@ export default function CurriculumAdminPage() {
                             <th className="px-2 py-1 text-left font-medium">과목</th>
                             <th className="px-2 py-1 text-left font-medium">학년</th>
                             <th className="px-2 py-1 text-left font-medium">영역</th>
+                            <th className="px-2 py-1 text-left font-medium">세션</th>
                             <th className="px-2 py-1 text-left font-medium">대주제</th>
                             <th className="px-2 py-1 text-left font-medium">소주제</th>
                             <th className="px-2 py-1 text-left font-medium">키워드</th>
@@ -906,6 +933,7 @@ export default function CurriculumAdminPage() {
                               <td className="px-2 py-1">{row.subject}</td>
                               <td className="px-2 py-1">{row.grade}</td>
                               <td className="px-2 py-1">{row.area}</td>
+                              <td className="px-2 py-1">{row.session_number || '-'}</td>
                               <td className="px-2 py-1">{row.main_topic}</td>
                               <td className="px-2 py-1">{row.sub_topic}</td>
                               <td className="px-2 py-1 max-w-xs truncate">{row.keywords}</td>

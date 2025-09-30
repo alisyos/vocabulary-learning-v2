@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const validStatuses: ContentStatus[] = ['검수 전', '1차검수', '2차검수', '검수완료', '승인완료'];
+    const validStatuses: ContentStatus[] = ['검수 전', '1차검수', '2차검수', '3차검수', '검수완료', '승인완료'];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({
         success: false,

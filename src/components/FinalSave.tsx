@@ -60,7 +60,7 @@ export default function FinalSave({
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<'검수 전' | '1차검수' | '2차검수' | '검수완료' | '승인완료' | '복제'>('검수 전');
+  const [selectedStatus, setSelectedStatus] = useState<'검수 전' | '1차검수' | '2차검수' | '3차검수' | '검수완료' | '승인완료' | '복제'>('검수 전');
   const [validationModal, setValidationModal] = useState<{
     isOpen: boolean;
     errors: string[];
@@ -632,12 +632,13 @@ export default function FinalSave({
             <select
               id="status-select"
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value as '검수 전' | '1차검수' | '2차검수' | '검수완료' | '승인완료' | '복제')}
+              onChange={(e) => setSelectedStatus(e.target.value as '검수 전' | '1차검수' | '2차검수' | '3차검수' | '검수완료' | '승인완료' | '복제')}
               className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="검수 전">검수 전</option>
               <option value="1차검수">1차검수</option>
               <option value="2차검수">2차검수</option>
+              <option value="3차검수">3차검수</option>
               <option value="검수완료">검수완료</option>
               <option value="승인완료">승인완료</option>
               <option value="복제">복제</option>

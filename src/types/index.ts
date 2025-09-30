@@ -270,7 +270,7 @@ export interface Account {
 // ============================================================================
 
 // 콘텐츠 상태 타입
-export type ContentStatus = '검수 전' | '1차검수' | '2차검수' | '검수완료' | '승인완료';
+export type ContentStatus = '검수 전' | '1차검수' | '2차검수' | '3차검수' | '검수완료' | '승인완료';
 
 // 콘텐츠 세트 (content_sets 테이블) - Supabase 적용
 export interface ContentSet {
@@ -496,6 +496,7 @@ export interface CurriculumData {
   subject: SubjectType;
   grade: string;
   area: string;
+  session_number?: string; // 세션 번호
   main_topic: string;
   sub_topic: string;
   keywords: string;

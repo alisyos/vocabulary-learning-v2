@@ -38,7 +38,7 @@ interface DataSet {
   subTopic?: string;
   keywords?: string;
   division?: string;
-  status?: '검수 전' | '1차검수' | '2차검수' | '검수완료' | '승인완료';
+  status?: '검수 전' | '1차검수' | '2차검수' | '3차검수' | '검수완료' | '승인완료';
   timestamp?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -286,7 +286,7 @@ export default function ManagePage() {
   };
 
   // 상태값 변경 함수
-  const updateStatus = async (setId: string, newStatus: '검수 전' | '1차검수' | '2차검수' | '검수완료' | '승인완료', showAlert: boolean = true) => {
+  const updateStatus = async (setId: string, newStatus: '검수 전' | '1차검수' | '2차검수' | '3차검수' | '검수완료' | '승인완료', showAlert: boolean = true) => {
     console.log('상태값 변경 요청:', { setId, newStatus, showAlert }); // 디버깅용 로그
     
     setStatusUpdating({ setId, loading: true });
@@ -325,7 +325,7 @@ export default function ManagePage() {
   };
 
   // 삭제 모달 열기
-  const openDeleteModal = (setId: string, title: string, status: '검수 전' | '1차검수' | '2차검수' | '검수완료' | '승인완료') => {
+  const openDeleteModal = (setId: string, title: string, status: '검수 전' | '1차검수' | '2차검수' | '3차검수' | '검수완료' | '승인완료') => {
     if (status !== '검수 전') {
       alert(`${status} 상태의 콘텐츠는 삭제할 수 없습니다. 먼저 상태를 "검수 전"으로 변경해주세요.`);
       return;
@@ -663,6 +663,7 @@ export default function ManagePage() {
                 <option value="검수 전">검수 전</option>
                 <option value="1차검수">1차검수</option>
                 <option value="2차검수">2차검수</option>
+                <option value="3차검수">3차검수</option>
                 <option value="검수완료">검수완료</option>
                 <option value="승인완료">승인완료</option>
                 <option value="복제">복제</option>
@@ -1007,6 +1008,7 @@ export default function ManagePage() {
                               <option value="검수 전">검수 전</option>
                               <option value="1차검수">1차검수</option>
                               <option value="2차검수">2차검수</option>
+                              <option value="3차검수">3차검수</option>
                               <option value="검수완료">검수완료</option>
                               <option value="승인완료">승인완료</option>
                             </select>
@@ -1026,13 +1028,15 @@ export default function ManagePage() {
                             </button>
                           </div>
                         ) : (
-                          <span 
+                          <span
                             onClick={() => startEditing(item.setId, 'status', item.status)}
                             className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full cursor-pointer hover:opacity-80 transition-opacity ${
                               item.status === '승인완료'
                                 ? 'bg-blue-100 text-blue-800'
                                 : item.status === '검수완료'
                                 ? 'bg-green-100 text-green-800'
+                                : item.status === '3차검수'
+                                ? 'bg-indigo-100 text-indigo-800'
                                 : item.status === '2차검수'
                                 ? 'bg-purple-100 text-purple-800'
                                 : item.status === '1차검수'
@@ -1070,12 +1074,14 @@ export default function ManagePage() {
                           {/* 상태 변경 아이콘 */}
                           <button
                             onClick={() => {
-                              let newStatus: '검수 전' | '1차검수' | '2차검수' | '검수완료' | '승인완료';
+                              let newStatus: '검수 전' | '1차검수' | '2차검수' | '3차검수' | '검수완료' | '승인완료';
                               if (item.status === '검수 전') {
                                 newStatus = '1차검수';
                               } else if (item.status === '1차검수') {
                                 newStatus = '2차검수';
                               } else if (item.status === '2차검수') {
+                                newStatus = '3차검수';
+                              } else if (item.status === '3차검수') {
                                 newStatus = '검수완료';
                               } else if (item.status === '검수완료') {
                                 newStatus = '승인완료';
@@ -1086,7 +1092,7 @@ export default function ManagePage() {
                             }}
                             disabled={statusUpdating.setId === item.setId && statusUpdating.loading}
                             className="text-purple-600 hover:text-purple-800 hover:bg-purple-50 p-1 rounded transition-colors disabled:opacity-50"
-                            title={item.status === '검수 전' ? '1차검수로 변경' : item.status === '1차검수' ? '2차검수로 변경' : item.status === '2차검수' ? '검수완료로 변경' : item.status === '검수완료' ? '승인완료로 변경' : '검수 전으로 변경'}
+                            title={item.status === '검수 전' ? '1차검수로 변경' : item.status === '1차검수' ? '2차검수로 변경' : item.status === '2차검수' ? '3차검수로 변경' : item.status === '3차검수' ? '검수완료로 변경' : item.status === '검수완료' ? '승인완료로 변경' : '검수 전으로 변경'}
                           >
                             {statusUpdating.setId === item.setId && statusUpdating.loading ? (
                               <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
@@ -1222,6 +1228,7 @@ export default function ManagePage() {
                     <option value="검수 전">검수 전</option>
                     <option value="1차검수">1차검수</option>
                     <option value="2차검수">2차검수</option>
+                    <option value="3차검수">3차검수</option>
                     <option value="검수완료">검수완료</option>
                     <option value="승인완료">승인완료</option>
                     <option value="복제">복제</option>
