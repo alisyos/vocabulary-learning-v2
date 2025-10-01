@@ -135,7 +135,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'passage' | 'vocabulary' | 'vocab-questions' | 'paragraph-questions' | 'comprehensive'>('passage');
+  const [activeTab, setActiveTab] = useState<'passage' | 'vocabulary' | 'vocab-questions' | 'paragraph-questions' | 'comprehensive' | 'visual-materials'>('passage');
   const [setId, setSetId] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
@@ -153,7 +153,37 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
   const [editableComprehensive, setEditableComprehensive] = useState<ComprehensiveQuestion[]>([]);
   const [editableIntroductionQuestion, setEditableIntroductionQuestion] = useState<string>('');
   const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
-  
+
+  // 시각자료 (이미지) 상태
+  const [visualMaterials, setVisualMaterials] = useState<any[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
+
+  // 이미지 로드 함수
+  const fetchVisualMaterials = useCallback(async (sessionNumber: string | null | undefined) => {
+    if (!sessionNumber) {
+      setVisualMaterials([]);
+      return;
+    }
+
+    try {
+      setLoadingImages(true);
+      const response = await fetch(`/api/images?session_number=${encodeURIComponent(sessionNumber)}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setVisualMaterials(result.data || []);
+      } else {
+        console.error('이미지 로드 실패:', result.error);
+        setVisualMaterials([]);
+      }
+    } catch (error) {
+      console.error('이미지 로드 오류:', error);
+      setVisualMaterials([]);
+    } finally {
+      setLoadingImages(false);
+    }
+  }, []);
+
   const fetchSetDetails = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
@@ -166,10 +196,15 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
       
       if (result.success && result.data) {
         setData(result);
-        
+
         // 도입 질문 초기화
         if (result.data?.contentSet?.introduction_question) {
           setEditableIntroductionQuestion(result.data.contentSet.introduction_question);
+        }
+
+        // 시각자료 (이미지) 로드
+        if (result.data?.contentSet?.session_number) {
+          fetchVisualMaterials(result.data.contentSet.session_number);
         }
         
         // 편집 가능한 상태로 초기화
@@ -1740,10 +1775,16 @@ ${allParagraphs}`;
     <!-- 시각자료 탭 -->
     <div id="images-tab" class="tab-content">
       <h2 style="color: #2c3e50; margin-bottom: 30px;">🖼️ 시각자료</h2>
+      ${contentSet.session_number ? `
+        <div style="background: #f0f7ff; padding: 12px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+          <p style="color: #1e40af; margin: 0; font-size: 0.95em;">
+            📌 차시 번호: <strong>${contentSet.session_number}</strong>
+          </p>
+        </div>
+      ` : ''}
       <div id="image-gallery" class="image-gallery">
         <div class="no-images">
-          <p>이미지를 찾고 있습니다...</p>
-          <p style="margin-top: 10px; font-size: 0.9em;">HTML 파일과 같은 폴더에 있는 '${String(contentSet.setId || contentSet.id || 'content')}' ID가 포함된 이미지 파일을 표시합니다.</p>
+          <p>이미지를 불러오는 중...</p>
         </div>
       </div>
     </div>
@@ -1781,60 +1822,63 @@ ${allParagraphs}`;
       return tabTexts[tabName] || '';
     }
 
-    // 이미지 로드 함수
+    // 서버에서 이미지 로드 함수
     async function loadImages() {
-      const contentSetId = '${String(contentSet.setId || contentSet.id || 'content')}';
+      const sessionNumber = '${contentSet.session_number || ''}';
       const imageGallery = document.getElementById('image-gallery');
-      const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
-      const foundImages = [];
-      
-      // 가능한 이미지 파일 패턴들
-      const imagePatterns = [
-        contentSetId,  // 기본 파일명
-        contentSetId + '_1',
-        contentSetId + '_2',
-        contentSetId + '_3',
-        contentSetId + '_4',
-        contentSetId + '_5'
-      ];
-      
-      // 각 패턴과 확장자 조합 시도
-      for (const pattern of imagePatterns) {
-        for (const ext of imageExtensions) {
-          const filename = pattern + '.' + ext;
-          try {
-            const img = new Image();
-            img.src = filename;
-            
-            await new Promise((resolve, reject) => {
-              img.onload = () => {
-                foundImages.push({ src: filename, element: img });
-                resolve();
-              };
-              img.onerror = reject;
-              
-              // 타임아웃 설정
-              setTimeout(reject, 1000);
-            }).catch(() => {});
-          } catch (e) {}
-        }
-      }
-      
-      // 이미지 표시
-      if (foundImages.length > 0) {
-        imageGallery.innerHTML = foundImages.map(({ src }) => \`
-          <div class="image-container">
-            <img src="\${src}" alt="콘텐츠 관련 이미지" />
-            <div class="image-filename">\${src}</div>
-          </div>
-        \`).join('');
-      } else {
+      const supabaseUrl = '${process.env.NEXT_PUBLIC_SUPABASE_URL}';
+
+      if (!sessionNumber) {
         imageGallery.innerHTML = \`
           <div class="no-images">
-            <p>시각자료를 찾을 수 없습니다.</p>
+            <p>⚠️ 차시 번호가 설정되지 않았습니다.</p>
             <p style="margin-top: 10px; font-size: 0.9em;">
-              HTML 파일과 같은 폴더에 다음과 같은 형식의 이미지 파일을 추가해주세요:<br>
-              \${contentSetId}.png, \${contentSetId}.jpg, \${contentSetId}_1.png 등
+              시각자료를 표시하려면 콘텐츠 세트에 차시 번호를 설정해주세요.
+            </p>
+          </div>
+        \`;
+        return;
+      }
+
+      try {
+        // 이미지 데이터 JSON (다운로드 시점의 이미지 목록 임베드)
+        const imageData = ${JSON.stringify(visualMaterials)};
+
+        if (imageData.length === 0) {
+          imageGallery.innerHTML = \`
+            <div class="no-images">
+              <p>이 차시에 등록된 이미지가 없습니다.</p>
+              <p style="margin-top: 10px; font-size: 0.9em; color: #6c757d;">
+                차시 번호 "\${sessionNumber}"와 연결된 이미지가 없습니다.<br>
+                이미지 데이터 관리 페이지에서 이미지를 등록하세요.
+              </p>
+            </div>
+          \`;
+          return;
+        }
+
+        // 이미지 표시
+        imageGallery.innerHTML = imageData.map(image => {
+          const imageUrl = \`\${supabaseUrl}/storage/v1/object/public/images/\${image.file_path}\`;
+          return \`
+            <div class="image-container">
+              <img src="\${imageUrl}"
+                   alt="\${image.file_name}"
+                   onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+'" />
+              <div class="image-filename">\${image.file_name}</div>
+              \${image.source ? \`<div style="color: #6c757d; font-size: 0.85em; margin-top: 5px;">출처: \${image.source}</div>\` : ''}
+              \${image.memo ? \`<div style="color: #6c757d; font-size: 0.85em; margin-top: 3px;">\${image.memo}</div>\` : ''}
+            </div>
+          \`;
+        }).join('');
+
+      } catch (error) {
+        console.error('이미지 로드 오류:', error);
+        imageGallery.innerHTML = \`
+          <div class="no-images">
+            <p>⚠️ 이미지 로드 중 오류가 발생했습니다.</p>
+            <p style="margin-top: 10px; font-size: 0.9em; color: #dc3545;">
+              \${error.message || '알 수 없는 오류'}
             </p>
           </div>
         \`;
@@ -2533,6 +2577,19 @@ ${allParagraphs}`;
                 }`}
               >
                 종합문제 ({editableComprehensive.length})
+              </button>
+              <button
+                onClick={saving ? undefined : () => setActiveTab('visual-materials')}
+                disabled={saving}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'visual-materials'
+                    ? 'border-blue-500 text-blue-600'
+                    : saving
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                시각자료 ({visualMaterials.length})
               </button>
             </nav>
           </div>
@@ -3794,10 +3851,156 @@ ${allParagraphs}`;
                 </div>
               </div>
             )}
+
+            {/* 시각자료 탭 */}
+            {activeTab === 'visual-materials' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium text-gray-900">시각자료 (이미지)</h3>
+                  {data?.data?.contentSet?.session_number && (
+                    <div className="text-sm text-gray-600">
+                      차시 번호: <span className="font-semibold text-blue-600">{data.data.contentSet.session_number}</span>
+                    </div>
+                  )}
+                </div>
+
+                {!data?.data?.contentSet?.session_number ? (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                    <p className="text-yellow-800 mb-2">📌 차시 번호가 설정되지 않았습니다.</p>
+                    <p className="text-sm text-yellow-700">
+                      시각자료를 표시하려면 콘텐츠 세트에 차시 번호를 설정해주세요.
+                    </p>
+                  </div>
+                ) : loadingImages ? (
+                  <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600"></div>
+                    <p className="mt-2 text-gray-600">이미지 로딩 중...</p>
+                  </div>
+                ) : visualMaterials.length === 0 ? (
+                  <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-12 text-center">
+                    <div className="text-gray-400 text-5xl mb-4">🖼️</div>
+                    <p className="text-gray-600 mb-2">이 차시에 등록된 이미지가 없습니다.</p>
+                    <p className="text-sm text-gray-500 mb-4">
+                      차시 번호 "{data.data.contentSet.session_number}"와 연결된 이미지가 없습니다.
+                    </p>
+                    <a
+                      href="/image-admin"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      이미지 업로드하러 가기
+                    </a>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="text-sm text-gray-600 mb-4">
+                      총 <span className="font-semibold text-blue-600">{visualMaterials.length}</span>개의 이미지
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {visualMaterials.map((image: any) => (
+                        <div key={image.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                          <div className="relative h-48 bg-gray-100">
+                            <img
+                              src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/images/${image.file_path}`}
+                              alt={image.file_name}
+                              className="w-full h-full object-contain cursor-pointer"
+                              onClick={() => {
+                                window.open(
+                                  `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/images/${image.file_path}`,
+                                  '_blank'
+                                );
+                              }}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+';
+                              }}
+                            />
+                          </div>
+
+                          <div className="p-4">
+                            <h4 className="font-medium text-gray-900 truncate mb-2" title={image.file_name}>
+                              {image.file_name}
+                            </h4>
+
+                            <div className="space-y-1 text-sm text-gray-600">
+                              {image.source && (
+                                <div className="flex items-start">
+                                  <span className="font-medium w-12 flex-shrink-0">출처:</span>
+                                  <span className="flex-1">{image.source}</span>
+                                </div>
+                              )}
+                              {image.memo && (
+                                <div className="flex items-start">
+                                  <span className="font-medium w-12 flex-shrink-0">메모:</span>
+                                  <span className="flex-1">{image.memo}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center">
+                                <span className="font-medium w-12 flex-shrink-0">크기:</span>
+                                <span>
+                                  {image.file_size
+                                    ? image.file_size < 1024 * 1024
+                                      ? (image.file_size / 1024).toFixed(2) + ' KB'
+                                      : (image.file_size / (1024 * 1024)).toFixed(2) + ' MB'
+                                    : '-'}
+                                </span>
+                              </div>
+                              <div className="flex items-center">
+                                <span className="font-medium w-12 flex-shrink-0">등록:</span>
+                                <span>{new Date(image.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <button
+                                onClick={() => {
+                                  window.open(
+                                    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/images/${image.file_path}`,
+                                    '_blank'
+                                  );
+                                }}
+                                className="w-full px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 text-sm font-medium transition-colors"
+                              >
+                                원본 크기로 보기
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-start">
+                        <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-sm text-blue-800 mb-2">
+                            이미지를 추가하거나 수정하려면 이미지 데이터 관리 페이지를 이용하세요.
+                          </p>
+                          <a
+                            href="/image-admin"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:text-blue-800 font-medium underline"
+                          >
+                            이미지 데이터 관리 페이지 열기 →
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
-      
+
       {/* CSV 업로드 모달 */}
       <ComprehensiveCSVUploadModal
         isOpen={isCSVModalOpen}

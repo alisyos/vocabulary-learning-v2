@@ -29,6 +29,12 @@ export async function POST(request: NextRequest) {
   try {
     const { terms, contextInfo }: RegeneratePreviewRequest = await request.json();
 
+    console.log('📥 재생성 요청 받음:', {
+      termsCount: terms?.length,
+      contextInfo,
+      terms: terms?.map(t => ({ term: t.term, hasDefinition: !!t.definition, hasExample: !!t.example_sentence }))
+    });
+
     if (!terms || !Array.isArray(terms) || terms.length === 0) {
       return NextResponse.json(
         { success: false, message: '재생성할 용어를 선택해주세요.' },
@@ -70,6 +76,8 @@ JSON 형식으로 답변:
   "example_sentence": "예문 내용"
 }`;
 
+        console.log(`🔄 용어 "${termData.term}" 재생성 시작...`);
+
         const response = await openai.chat.completions.create({
           model: 'gpt-4.1',
           messages: [
@@ -86,6 +94,8 @@ JSON 형식으로 답변:
           response_format: { type: "json_object" }
         });
 
+        console.log(`✅ 용어 "${termData.term}" 재생성 완료`);
+
         const generatedContent = JSON.parse(response.choices[0].message.content || '{}');
 
         return {
@@ -100,7 +110,11 @@ JSON 형식으로 답변:
         };
 
       } catch (error) {
-        console.error(`Error regenerating term ${termData.term}:`, error);
+        console.error(`❌ Error regenerating term ${termData.term}:`, error);
+        console.error('Error details:', {
+          message: error instanceof Error ? error.message : '알 수 없는 오류',
+          stack: error instanceof Error ? error.stack : undefined
+        });
         return {
           success: false,
           term: termData.term,
@@ -128,6 +142,10 @@ JSON 형식으로 답변:
     });
 
     if (regeneratedTerms.length === 0) {
+      console.error('❌ 모든 용어 재생성 실패:', {
+        totalAttempts: results.length,
+        errors: errors
+      });
       return NextResponse.json(
         {
           success: false,
@@ -137,6 +155,11 @@ JSON 형식으로 답변:
         { status: 500 }
       );
     }
+
+    console.log('✅ 재생성 성공:', {
+      successCount: regeneratedTerms.length,
+      errorCount: errors.length
+    });
 
     return NextResponse.json({
       success: true,

@@ -663,6 +663,14 @@ export default function EditPage() {
                   onNext={handleMoveToVocabularyGeneration}
                   loading={loading}
                   lastUsedPrompt={lastUsedPrompts.passage}
+                  contextInfo={{
+                    grade: input.grade || '',
+                    subject: input.subject || '',
+                    area: input.area || '',
+                    main_topic: input.maintopic || '',
+                    sub_topic: input.subtopic || '',
+                    keywords: input.keyword || ''
+                  }}
                 />
               )}
             </div>

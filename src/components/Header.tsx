@@ -53,6 +53,13 @@ export default function Header() {
       icon: '🗂️',
       description: '교육과정 데이터 관리',
       allowedRoles: ['admin'] // admin만 접근 가능
+    },
+    {
+      name: '이미지 데이터 관리',
+      href: '/image-admin',
+      icon: '🖼️',
+      description: '학습 콘텐츠 이미지 등록 및 관리',
+      allowedRoles: ['admin'] // admin만 접근 가능
     }
   ];
 
@@ -113,7 +120,7 @@ export default function Header() {
   };
 
   const isSystemMenuActive = () => {
-    return pathname.startsWith('/prompts') || pathname.startsWith('/curriculum-admin');
+    return pathname.startsWith('/prompts') || pathname.startsWith('/curriculum-admin') || pathname.startsWith('/image-admin');
   };
 
   const isDbMenuActive = () => {
@@ -357,6 +364,14 @@ export default function Header() {
                   <Link href="/curriculum-admin" className="hover:text-gray-900">시스템 설정</Link>
                   <span className="mx-2">/</span>
                   <span className="text-gray-400">필드데이터 관리</span>
+                </>
+              )}
+              {pathname.startsWith('/image-admin') && (
+                <>
+                  <span className="mx-2">/</span>
+                  <Link href="/image-admin" className="hover:text-gray-900">시스템 설정</Link>
+                  <span className="mx-2">/</span>
+                  <span className="text-gray-400">이미지 데이터 관리</span>
                 </>
               )}
               {pathname.startsWith('/edit') && (

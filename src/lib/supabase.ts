@@ -1205,7 +1205,7 @@ export function getVocabularyQuestionTypeLabel(questionType: string, detailedQue
     '객관식': '객관식',
     '주관식': '주관식',
     '5지선다 객관식': '5지선다',
-    '낱말 골라 쓰기': '4지선다', 
+    '낱말 골라 쓰기': '4지선다',
     '3개중 선택형': '3지선다',
     '2개중 선택형': '2지선다',
     '단답형 초성 문제': '단답형(초성)',
@@ -1213,4 +1213,186 @@ export function getVocabularyQuestionTypeLabel(questionType: string, detailedQue
   };
 
   return typeMap[questionType] || questionType;
+}
+
+// ============================================================================
+// 이미지 데이터 관리 함수들
+// ============================================================================
+
+/**
+ * 이미지 데이터 목록 조회
+ */
+export async function getImageDataList(filters?: {
+  session_number?: string;
+}): Promise<import('../types').ImageData[]> {
+  try {
+    let query = supabase
+      .from('image_data')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    // 필터 적용
+    if (filters?.session_number) {
+      query = query.eq('session_number', filters.session_number);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('이미지 데이터 조회 오류:', error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('getImageDataList 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 이미지 데이터 상세 조회
+ */
+export async function getImageDataById(id: string): Promise<import('../types').ImageData | null> {
+  try {
+    const { data, error } = await supabase
+      .from('image_data')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('이미지 데이터 조회 오류:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('getImageDataById 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 이미지 메타데이터 생성 (파일 업로드 후 DB에 메타데이터 저장)
+ */
+export async function createImageData(
+  imageData: Omit<import('../types').ImageData, 'id' | 'created_at' | 'updated_at'>
+): Promise<import('../types').ImageData> {
+  try {
+    const { data, error } = await supabase
+      .from('image_data')
+      .insert([imageData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('이미지 데이터 생성 오류:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('createImageData 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 이미지 메타데이터 수정
+ */
+export async function updateImageData(
+  id: string,
+  updates: Partial<Omit<import('../types').ImageData, 'id' | 'created_at' | 'file_path' | 'file_name'>>
+): Promise<import('../types').ImageData> {
+  try {
+    const { data, error } = await supabase
+      .from('image_data')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('이미지 데이터 수정 오류:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('updateImageData 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 이미지 데이터 삭제 (Storage 파일도 함께 삭제)
+ */
+export async function deleteImageData(id: string, filePath: string): Promise<void> {
+  try {
+    // 1. Storage에서 파일 삭제
+    const { error: storageError } = await supabase.storage
+      .from('images')
+      .remove([filePath]);
+
+    if (storageError) {
+      console.error('Storage 파일 삭제 오류:', storageError);
+      throw storageError;
+    }
+
+    // 2. DB에서 메타데이터 삭제
+    const { error: dbError } = await supabase
+      .from('image_data')
+      .delete()
+      .eq('id', id);
+
+    if (dbError) {
+      console.error('이미지 메타데이터 삭제 오류:', dbError);
+      throw dbError;
+    }
+  } catch (error) {
+    console.error('deleteImageData 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * Supabase Storage에 이미지 업로드
+ */
+export async function uploadImageToStorage(
+  file: File,
+  fileName: string
+): Promise<string> {
+  try {
+    const { data, error } = await supabase.storage
+      .from('images')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('이미지 업로드 오류:', error);
+      throw error;
+    }
+
+    return data.path;
+  } catch (error) {
+    console.error('uploadImageToStorage 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * Supabase Storage에서 이미지 공개 URL 생성
+ */
+export function getImagePublicUrl(filePath: string): string {
+  const { data } = supabase.storage
+    .from('images')
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
 }

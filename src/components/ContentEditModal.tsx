@@ -34,6 +34,10 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
   const [currentStatus, setCurrentStatus] = useState<string>('검수 전');
   const [statusUpdating, setStatusUpdating] = useState(false);
 
+  // 시각자료 (이미지) 상태
+  const [visualMaterials, setVisualMaterials] = useState<any[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
+
   // 안전한 ID 기반 수정 함수들
   const updateVocabTerm = (termId: string, field: string, value: any) => {
     console.log(`🔧 어휘 용어 수정: ID=${termId}, field=${field}, value=`, value);
@@ -96,6 +100,34 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
     }
   }, [isOpen, contentSetId]);
 
+  // 시각자료 로드 함수
+  const fetchVisualMaterials = async (sessionNumber: string | null | undefined) => {
+    if (!sessionNumber) {
+      console.log('차시 번호가 없어 이미지를 로드하지 않습니다.');
+      setVisualMaterials([]);
+      return;
+    }
+
+    setLoadingImages(true);
+    try {
+      const response = await fetch(`/api/images?session_number=${encodeURIComponent(sessionNumber)}`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        console.log(`차시 ${sessionNumber}에 대한 이미지 ${result.data.length}개 로드됨`);
+        setVisualMaterials(result.data);
+      } else {
+        console.error('이미지 로드 실패:', result.error);
+        setVisualMaterials([]);
+      }
+    } catch (error) {
+      console.error('이미지 로드 오류:', error);
+      setVisualMaterials([]);
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
   const fetchContentData = async () => {
     setLoading(true);
     try {
@@ -108,6 +140,12 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
 
         // 현재 상태 설정
         setCurrentStatus(result.data.contentSet?.status || '검수 전');
+
+        // 시각자료 로드
+        const sessionNumber = result.data.contentSet?.session_number;
+        if (sessionNumber) {
+          fetchVisualMaterials(sessionNumber);
+        }
 
         // 지문 데이터 처리 - 모든 지문 가져오기
         if (result.data.passages && result.data.passages.length > 0) {
@@ -438,7 +476,8 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
     { id: 'vocabulary', name: '어휘', icon: '📚' },
     { id: 'vocab-questions', name: '어휘 문제', icon: '❓' },
     { id: 'paragraph-questions', name: '문단 문제', icon: '📄' },
-    { id: 'comprehensive', name: '종합 문제', icon: '🧠' }
+    { id: 'comprehensive', name: '종합 문제', icon: '🧠' },
+    { id: 'visual-materials', name: '시각자료', icon: '🖼️' }
   ];
 
   // 저장 중 로딩 모달
@@ -1751,6 +1790,117 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                         </div>
                       );
                     })()}
+                  </div>
+                )}
+
+                {/* 시각자료 탭 */}
+                {activeTab === 'visual-materials' && (
+                  <div className="space-y-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-start space-x-3">
+                        <div className="text-2xl">🖼️</div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-blue-900 mb-1">시각자료 정보</h3>
+                          <p className="text-sm text-blue-700">
+                            이 콘텐츠 세트의 차시 번호와 일치하는 이미지를 표시합니다.
+                            {data?.contentSet?.session_number ? (
+                              <span className="font-semibold ml-1">(차시: {data.contentSet.session_number})</span>
+                            ) : (
+                              <span className="text-orange-600 ml-1">(차시 번호가 설정되지 않았습니다)</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {loadingImages ? (
+                      <div className="flex justify-center items-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+                        <span className="ml-3 text-gray-600">이미지 로딩 중...</span>
+                      </div>
+                    ) : visualMaterials.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {visualMaterials.map((image) => {
+                          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+                          const imageUrl = `${supabaseUrl}/storage/v1/object/public/images/${image.file_path}`;
+
+                          return (
+                            <div key={image.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                              <div className="aspect-video bg-gray-100 relative">
+                                <img
+                                  src={imageUrl}
+                                  alt={image.file_name}
+                                  className="w-full h-full object-contain"
+                                  onError={(e) => {
+                                    e.currentTarget.src = '/placeholder-image.png';
+                                  }}
+                                />
+                              </div>
+                              <div className="p-4 space-y-2">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-gray-900 text-sm truncate" title={image.file_name}>
+                                      {image.file_name}
+                                    </h4>
+                                  </div>
+                                </div>
+
+                                {image.session_number && (
+                                  <div className="flex items-center space-x-2 text-xs">
+                                    <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-100 text-blue-800 font-medium">
+                                      📚 차시: {image.session_number}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {image.source && (
+                                  <div className="text-xs text-gray-600">
+                                    <span className="font-medium">출처:</span> {image.source}
+                                  </div>
+                                )}
+
+                                {image.memo && (
+                                  <div className="text-xs text-gray-600">
+                                    <span className="font-medium">메모:</span> {image.memo}
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                                  <div className="text-xs text-gray-500">
+                                    {image.file_size ? `${(image.file_size / 1024 / 1024).toFixed(2)} MB` : '크기 미상'}
+                                  </div>
+                                  <a
+                                    href={imageUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                                  >
+                                    원본 보기 →
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-8">
+                        <div className="text-center text-gray-500">
+                          <div className="text-5xl mb-4">🖼️</div>
+                          <p className="text-lg font-medium mb-2">시각자료가 없습니다</p>
+                          <p className="text-sm">
+                            {data?.contentSet?.session_number ? (
+                              <>차시 {data.contentSet.session_number}에 등록된 이미지가 없습니다.</>
+                            ) : (
+                              <>콘텐츠 세트에 차시 번호가 설정되지 않았습니다.</>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-2">
+                            이미지를 추가하려면 "시스템 설정 &gt; 이미지 데이터 관리" 페이지를 이용하세요.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

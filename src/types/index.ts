@@ -652,3 +652,46 @@ export interface PromptUpdateResponse {
   newVersion: number;
   message: string;
 }
+
+// ============================================================================
+// 이미지 데이터 관리 시스템 타입들
+// ============================================================================
+
+// 이미지 데이터 (image_data 테이블) - Supabase 적용
+export interface ImageData {
+  id?: string; // UUID
+  session_number?: string | null; // 차시 번호
+  file_name: string; // 파일명
+  file_path: string; // Supabase Storage 경로
+  file_size?: number; // 파일 크기 (bytes)
+  mime_type?: string; // MIME 타입 (image/jpeg, image/png 등)
+  source?: string; // 출처
+  memo?: string; // 메모
+  uploaded_by?: string; // 업로드한 사용자 ID
+  created_at?: string;
+  updated_at?: string;
+}
+
+// 이미지 업로드 요청
+export interface ImageUploadRequest {
+  file: File;
+  session_number?: string;
+  source?: string;
+  memo?: string;
+}
+
+// 이미지 업로드 응답
+export interface ImageUploadResponse {
+  success: boolean;
+  data?: ImageData;
+  message?: string;
+  error?: string;
+}
+
+// 이미지 목록 조회 응답
+export interface ImagesListResponse {
+  success: boolean;
+  data: ImageData[];
+  total: number;
+  message?: string;
+}

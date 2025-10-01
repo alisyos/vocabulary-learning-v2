@@ -995,23 +995,34 @@ export default function ParagraphQuestions({
                 <div className="mb-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     어절들 (무작위 순서)
-                    <span className="ml-2 text-xs text-gray-500">쉼표(,)로 구분하여 입력하세요</span>
+                    <span className="ml-2 text-xs text-gray-500">슬래시(/)로 구분하여 입력하세요</span>
                   </label>
                   <textarea
-                    value={question.wordSegments?.join(', ') || ''}
+                    value={question.wordSegmentsRaw || question.wordSegments?.join(' / ') || ''}
                     onChange={(e) => {
-                      const newSegments = e.target.value
-                        .split(',')
+                      const inputValue = e.target.value;
+
+                      // wordSegments 배열 계산 (슬래시로 분리)
+                      const newSegments = inputValue
+                        .split('/')
                         .map(s => s.trim())
                         .filter(s => s.length > 0);
-                      handleQuestionUpdate(question.id, 'wordSegments', newSegments);
+
+                      // 두 필드를 한 번에 업데이트
+                      const updatedQuestions = localQuestions.map(q =>
+                        q.id === question.id
+                          ? { ...q, wordSegmentsRaw: inputValue, wordSegments: newSegments }
+                          : q
+                      );
+                      setLocalQuestions(updatedQuestions);
+                      onUpdate(updatedQuestions);
                     }}
                     className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm min-h-[60px] resize-vertical"
-                    placeholder="어절들을 쉼표(,)로 구분하여 입력하세요 (예: 우리는, 매일, 학교에서, 공부한다)"
+                    placeholder="어절들을 슬래시(/)로 구분하여 입력하세요 (예: 우리는 / 매일 / 학교에서 / 공부한다)"
                   />
                   {question.wordSegments && question.wordSegments.length > 0 && (
                     <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-100">
-                      <div className="text-xs text-blue-700 mb-1">미리보기:</div>
+                      <div className="text-xs text-blue-700 mb-1">미리보기 ({question.wordSegments.length}개 어절):</div>
                       <div className="flex flex-wrap gap-2">
                         {question.wordSegments.map((segment, idx) => (
                           <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
