@@ -26,11 +26,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 파일 크기 검증 (20MB 제한)
-    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    // 파일 크기 검증 (30MB 제한)
+    const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { success: false, error: '파일 크기는 20MB를 초과할 수 없습니다.' },
+        { success: false, error: '파일 크기는 30MB를 초과할 수 없습니다.' },
         { status: 400 }
       );
     }

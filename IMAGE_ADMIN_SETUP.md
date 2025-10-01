@@ -5,7 +5,7 @@
 학습 콘텐츠에 사용되는 이미지를 Supabase Storage에 저장하고 관리하는 시스템입니다.
 
 ### 주요 기능
-- ✅ 이미지 업로드 (최대 10MB)
+- ✅ 이미지 업로드 (최대 30MB)
 - ✅ 차시 번호, 출처, 메모 관리
 - ✅ 이미지 수정 및 삭제
 - ✅ 차시별 필터링
@@ -38,7 +38,7 @@ Supabase 대시보드에서:
    - "Create a new bucket" 버튼 클릭
    - Bucket name: `images`
    - Public bucket: **✅ 체크** (공개 URL 사용)
-   - File size limit: `20971520` (20MB)
+   - File size limit: `31457280` (30MB)
    - Allowed MIME types: `image/jpeg,image/png,image/gif,image/webp,image/svg+xml`
 
 3. **Storage 정책 설정** (선택사항)
@@ -68,7 +68,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 1. **파일 선택**
    - "이미지 파일" 입력란에서 이미지 파일 선택
    - 지원 형식: JPEG, PNG, GIF, WebP, SVG
-   - 최대 크기: 20MB
+   - 최대 크기: 30MB
 
 2. **메타데이터 입력** (선택사항)
    - 차시 번호: 예) 1-1, 2-3
@@ -177,7 +177,7 @@ DELETE /api/images/:id
 ### 1. 이미지 업로드 실패
 - Supabase Storage 버킷 `images`가 생성되었는지 확인
 - 버킷이 Public으로 설정되었는지 확인
-- 파일 크기가 20MB를 초과하는지 확인
+- 파일 크기가 30MB를 초과하는지 확인
 - 파일 형식이 이미지인지 확인
 
 ### 2. 이미지가 표시되지 않음

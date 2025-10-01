@@ -72,7 +72,7 @@ export async function POST() {
         // 버킷 생성
         const { error: createBucketError } = await supabase.storage.createBucket('images', {
           public: true, // 공개 버킷으로 설정
-          fileSizeLimit: 20971520, // 20MB
+          fileSizeLimit: 31457280, // 30MB
           allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
         });
 

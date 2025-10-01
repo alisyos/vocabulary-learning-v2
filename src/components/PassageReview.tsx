@@ -388,7 +388,18 @@ export default function PassageReview({
     }
 
     // 재생성 목록에서 제거
-    setRegeneratedTerms(prev => prev.filter(t => t.key !== termData.key));
+    setRegeneratedTerms(prev => {
+      const updated = prev.filter(t => t.key !== termData.key);
+
+      // 마지막 항목이 저장되면 모달 자동 닫기
+      if (updated.length === 0) {
+        setShowRegenerateModal(false);
+        setSelectedTermIndices(new Set());
+        alert('모든 항목이 저장되었습니다.');
+      }
+
+      return updated;
+    });
   };
 
   // 재생성된 모든 항목 일괄 저장
