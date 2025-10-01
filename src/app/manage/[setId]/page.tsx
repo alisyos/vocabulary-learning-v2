@@ -19,6 +19,7 @@ interface SetDetails {
   main_topic?: string; // 대주제
   sub_topic?: string; // 소주제
   keywords?: string; // 키워드
+  session_number?: string | null; // 차시 번호
   passage_length?: string; // DB 필드명 - 지문 길이
   text_type?: string; // DB 필드명 - 지문 유형
   introduction_question?: string; // 도입 질문
@@ -30,7 +31,7 @@ interface SetDetails {
   status?: '검수 전' | '검수완료'; // 상태값
   created_at?: string;
   updated_at?: string;
-  
+
   // 레거시 호환성을 위한 별칭들
   setId?: string;
   passageTitle?: string;
@@ -1077,7 +1078,9 @@ ${allParagraphs}`;
   <div class="container">
     <div class="header">
       <p class="set-id">콘텐츠 세트 ID: ${String(contentSet.setId || contentSet.id || 'N/A')}</p>
-      <h1 style="font-size: 2em;">${contentSet.passageTitle || '제목 없음'}</h1>
+      <h1 style="font-size: 2em;">
+        ${contentSet.session_number ? `<span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 9999px; font-size: 0.7em; font-weight: 500; background-color: #dbeafe; color: #1e40af; margin-right: 12px;">${contentSet.session_number}차시</span>` : ''}${contentSet.passageTitle || '제목 없음'}
+      </h1>
     </div>
     
     <div class="info-grid">
@@ -2371,15 +2374,22 @@ ${allParagraphs}`;
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => window.close()} 
+              <button
+                onClick={() => window.close()}
                 className="text-blue-600 hover:text-blue-800 flex items-center"
               >
                 <span className="mr-1">←</span>
                 <span>창 닫기</span>
               </button>
               <div className="h-4 w-px bg-gray-300"></div>
-              <h1 className="text-xl font-bold text-gray-900">{data?.data?.contentSet?.passageTitle || '제목 없음'}</h1>
+              <h1 className="text-xl font-bold text-gray-900 flex items-center">
+                {data?.data?.contentSet?.session_number && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 mr-3">
+                    {data.data.contentSet.session_number}차시
+                  </span>
+                )}
+                {data?.data?.contentSet?.passageTitle || '제목 없음'}
+              </h1>
             </div>
             <div className="flex items-center space-x-3">
               <button

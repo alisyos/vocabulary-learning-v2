@@ -11,6 +11,7 @@ interface DataSet {
   grade: string;
   subject: string;
   area: string;
+  session_number?: string | null; // 차시 번호
   total_passages: number;
   total_vocabulary_terms: number;
   total_vocabulary_questions: number;
@@ -18,15 +19,15 @@ interface DataSet {
   total_comprehensive_questions: number;
   created_at?: string;
   updated_at?: string;
-  
+
   // API 필드들 (snake_case)
   user_id?: string;
   main_topic?: string;
   sub_topic?: string;
-  
+
   // 계산된 필드들
   totalQuestions?: number;
-  
+
   // 레거시 호환성을 위한 별칭들 (Google Sheets 데이터와 호환)
   setId?: string;
   passageTitle?: string;
@@ -80,6 +81,7 @@ export default function ManagePage() {
     subject: '',
     grade: '',
     area: '',
+    session: '', // 차시 필터 추가
     user: '',
     status: '',
     search: ''
@@ -164,33 +166,48 @@ export default function ManagePage() {
     fetchDataSets();
   }, [fetchDataSets]);
   
-  // 전체 필터링 (과목, 학년, 영역, 사용자, 검색)
+  // 전체 필터링 (과목, 학년, 영역, 차시, 사용자, 검색)
   const filteredDataSets = dataSets.filter(item => {
     // 과목 필터
     if (filters.subject && item.subject !== filters.subject) {
       return false;
     }
-    
+
     // 학년 필터
     if (filters.grade && item.grade !== filters.grade) {
       return false;
     }
-    
+
     // 영역 필터
     if (filters.area && item.area !== filters.area) {
       return false;
     }
-    
+
+    // 차시 필터 (완전 일치 검색)
+    if (filters.session) {
+      // "없음" 또는 "null" 입력 시 차시 정보가 없는 항목만 표시
+      if (filters.session === '없음' || filters.session.toLowerCase() === 'null') {
+        if (item.session_number) {
+          return false;
+        }
+      } else {
+        // 일반 완전 일치 검색
+        if (String(item.session_number) !== filters.session) {
+          return false;
+        }
+      }
+    }
+
     // 사용자 필터
     if (filters.user && item.userId !== filters.user) {
       return false;
     }
-    
+
     // 상태값 필터
     if (filters.status && item.status !== filters.status) {
       return false;
     }
-    
+
     // 검색 필터
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
@@ -204,7 +221,7 @@ export default function ManagePage() {
         (item.keywords || item.keyword || '').toLowerCase().includes(searchTerm)
       );
     }
-    
+
     return true;
   });
   
@@ -589,8 +606,8 @@ export default function ManagePage() {
         
         {/* 필터 및 검색 */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          {/* 첫 번째 줄: 과목, 학년, 영역 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          {/* 첫 번째 줄: 과목, 학년, 영역, 차시 */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">과목</label>
               <select
@@ -629,6 +646,16 @@ export default function ManagePage() {
                   <option key={area} value={area}>{area}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">차시</label>
+              <input
+                type="text"
+                placeholder="차시 번호 입력 (예: 29) 또는 '없음'"
+                value={filters.session}
+                onChange={(e) => setFilters(prev => ({ ...prev, session: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
             </div>
           </div>
 
@@ -686,7 +713,7 @@ export default function ManagePage() {
               {filteredDataSets.length}개의 콘텐츠 세트 ({stats?.totalSets || 0}개 중)
             </p>
             <button
-              onClick={() => setFilters({ subject: '', grade: '', area: '', user: '', status: '', search: '' })}
+              onClick={() => setFilters({ subject: '', grade: '', area: '', session: '', user: '', status: '', search: '' })}
               className="text-sm text-blue-600 hover:text-blue-800"
             >
               필터 초기화
@@ -805,62 +832,65 @@ export default function ManagePage() {
         ) : (
           <>
             {/* 테이블 */}
-            <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <table className="w-full divide-y divide-gray-200 text-xs">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-3 py-3 text-left">
+                    <th className="px-1 py-2 text-left w-8">
                       <input
                         type="checkbox"
                         checked={paginatedData.length > 0 && selectedSets.size === paginatedData.length}
                         indeterminate={selectedSets.size > 0 && selectedSets.size < paginatedData.length}
                         onChange={toggleSelectAll}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">
                       생성일
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">
+                      차시
+                    </th>
+                    <th className="px-1 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">
                       과목
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">
                       생성자
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">
                       구분
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">
                       학년
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">
                       영역
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-left text-[11px] font-medium text-gray-500 uppercase max-w-[80px]">
                       대주제
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-left text-[11px] font-medium text-gray-500 uppercase max-w-[80px]">
                       소주제
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      문단수
+                    <th className="px-1 py-2 text-center text-[11px] font-medium text-gray-500 uppercase">
+                      문단
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      어휘수
+                    <th className="px-1 py-2 text-center text-[11px] font-medium text-gray-500 uppercase">
+                      어휘
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      어휘문제
+                    <th className="px-1 py-2 text-center text-[11px] font-medium text-gray-500 uppercase">
+                      어휘<br/>문제
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      문단문제
+                    <th className="px-1 py-2 text-center text-[11px] font-medium text-gray-500 uppercase">
+                      문단<br/>문제
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      종합문제
+                    <th className="px-1 py-2 text-center text-[11px] font-medium text-gray-500 uppercase">
+                      종합<br/>문제
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-center text-[11px] font-medium text-gray-500 uppercase">
                       상태값
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2 text-center text-[11px] font-medium text-gray-500 uppercase">
                       작업
                     </th>
                   </tr>
@@ -870,55 +900,68 @@ export default function ManagePage() {
                     const itemId = item.id || item.setId;
                     return (
                     <tr key={itemId} className="hover:bg-gray-50">
-                      <td className="px-3 py-3">
+                      <td className="px-1 py-2">
                         <input
                           type="checkbox"
                           checked={selectedSets.has(itemId)}
                           onChange={() => toggleSelectItem(itemId)}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
                       </td>
-                      <td className="px-2 py-3 text-xs text-gray-500 text-center">
+                      <td className="px-1 py-2 text-[11px] text-gray-500 text-center">
                         <div className="leading-tight space-y-0.5">
                           <div className="font-medium">{formatDate(item.createdAt).datePart}</div>
                           <div className="text-gray-400">{formatDate(item.createdAt).timePart}</div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-1 py-2 text-[11px] text-center">
+                        <span className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-medium ${
+                          item.session_number
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {item.session_number || '-'}
+                        </span>
+                      </td>
+                      <td className="px-1 py-2 text-[11px] text-gray-900">
                         {item.subject}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-1 py-2 text-[11px] text-gray-600">
                         {item.userId || '-'}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-1 py-2 text-[11px] text-gray-900">
                         {formatDivision(item.division)}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-1 py-2 text-[11px] text-gray-900">
                         {item.grade}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-1 py-2 text-[11px] text-gray-900">
                         {item.area}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.mainTopic || item.maintopic}
+                      <td className="px-1 py-2 text-[11px] text-gray-900 max-w-[80px]">
+                        <div className="break-words line-clamp-2" title={item.mainTopic || item.maintopic}>
+                          {item.mainTopic || item.maintopic}
+                        </div>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.subTopic || item.subtopic}
+                      <td className="px-1 py-2 text-[11px] text-gray-900 max-w-[80px]">
+                        <div className="break-words line-clamp-2" title={item.subTopic || item.subtopic}>
+                          {item.subTopic || item.subtopic}
+                        </div>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-1 py-2 text-[11px] text-gray-900 text-center">
                         {item.paragraphCount}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-1 py-2 text-[11px] text-gray-900 text-center">
                         {item.vocabularyWordsCount}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-purple-600">
+                      <td className="px-1 py-2 text-[11px] text-purple-600 text-center">
                         {editingCell?.setId === item.setId && editingCell?.field === 'vocabularyQuestionCount' ? (
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center justify-center space-x-1">
                             <input
                               type="number"
                               value={editingCell.value}
                               onChange={(e) => setEditingCell(prev => prev ? {...prev, value: e.target.value} : null)}
-                              className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-10 px-1 py-0.5 text-[11px] border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') saveEditing();
                                 if (e.key === 'Escape') cancelEditing();
@@ -927,40 +970,40 @@ export default function ManagePage() {
                             />
                             <button
                               onClick={saveEditing}
-                              className="text-green-600 hover:text-green-800 p-1"
+                              className="text-green-600 hover:text-green-800 text-[11px]"
                               title="저장"
                             >
                               ✓
                             </button>
                             <button
                               onClick={cancelEditing}
-                              className="text-red-600 hover:text-red-800 p-1"
+                              className="text-red-600 hover:text-red-800 text-[11px]"
                               title="취소"
                             >
                               ✕
                             </button>
                           </div>
                         ) : (
-                          <span 
+                          <span
                             onClick={() => startEditing(item.setId, 'vocabularyQuestionCount', item.vocabularyQuestionCount || item.vocabularyCount || 0)}
-                            className="cursor-pointer hover:bg-purple-50 px-2 py-1 rounded transition-colors"
+                            className="cursor-pointer hover:bg-purple-50 px-1 py-0.5 rounded transition-colors"
                             title="클릭하여 수정"
                           >
                             {item.vocabularyQuestionCount || item.vocabularyCount || 0}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-yellow-600">
+                      <td className="px-1 py-2 text-[11px] text-yellow-600 text-center">
                         {item.total_paragraph_questions || 0}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600">
+                      <td className="px-1 py-2 text-[11px] text-green-600 text-center">
                         {editingCell?.setId === item.setId && editingCell?.field === 'comprehensiveQuestionCount' ? (
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center justify-center space-x-1">
                             <input
                               type="number"
                               value={editingCell.value}
                               onChange={(e) => setEditingCell(prev => prev ? {...prev, value: e.target.value} : null)}
-                              className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-10 px-1 py-0.5 text-[11px] border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') saveEditing();
                                 if (e.key === 'Escape') cancelEditing();
@@ -969,36 +1012,36 @@ export default function ManagePage() {
                             />
                             <button
                               onClick={saveEditing}
-                              className="text-green-600 hover:text-green-800 p-1"
+                              className="text-green-600 hover:text-green-800 text-[11px]"
                               title="저장"
                             >
                               ✓
                             </button>
                             <button
                               onClick={cancelEditing}
-                              className="text-red-600 hover:text-red-800 p-1"
+                              className="text-red-600 hover:text-red-800 text-[11px]"
                               title="취소"
                             >
                               ✕
                             </button>
                           </div>
                         ) : (
-                          <span 
+                          <span
                             onClick={() => startEditing(item.setId, 'comprehensiveQuestionCount', item.comprehensiveQuestionCount || item.comprehensiveCount || 0)}
-                            className="cursor-pointer hover:bg-green-50 px-2 py-1 rounded transition-colors"
+                            className="cursor-pointer hover:bg-green-50 px-1 py-0.5 rounded transition-colors"
                             title="클릭하여 수정"
                           >
                             {item.comprehensiveQuestionCount || item.comprehensiveCount || 0}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                      <td className="px-1 py-2 text-[11px] text-center">
                         {editingCell?.setId === item.setId && editingCell?.field === 'status' ? (
-                          <div className="flex items-center justify-center space-x-2">
+                          <div className="flex items-center justify-center space-x-1">
                             <select
                               value={editingCell.value}
                               onChange={(e) => setEditingCell(prev => prev ? {...prev, value: e.target.value} : null)}
-                              className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="px-1 py-0.5 text-[10px] border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') saveEditing();
                                 if (e.key === 'Escape') cancelEditing();
@@ -1014,14 +1057,14 @@ export default function ManagePage() {
                             </select>
                             <button
                               onClick={saveEditing}
-                              className="text-green-600 hover:text-green-800 p-1"
+                              className="text-green-600 hover:text-green-800 text-[11px]"
                               title="저장"
                             >
                               ✓
                             </button>
                             <button
                               onClick={cancelEditing}
-                              className="text-red-600 hover:text-red-800 p-1"
+                              className="text-red-600 hover:text-red-800 text-[11px]"
                               title="취소"
                             >
                               ✕
@@ -1030,7 +1073,7 @@ export default function ManagePage() {
                         ) : (
                           <span
                             onClick={() => startEditing(item.setId, 'status', item.status)}
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full cursor-pointer hover:opacity-80 transition-opacity ${
+                            className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded-full cursor-pointer hover:opacity-80 transition-opacity ${
                               item.status === '승인완료'
                                 ? 'bg-blue-100 text-blue-800'
                                 : item.status === '검수완료'
@@ -1049,8 +1092,8 @@ export default function ManagePage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center justify-center space-x-3">
+                      <td className="px-1 py-2 text-[11px] font-medium">
+                        <div className="flex items-center justify-center space-x-1">
                           {/* 상세보기 아이콘 */}
                           <button
                             onClick={() => {
@@ -1062,15 +1105,15 @@ export default function ManagePage() {
                                 alert('콘텐츠 ID를 찾을 수 없습니다.');
                               }
                             }}
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
+                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-0.5 rounded transition-colors"
                             title="상세보기"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                           </button>
-                          
+
                           {/* 상태 변경 아이콘 */}
                           <button
                             onClick={() => {
@@ -1091,25 +1134,25 @@ export default function ManagePage() {
                               updateStatus(item.id || item.setId, newStatus, false);
                             }}
                             disabled={statusUpdating.setId === item.setId && statusUpdating.loading}
-                            className="text-purple-600 hover:text-purple-800 hover:bg-purple-50 p-1 rounded transition-colors disabled:opacity-50"
+                            className="text-purple-600 hover:text-purple-800 hover:bg-purple-50 p-0.5 rounded transition-colors disabled:opacity-50"
                             title={item.status === '검수 전' ? '1차검수로 변경' : item.status === '1차검수' ? '2차검수로 변경' : item.status === '2차검수' ? '3차검수로 변경' : item.status === '3차검수' ? '검수완료로 변경' : item.status === '검수완료' ? '승인완료로 변경' : '검수 전으로 변경'}
                           >
                             {statusUpdating.setId === item.setId && statusUpdating.loading ? (
-                              <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                              <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
                             ) : (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                             )}
                           </button>
-                          
+
                           {/* 삭제 아이콘 */}
-                          <button 
+                          <button
                             onClick={() => openDeleteModal(item.id || item.setId, item.title || item.passageTitle, item.status)}
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded transition-colors"
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-0.5 rounded transition-colors"
                             title="삭제"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>

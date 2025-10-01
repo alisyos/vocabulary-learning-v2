@@ -48,6 +48,7 @@ export interface PassageInput {
   subject: SubjectType;
   grade: GradeType | '';    // 새로운 학년 필드
   area: AreaType | '';      // 빈 문자열 허용 (초기화 시)
+  session_number?: string | null;  // 차시 번호
   maintopic: string;        // 대주제
   subtopic: string;         // 소주제
   keyword: string;          // 핵심 개념어
@@ -280,6 +281,7 @@ export interface ContentSet {
   grade: string; // 실제 학년
   subject: SubjectType;
   area: string;
+  session_number?: string | null; // 차시 번호
   main_topic?: string; // 대주제
   sub_topic?: string; // 소주제
   keywords?: string; // 키워드
@@ -496,7 +498,7 @@ export interface CurriculumData {
   subject: SubjectType;
   grade: string;
   area: string;
-  session_number?: string; // 세션 번호
+  session_number?: string | null; // 세션 번호
   main_topic: string;
   sub_topic: string;
   keywords: string;

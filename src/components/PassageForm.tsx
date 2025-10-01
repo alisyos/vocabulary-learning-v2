@@ -36,6 +36,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
       subject: '사회' as SubjectType,
       grade: '',
       area: '',
+      session_number: '',
       maintopic: '',
       subtopic: '',
       keyword: '',
@@ -63,6 +64,12 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
     subtopics: [] as string[],
     keywords: [] as string[]
   });
+
+  // 차시 검색 관련 state
+  const [sessionNumber, setSessionNumber] = useState('');
+  const [sessionSearchLoading, setSessionSearchLoading] = useState(false);
+  const [sessionSearchError, setSessionSearchError] = useState<string | null>(null);
+  const [sessionSearchSuccess, setSessionSearchSuccess] = useState(false);
 
   const lengthOptions: { [key in DivisionType]: PassageLengthType[] } = {
     '초등학교 중학년(3-4학년)': ['2개의 지문 생성. 지문당 300자 내외 - 총 600자'],
@@ -432,6 +439,155 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
 
   const connectionStatus = getConnectionStatus();
 
+  // 차시 검색 함수
+  const handleSessionSearch = async () => {
+    if (!sessionNumber.trim()) {
+      setSessionSearchError('차시 번호를 입력해주세요.');
+      return;
+    }
+
+    setSessionSearchLoading(true);
+    setSessionSearchError(null);
+    setSessionSearchSuccess(false);
+
+    try {
+      // curriculum-admin API를 사용하여 데이터 검색
+      const response = await fetch('/api/curriculum-admin');
+
+      if (!response.ok) {
+        throw new Error('데이터를 가져올 수 없습니다.');
+      }
+
+      const result = await response.json();
+
+      if (!result.success || !result.data) {
+        throw new Error('데이터 조회에 실패했습니다.');
+      }
+
+      // 차시 번호로 정확히 일치하는 데이터 찾기
+      const matchedData = result.data.find((item: CurriculumData) =>
+        String(item.session_number || '').toLowerCase() === sessionNumber.toLowerCase()
+      );
+
+      if (!matchedData) {
+        setSessionSearchError(`차시 '${sessionNumber}'에 해당하는 데이터를 찾을 수 없습니다.`);
+        return;
+      }
+
+      // 찾은 데이터로 폼 자동 채우기
+      await fillFormWithSessionData(matchedData);
+
+      setSessionSearchSuccess(true);
+      setTimeout(() => setSessionSearchSuccess(false), 3000); // 3초 후 성공 메시지 숨김
+
+    } catch (error) {
+      console.error('차시 검색 오류:', error);
+      setSessionSearchError(error instanceof Error ? error.message : '검색 중 오류가 발생했습니다.');
+    } finally {
+      setSessionSearchLoading(false);
+    }
+  };
+
+  // 찾은 데이터로 폼 채우기
+  const fillFormWithSessionData = async (data: CurriculumData) => {
+    // 구분 결정 (학년 기반)
+    let division: DivisionType = '초등학교 중학년(3-4학년)';
+    if (data.grade.includes('5') || data.grade.includes('6')) {
+      division = '초등학교 고학년(5-6학년)';
+    } else if (data.grade.includes('중')) {
+      division = '중학생(1-3학년)';
+    }
+
+    // 구분에 따른 지문 길이와 텍스트 타입 설정
+    const lengthMapping = {
+      '초등학교 중학년(3-4학년)': '2개의 지문 생성. 지문당 300자 내외 - 총 600자' as PassageLengthType,
+      '초등학교 고학년(5-6학년)': '2개의 지문 생성. 지문당 400자 내외 - 총 800자' as PassageLengthType,
+      '중학생(1-3학년)': '2개의 지문 생성. 지문당 500자 내외 - 총 1,000자' as PassageLengthType,
+    };
+
+    const textTypeMapping = {
+      '초등학교 중학년(3-4학년)': '기행문' as TextType,
+      '초등학교 고학년(5-6학년)': '논설문' as TextType,
+      '중학생(1-3학년)': '설명문' as TextType,
+    };
+
+    // 폼 데이터 업데이트
+    setFormData({
+      division,
+      length: lengthMapping[division],
+      subject: data.subject as SubjectType,
+      grade: data.grade,
+      area: data.area as AreaType,
+      session_number: data.session_number || sessionNumber, // 차시 번호 포함
+      maintopic: data.main_topic,
+      subtopic: data.sub_topic,
+      keyword: data.keywords,
+      keywords_for_passages: data.keywords_for_passages || '',
+      keywords_for_questions: data.keywords_for_questions || '',
+      textType: textTypeMapping[division],
+    });
+
+    // 연쇄적 옵션 업데이트 (기존 fieldData 사용)
+    if (fieldData.length > 0) {
+      // 과목별 학년 옵션 업데이트
+      const subjectFiltered = fieldData.filter(item => item.subject === data.subject);
+      const grades = [...new Set(subjectFiltered.map(item => item.grade))].filter(Boolean);
+
+      // 학년별 영역 옵션 업데이트
+      const gradeFiltered = subjectFiltered.filter(item => item.grade === data.grade);
+      const areas = [...new Set(gradeFiltered.map(item => item.area))].filter(Boolean);
+
+      // 영역별 대주제 옵션 업데이트
+      const areaFiltered = gradeFiltered.filter(item => item.area === data.area);
+      const maintopics = [...new Set(areaFiltered.map(item => item.maintopic))].filter(Boolean);
+
+      // 대주제별 소주제 옵션 업데이트
+      const maintopicFiltered = areaFiltered.filter(item => item.maintopic === data.main_topic);
+      const subtopics = [...new Set(maintopicFiltered.map(item => item.subtopic))].filter(Boolean);
+
+      setAvailableOptions(prev => ({
+        ...prev,
+        grades,
+        areas,
+        maintopics,
+        subtopics
+      }));
+    }
+  };
+
+  // 차시 검색 초기화
+  const handleClearSession = () => {
+    setSessionNumber('');
+    setSessionSearchError(null);
+    setSessionSearchSuccess(false);
+
+    // 폼을 기본값으로 초기화
+    const defaultData = {
+      division: '초등학교 중학년(3-4학년)' as DivisionType,
+      length: '2개의 지문 생성. 지문당 300자 내외 - 총 600자' as PassageLengthType,
+      subject: '사회' as SubjectType,
+      grade: '',
+      area: '',
+      maintopic: '',
+      subtopic: '',
+      keyword: '',
+      keywords_for_passages: '',
+      keywords_for_questions: '',
+      textType: '기행문' as TextType,
+    };
+
+    setFormData(defaultData);
+
+    // 옵션들도 초기화
+    setAvailableOptions(prev => ({
+      ...prev,
+      grades: [],
+      areas: [],
+      maintopics: [],
+      subtopics: []
+    }));
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-4">
       <div className="flex items-center justify-between mb-2">
@@ -474,8 +630,64 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
           </span>
         </div>
       </div>
-       
-       <form onSubmit={handleSubmit} className="space-y-4">
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* 차시 검색 섭션 */}
+        <div className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-blue-800">
+              🔍 차시 기반 자동 입력
+            </h3>
+            <span className="text-xs text-blue-600">
+              차시 번호를 입력하면 아래 정보가 자동으로 채워집니다
+            </span>
+          </div>
+
+          <div className="flex space-x-3">
+            <div className="flex-1">
+              <input
+                type="text"
+                value={sessionNumber}
+                onChange={(e) => setSessionNumber(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSessionSearch()}
+                placeholder="차시 번호 입력 (예: 1, 2-1, A-3)"
+                className="w-full p-2 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSessionSearch}
+              disabled={!sessionNumber.trim() || sessionSearchLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              {sessionSearchLoading ? '검색 중...' : '검색'}
+            </button>
+            {sessionNumber && (
+              <button
+                type="button"
+                onClick={handleClearSession}
+                className="px-3 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 text-sm"
+                title="차시 검색 초기화"
+              >
+                초기화
+              </button>
+            )}
+          </div>
+
+          {/* 검색 결과 메시지 */}
+          {sessionSearchError && (
+            <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded-md">
+              <p className="text-sm text-red-700">⚠️ {sessionSearchError}</p>
+            </div>
+          )}
+
+          {sessionSearchSuccess && (
+            <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded-md">
+              <p className="text-sm text-green-700">✅ 차시 {sessionNumber}에 대한 정보를 찾았습니다!</p>
+            </div>
+          )}
+        </div>
+
         {/* 구분 선택 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

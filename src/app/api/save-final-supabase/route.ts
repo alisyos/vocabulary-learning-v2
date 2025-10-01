@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
       grade: input.grade || '3학년', // 실제 학년 (input.grade가 없으면 기본값)
       subject: input.subject,
       area: input.area,
+      session_number: input.session_number && String(input.session_number).trim() !== '' ? String(input.session_number).trim() : null, // 차시 번호
       main_topic: input.maintopic || input.mainTopic || '',
       sub_topic: input.subtopic || input.subTopic || '',
       keywords: input.keyword || input.keywords || '',

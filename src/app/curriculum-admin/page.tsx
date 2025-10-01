@@ -26,6 +26,7 @@ export default function CurriculumAdminPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
   const [filterGrade, setFilterGrade] = useState('');
+  const [filterSession, setFilterSession] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [showCsvModal, setShowCsvModal] = useState(false);
@@ -68,15 +69,17 @@ export default function CurriculumAdminPage() {
 
   // 필터링된 데이터
   const filteredData = data.filter(item => {
-    const matchesSearch = searchTerm === '' || 
+    const matchesSearch = searchTerm === '' ||
       item.main_topic?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.sub_topic?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.keywords?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesSubject = filterSubject === '' || item.subject === filterSubject;
     const matchesGrade = filterGrade === '' || item.grade === filterGrade;
-    
-    return matchesSearch && matchesSubject && matchesGrade;
+    const matchesSession = filterSession === '' ||
+      String(item.session_number || '').toLowerCase() === filterSession.toLowerCase();
+
+    return matchesSearch && matchesSubject && matchesGrade && matchesSession;
   });
 
   // CSV 템플릿 다운로드
@@ -89,8 +92,8 @@ export default function CurriculumAdminPage() {
     ];
     
     // CSV 필드 이스케이프 함수 (템플릿용)
-    const escapeCsvField = (field: string): string => {
-      const fieldStr = field || '';
+    const escapeCsvField = (field: any): string => {
+      const fieldStr = String(field ?? '');
       if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n') || fieldStr.includes('\r')) {
         return `"${fieldStr.replace(/"/g, '""')}"`;
       }
@@ -110,45 +113,63 @@ export default function CurriculumAdminPage() {
 
   // 전체 데이터 다운로드
   const downloadAllData = () => {
+    console.log('downloadAllData 함수 시작');
+    console.log('현재 data 길이:', data.length);
+
     if (data.length === 0) {
       alert('다운로드할 데이터가 없습니다.');
       return;
     }
 
-    const headers = ['subject', 'grade', 'area', 'session_number', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
-    const csvRows = data.map(item => [
-      item.subject,
-      item.grade,
-      item.area,
-      item.session_number || '',
-      item.main_topic,
-      item.sub_topic,
-      item.keywords,
-      item.keywords_for_passages || '',
-      item.keywords_for_questions || '',
-      item.is_active ? 'true' : 'false'
-    ]);
-    
-    // CSV 필드 이스케이프 함수
-    const escapeCsvField = (field: string): string => {
-      const fieldStr = field || '';
-      // 쉼표, 따옴표, 줄바꿈이 포함된 경우 따옴표로 감싸고 내부 따옴표는 두 개로 처리
-      if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n') || fieldStr.includes('\r')) {
-        return `"${fieldStr.replace(/"/g, '""')}"`;
-      }
-      return fieldStr;
-    };
+    try {
+      const headers = ['subject', 'grade', 'area', 'session_number', 'main_topic', 'sub_topic', 'keywords', 'keywords_for_passages', 'keywords_for_questions', 'is_active'];
+      const csvRows = data.map(item => [
+        item.subject,
+        item.grade,
+        item.area,
+        item.session_number || '',
+        item.main_topic,
+        item.sub_topic,
+        item.keywords,
+        item.keywords_for_passages || '',
+        item.keywords_for_questions || '',
+        item.is_active ? 'true' : 'false'
+      ]);
 
-    const csvContent = [headers, ...csvRows]
-      .map(row => row.map(field => escapeCsvField(field)).join(','))
-      .join('\n');
-    
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    const date = new Date().toISOString().split('T')[0];
-    link.download = `curriculum_data_all_${date}.csv`;
-    link.click();
+      console.log('CSV 데이터 생성됨, 행 수:', csvRows.length);
+
+      // CSV 필드 이스케이프 함수
+      const escapeCsvField = (field: any): string => {
+        // null, undefined, 또는 문자열이 아닌 값을 문자열로 변환
+        const fieldStr = String(field ?? '');
+        // 쉼표, 따옴표, 줄바꿈이 포함된 경우 따옴표로 감싸고 내부 따옴표는 두 개로 처리
+        if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n') || fieldStr.includes('\r')) {
+          return `"${fieldStr.replace(/"/g, '""')}"`;
+        }
+        return fieldStr;
+      };
+
+      const csvContent = [headers, ...csvRows]
+        .map(row => row.map(field => escapeCsvField(field)).join(','))
+        .join('\n');
+
+      console.log('CSV 콘텐츠 생성 완료, 크기:', csvContent.length);
+
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const date = new Date().toISOString().split('T')[0];
+      link.download = `curriculum_data_all_${date}.csv`;
+      document.body.appendChild(link); // 링크를 DOM에 추가
+      link.click();
+      document.body.removeChild(link); // 클릭 후 링크 제거
+      URL.revokeObjectURL(link.href); // 메모리 정리
+
+      console.log('다운로드 완료');
+    } catch (error) {
+      console.error('다운로드 중 오류 발생:', error);
+      alert('다운로드 중 오류가 발생했습니다. 콘솔을 확인해주세요.');
+    }
   };
 
   // CSV 파일 파싱 (쉼표가 포함된 필드 지원)
@@ -484,7 +505,7 @@ export default function CurriculumAdminPage() {
 
             {/* 필터 및 검색 */}
             <div className="bg-white p-4 rounded-lg shadow mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                 <input
                   type="text"
                   placeholder="검색 (주제, 소주제, 키워드)"
@@ -492,7 +513,7 @@ export default function CurriculumAdminPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                
+
                 <select
                   value={filterSubject}
                   onChange={(e) => setFilterSubject(e.target.value)}
@@ -503,7 +524,7 @@ export default function CurriculumAdminPage() {
                     <option key={subject} value={subject}>{subject}</option>
                   ))}
                 </select>
-                
+
                 <select
                   value={filterGrade}
                   onChange={(e) => setFilterGrade(e.target.value)}
@@ -514,12 +535,21 @@ export default function CurriculumAdminPage() {
                     <option key={grade} value={grade}>{grade}</option>
                   ))}
                 </select>
-                
+
+                <input
+                  type="text"
+                  placeholder="차시 번호 (예: 1, 2-1)"
+                  value={filterSession}
+                  onChange={(e) => setFilterSession(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+
                 <button
                   onClick={() => {
                     setSearchTerm('');
                     setFilterSubject('');
                     setFilterGrade('');
+                    setFilterSession('');
                   }}
                   className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
                 >
@@ -604,7 +634,7 @@ export default function CurriculumAdminPage() {
                           과목/학년/영역
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          세션
+                          차시
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           대주제
@@ -771,7 +801,7 @@ export default function CurriculumAdminPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">세션 번호</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">차시 번호</label>
                   <input
                     type="text"
                     value={formData.session_number}
@@ -918,7 +948,7 @@ export default function CurriculumAdminPage() {
                             <th className="px-2 py-1 text-left font-medium">과목</th>
                             <th className="px-2 py-1 text-left font-medium">학년</th>
                             <th className="px-2 py-1 text-left font-medium">영역</th>
-                            <th className="px-2 py-1 text-left font-medium">세션</th>
+                            <th className="px-2 py-1 text-left font-medium">차시</th>
                             <th className="px-2 py-1 text-left font-medium">대주제</th>
                             <th className="px-2 py-1 text-left font-medium">소주제</th>
                             <th className="px-2 py-1 text-left font-medium">키워드</th>

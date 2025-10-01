@@ -11,6 +11,7 @@ interface DataSet {
   grade: string;
   subject: string;
   area: string;
+  session_number?: string | null; // 차시 번호 필드 추가
   total_passages: number;
   total_vocabulary_terms: number;
   total_vocabulary_questions: number;
@@ -82,6 +83,7 @@ export default function ContentSetReviewPage() {
     subject: '',
     grade: '',
     area: '',
+    session: '', // 차시 필터 추가
     user: '',
     status: '검수완료,승인완료', // 기본값을 검수완료와 승인완료로 설정
     search: ''
@@ -163,6 +165,21 @@ export default function ContentSetReviewPage() {
 
   // 검색 필터링
   const filteredDataSets = dataSets.filter(item => {
+    // 차시 필터 (완전 일치 검색)
+    if (filters.session) {
+      // "없음" 또는 "null" 입력 시 차시 정보가 없는 항목만 표시
+      if (filters.session === '없음' || filters.session.toLowerCase() === 'null') {
+        if (item.session_number) {
+          return false;
+        }
+      } else {
+        // 일반 완전 일치 검색
+        if (String(item.session_number) !== filters.session) {
+          return false;
+        }
+      }
+    }
+
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
       return (
@@ -176,10 +193,17 @@ export default function ContentSetReviewPage() {
     return true;
   });
 
+  // 차시 번호 순으로 정렬 (내림차순)
+  const sortedDataSets = [...filteredDataSets].sort((a, b) => {
+    const sessionA = a.session_number ? parseInt(a.session_number) : -1;
+    const sessionB = b.session_number ? parseInt(b.session_number) : -1;
+    return sessionB - sessionA;
+  });
+
   // 페이지네이션 계산
-  const totalPages = Math.ceil(filteredDataSets.length / itemsPerPage);
+  const totalPages = Math.ceil(sortedDataSets.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = filteredDataSets.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedData = sortedDataSets.slice(startIndex, startIndex + itemsPerPage);
 
   // 날짜 포맷팅
   const formatDate = (dateString: string) => {
@@ -278,7 +302,7 @@ export default function ContentSetReviewPage() {
 
         {/* 필터 및 검색 */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">과목</label>
               <select
@@ -319,6 +343,16 @@ export default function ContentSetReviewPage() {
               </select>
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">차시</label>
+              <input
+                type="text"
+                placeholder="차시 번호 입력 (예: 29) 또는 '없음'"
+                value={filters.session}
+                onChange={(e) => setFilters(prev => ({ ...prev, session: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">상태</label>
               <select
                 value={filters.status}
@@ -348,7 +382,7 @@ export default function ContentSetReviewPage() {
               {filteredDataSets.length}개의 콘텐츠 세트
             </p>
             <button
-              onClick={() => setFilters({ subject: '', grade: '', area: '', user: '', status: '검수완료,승인완료', search: '' })}
+              onClick={() => setFilters({ subject: '', grade: '', area: '', session: '', user: '', status: '검수완료,승인완료', search: '' })}
               className="text-sm text-blue-600 hover:text-blue-800"
             >
               필터 초기화
@@ -391,6 +425,9 @@ export default function ContentSetReviewPage() {
                       생성일
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      차시
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ID
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -430,6 +467,15 @@ export default function ContentSetReviewPage() {
                           <div className="font-medium">{formatDate(item.createdAt).datePart}</div>
                           <div className="text-gray-400">{formatDate(item.createdAt).timePart}</div>
                         </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          item.session_number
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {item.session_number || '-'}
+                        </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                         <button
