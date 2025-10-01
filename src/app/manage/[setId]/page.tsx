@@ -2882,12 +2882,12 @@ ${allParagraphs}`;
                       const { term, description, example } = parseVocabulary(vocab);
                       
                       const updateVocabulary = (newTerm: string, newDescription: string, newExample: string) => {
-                        const newVocab = newExample 
+                        const newVocab = newExample
                           ? `${newTerm}: ${newDescription} (예시: ${newExample})`
                           : `${newTerm}: ${newDescription}`;
                         handleVocabularyChange(index, newVocab);
-                        
-                        // VocabularyTerm 데이터도 업데이트
+
+                        // VocabularyTerm 데이터도 업데이트 (index 직접 사용)
                         const updatedTermsData = [...vocabularyTermsData];
                         if (updatedTermsData[index]) {
                           updatedTermsData[index] = {
@@ -2899,9 +2899,10 @@ ${allParagraphs}`;
                           setVocabularyTermsData(updatedTermsData);
                         }
                       };
-                      
+
                       const updateVocabularyType = (newType: '핵심어' | '어려운 어휘') => {
                         const updatedTermsData = [...vocabularyTermsData];
+                        // index 직접 사용하여 해당 어휘 업데이트
                         if (updatedTermsData[index]) {
                           updatedTermsData[index] = {
                             ...updatedTermsData[index],
@@ -2913,24 +2914,48 @@ ${allParagraphs}`;
                       
                       const updateVocabularyPassage = (passageId: string) => {
                         const updatedTermsData = [...vocabularyTermsData];
+                        // index를 직접 사용하여 해당 어휘 업데이트
                         if (updatedTermsData[index]) {
                           // 선택된 지문 찾기
                           const passageIndex = parseInt(passageId.split('_')[1]);
                           const selectedPassage = editablePassages[passageIndex];
-                          
+
                           updatedTermsData[index] = {
                             ...updatedTermsData[index],
                             passage_id: passageId,
                             passage_number: passageIndex + 1,
                             passage_title: selectedPassage?.title || '지문'
                           };
+
+                          console.log(`어휘 ${index + 1} 지문 변경: ${passageId} (passage_number: ${passageIndex + 1})`);
                           setVocabularyTermsData(updatedTermsData);
                         }
                       };
                       
+                      // vocabularyTermsData에서 현재 용어(term)와 매칭되는 데이터 찾기
+                      // index를 사용하여 직접 매칭 (editableVocabulary와 vocabularyTermsData는 동일한 순서)
+                      const currentTermData = vocabularyTermsData[index];
+
+                      // 디버깅용 로그
+                      console.log(`어휘 ${index + 1} - term: "${term}", currentTermData:`, currentTermData);
+
                       // 현재 어휘 유형 결정 (has_question_generated 기반)
-                      const currentType = vocabularyTermsData[index]?.has_question_generated === true ? '핵심어' : '어려운 어휘';
-                      
+                      const currentType = currentTermData?.has_question_generated === true ? '핵심어' : '어려운 어휘';
+
+                      // 현재 어휘가 속한 지문 ID 가져오기 (UUID -> passage_N 형태로 변환)
+                      const currentPassageUUID = currentTermData?.passage_id;
+                      let currentPassageId = `passage_0`; // 기본값
+
+                      if (currentPassageUUID) {
+                        // editablePassages에서 해당 UUID를 가진 지문의 인덱스 찾기
+                        const passageIndex = editablePassages.findIndex(p => p.id === currentPassageUUID);
+                        if (passageIndex !== -1) {
+                          currentPassageId = `passage_${passageIndex}`;
+                        }
+                      }
+
+                      console.log(`어휘 ${index + 1} - 소속 지문: ${currentPassageId} (UUID: ${currentPassageUUID}, passage_number: ${currentTermData?.passage_number})`);
+
                       return (
                         <div key={index} className="border border-gray-200 rounded-lg p-4">
                           <div className="flex justify-between items-start mb-3">
@@ -2945,7 +2970,7 @@ ${allParagraphs}`;
                               삭제
                             </button>
                           </div>
-                          
+
                           <div className="space-y-3">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
@@ -2976,7 +3001,7 @@ ${allParagraphs}`;
                                 />
                               </div>
                             </div>
-                            
+
                             {/* 지문 선택 및 어휘 유형 선택 */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {/* 지문 선택 드롭다운 (여러 지문이 있을 때만 표시) */}
@@ -2984,7 +3009,7 @@ ${allParagraphs}`;
                                 <div>
                                   <label className="block text-xs text-gray-500 mb-1">소속 지문</label>
                                   <select
-                                    value={vocabularyTermsData[index]?.passage_id || `passage_0`}
+                                    value={currentPassageId}
                                     onChange={(e) => updateVocabularyPassage(e.target.value)}
                                     className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   >
