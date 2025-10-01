@@ -27,7 +27,10 @@
       "Bash(git config:*)",
       "WebSearch",
       "Bash(xargs:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(sed:*)",
+      "Bash(cat:*)",
+      "Bash(perl:*)"
     ],
     "deny": []
   }

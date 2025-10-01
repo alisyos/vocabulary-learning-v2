@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import RoleAuthGuard from '@/components/RoleAuthGuard';
+import { generateHtmlV2 } from '@/lib/htmlGeneratorV2';
 
 interface DataSet {
   id: string; // UUID
@@ -563,7 +564,111 @@ export default function ManagePage() {
       setBatchOperation({ loading: false, type: null });
     }
   };
-  
+
+  // 일괄 HTML 다운로드
+  const handleBatchHtmlDownload = async () => {
+    if (selectedSets.size === 0) {
+      alert('다운로드할 콘텐츠를 선택해주세요.');
+      return;
+    }
+
+    const selectedCount = selectedSets.size;
+    if (!confirm(`선택한 ${selectedCount}개의 콘텐츠를 HTML로 다운로드하시겠습니까?`)) {
+      return;
+    }
+
+    setBatchOperation({ loading: true, type: 'download' });
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const setId of Array.from(selectedSets)) {
+        try {
+          // 1. 세트 상세 정보 가져오기
+          const response = await fetch(`/api/get-set-details-supabase?setId=${setId}`);
+          const result = await response.json();
+
+          if (!result.success || !result.data) {
+            failCount++;
+            continue;
+          }
+
+          // 2. 시각자료 가져오기 (session_number가 있는 경우)
+          let visualMaterials = [];
+          if (result.data.contentSet.session_number) {
+            const imageResponse = await fetch(
+              `/api/images?session_number=${encodeURIComponent(result.data.contentSet.session_number)}`
+            );
+            const imageResult = await imageResponse.json();
+            if (imageResult.success) {
+              visualMaterials = imageResult.data || [];
+            }
+          }
+
+          // 3. passages 데이터 변환 (DB 형식 → UI 형식)
+          const passages = (result.data.passages || []).map((p: any) => ({
+            id: p.id,
+            title: p.title,
+            paragraphs: [
+              p.paragraph_1, p.paragraph_2, p.paragraph_3,
+              p.paragraph_4, p.paragraph_5, p.paragraph_6,
+              p.paragraph_7, p.paragraph_8, p.paragraph_9,
+              p.paragraph_10
+            ].filter((para: string | null | undefined) => para && para.trim() !== ''),
+            passage_number: p.passage_number
+          }));
+
+          // 4. HTML 생성
+          const htmlContent = generateHtmlV2({
+            contentSet: result.data.contentSet,
+            passages,
+            passage: result.data.passage,
+            vocabularyTerms: result.data.vocabularyTerms || [],
+            vocabularyQuestions: result.data.vocabularyQuestions || [],
+            paragraphQuestions: result.data.paragraphQuestions || [],
+            comprehensiveQuestions: result.data.comprehensiveQuestions || [],
+            introductionQuestion: result.data.introductionQuestion || '',
+            visualMaterials
+          });
+
+          // 5. 다운로드
+          const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          const sessionPrefix = result.data.contentSet.session_number
+            ? `${result.data.contentSet.session_number}차시_`
+            : '';
+          link.download = `${sessionPrefix}${setId}.html`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+
+          successCount++;
+          // 브라우저가 다운로드를 처리할 시간을 주기 위한 짧은 지연
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`세트 ${setId} 다운로드 실패:`, error);
+          failCount++;
+        }
+      }
+
+      setSelectedSets(new Set());
+
+      if (failCount === 0) {
+        alert(`${successCount}개의 HTML 파일이 성공적으로 다운로드되었습니다.`);
+      } else {
+        alert(`${successCount}개 다운로드 성공, ${failCount}개 다운로드 실패`);
+      }
+    } catch (error) {
+      console.error('일괄 HTML 다운로드 중 오류:', error);
+      alert('일괄 HTML 다운로드 중 오류가 발생했습니다.');
+    } finally {
+      setBatchOperation({ loading: false, type: null });
+    }
+  };
+
   return (
     <RoleAuthGuard allowedRoles={['admin', 'user']}>
       <div className="min-h-screen bg-gray-50">
@@ -771,6 +876,25 @@ export default function ManagePage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span>일괄 상태변경</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleBatchHtmlDownload}
+                disabled={batchOperation.loading}
+                className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {batchOperation.loading && batchOperation.type === 'download' ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>다운로드 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>일괄 HTML 다운로드</span>
                   </>
                 )}
               </button>
