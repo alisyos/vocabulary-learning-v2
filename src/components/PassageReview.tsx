@@ -11,6 +11,14 @@ interface PassageReviewProps {
   onNext: () => void;
   loading?: boolean;
   lastUsedPrompt?: string; // GPT에 보낸 프롬프트
+  contextInfo?: {
+    grade: string;
+    subject: string;
+    area: string;
+    main_topic: string;
+    sub_topic: string;
+    keywords: string;
+  };
 }
 
 // 어휘 파싱 함수는 공통 라이브러리에서 import
@@ -20,10 +28,17 @@ export default function PassageReview({
   onUpdate,
   onNext,
   loading = false,
-  lastUsedPrompt = ''
+  lastUsedPrompt = '',
+  contextInfo
 }: PassageReviewProps) {
   const [localPassage, setLocalPassage] = useState<EditablePassage>(editablePassage);
   const [showPromptModal, setShowPromptModal] = useState(false);
+
+  // 어휘 재생성 관련 상태
+  const [selectedTermIndices, setSelectedTermIndices] = useState<Set<string>>(new Set());
+  const [showRegenerateModal, setShowRegenerateModal] = useState(false);
+  const [regeneratedTerms, setRegeneratedTerms] = useState<any[]>([]);
+  const [regenerating, setRegenerating] = useState(false);
 
   // 2개 지문 형식인지 확인
   const isDualPassageFormat = localPassage.passages && localPassage.passages.length > 0;
@@ -228,10 +243,178 @@ export default function PassageReview({
   // 전체 문자 수 계산 (2개 지문 형식일 때)
   const getTotalCharCount = () => {
     if (isDualPassageFormat) {
-      return localPassage.passages!.reduce((total, passage) => 
+      return localPassage.passages!.reduce((total, passage) =>
         total + passage.paragraphs.join('').length, 0);
     }
     return localPassage.paragraphs.join('').length;
+  };
+
+  // === 어휘 재생성 기능 ===
+  // 용어 선택 핸들러
+  const handleSelectTerm = (termKey: string, checked: boolean) => {
+    const newSelected = new Set(selectedTermIndices);
+    if (checked) {
+      newSelected.add(termKey);
+    } else {
+      newSelected.delete(termKey);
+    }
+    setSelectedTermIndices(newSelected);
+  };
+
+  // 전체 선택 핸들러
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allKeys = new Set<string>();
+      if (isDualPassageFormat) {
+        localPassage.passages!.forEach((passage, pIdx) => {
+          passage.footnote.forEach((_, fIdx) => {
+            allKeys.add(`${pIdx}-${fIdx}`);
+          });
+        });
+      } else {
+        localPassage.footnote.forEach((_, fIdx) => {
+          allKeys.add(`single-${fIdx}`);
+        });
+      }
+      setSelectedTermIndices(allKeys);
+    } else {
+      setSelectedTermIndices(new Set());
+    }
+  };
+
+  // 어휘 재생성 실행
+  const handleRegenerate = async () => {
+    if (selectedTermIndices.size === 0) {
+      alert('재생성할 용어를 선택해주세요.');
+      return;
+    }
+
+    if (!contextInfo) {
+      alert('콘텐츠 정보가 없습니다. 재생성할 수 없습니다.');
+      return;
+    }
+
+    setRegenerating(true);
+    try {
+      // 선택된 용어 추출
+      const termsToRegenerate = [];
+
+      if (isDualPassageFormat) {
+        localPassage.passages!.forEach((passage, pIdx) => {
+          passage.footnote.forEach((footnote, fIdx) => {
+            const key = `${pIdx}-${fIdx}`;
+            if (selectedTermIndices.has(key)) {
+              const parsed = parseFootnoteToVocabularyTerm(footnote);
+              termsToRegenerate.push({
+                ...parsed,
+                key,
+                passageIndex: pIdx,
+                footnoteIndex: fIdx
+              });
+            }
+          });
+        });
+      } else {
+        localPassage.footnote.forEach((footnote, fIdx) => {
+          const key = `single-${fIdx}`;
+          if (selectedTermIndices.has(key)) {
+            const parsed = parseFootnoteToVocabularyTerm(footnote);
+            termsToRegenerate.push({
+              ...parsed,
+              key,
+              footnoteIndex: fIdx
+            });
+          }
+        });
+      }
+
+      const response = await fetch('/api/vocabulary-terms/regenerate-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          terms: termsToRegenerate.map(t => ({
+            term: t.term,
+            definition: t.definition,
+            example_sentence: t.example_sentence
+          })),
+          contextInfo
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // key 정보 복원
+        const mergedTerms = result.regeneratedTerms.map((regenTerm: any, idx: number) => ({
+          ...regenTerm,
+          ...termsToRegenerate[idx] // key, passageIndex, footnoteIndex 포함
+        }));
+
+        setRegeneratedTerms(mergedTerms);
+        setShowRegenerateModal(true);
+
+        if (result.errors && result.errors.length > 0) {
+          console.error('Regeneration errors:', result.errors);
+        }
+      } else {
+        alert(`재생성 실패: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Regeneration error:', error);
+      alert('재생성 중 오류가 발생했습니다.');
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  // 재생성된 항목 개별 저장
+  const handleSaveRegenerated = (termData: any) => {
+    if (isDualPassageFormat && termData.passageIndex !== undefined) {
+      // 2개 지문 형식
+      const newFootnote = vocabularyTermToFootnote(
+        termData.term,
+        termData.new_definition,
+        termData.new_example_sentence
+      );
+      handlePassageFootnoteChange(termData.passageIndex, termData.footnoteIndex, newFootnote);
+    } else {
+      // 단일 지문 형식
+      const newFootnote = vocabularyTermToFootnote(
+        termData.term,
+        termData.new_definition,
+        termData.new_example_sentence
+      );
+      handleFootnoteChange(termData.footnoteIndex, newFootnote);
+    }
+
+    // 재생성 목록에서 제거
+    setRegeneratedTerms(prev => prev.filter(t => t.key !== termData.key));
+  };
+
+  // 재생성된 모든 항목 일괄 저장
+  const handleSaveAllRegenerated = () => {
+    regeneratedTerms.forEach(termData => {
+      if (isDualPassageFormat && termData.passageIndex !== undefined) {
+        const newFootnote = vocabularyTermToFootnote(
+          termData.term,
+          termData.new_definition,
+          termData.new_example_sentence
+        );
+        handlePassageFootnoteChange(termData.passageIndex, termData.footnoteIndex, newFootnote);
+      } else {
+        const newFootnote = vocabularyTermToFootnote(
+          termData.term,
+          termData.new_definition,
+          termData.new_example_sentence
+        );
+        handleFootnoteChange(termData.footnoteIndex, newFootnote);
+      }
+    });
+
+    alert(`${regeneratedTerms.length}개 항목이 저장되었습니다.`);
+    setShowRegenerateModal(false);
+    setRegeneratedTerms([]);
+    setSelectedTermIndices(new Set());
   };
 
   return (
@@ -364,28 +547,65 @@ export default function PassageReview({
               {/* 지문별 용어 설명 */}
               <div className="mb-4">
                 <div className="flex justify-between items-center mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="text-sm font-medium text-gray-700">
                     용어 설명 ({passage.footnote.length}개)
                     <span className="text-xs text-gray-500 ml-2">
                       {passageIndex === 0 ? '(용어 1-10)' : '(용어 11-20)'}
                     </span>
                   </label>
-                  <button
-                    onClick={() => addPassageFootnote(passageIndex)}
-                    className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-md hover:bg-green-200 transition-colors"
-                  >
-                    + 용어 추가
-                  </button>
+                  <div className="flex gap-2">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer bg-gray-50 px-3 py-1 rounded-md hover:bg-gray-100 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={(() => {
+                          let totalTerms = 0;
+                          let selectedCount = 0;
+                          localPassage.passages!.forEach((passage, pIdx) => {
+                            passage.footnote.forEach((_, fIdx) => {
+                              totalTerms++;
+                              if (selectedTermIndices.has(`${pIdx}-${fIdx}`)) {
+                                selectedCount++;
+                              }
+                            });
+                          });
+                          return totalTerms > 0 && totalTerms === selectedCount;
+                        })()}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      <span>전체 선택</span>
+                    </label>
+                    <button
+                      onClick={handleRegenerate}
+                      disabled={selectedTermIndices.size === 0 || regenerating}
+                      className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-md hover:bg-purple-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {regenerating ? '재생성 중...' : `선택 재생성 (${selectedTermIndices.size})`}
+                    </button>
+                    <button
+                      onClick={() => addPassageFootnote(passageIndex)}
+                      className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-md hover:bg-green-200 transition-colors"
+                    >
+                      + 용어 추가
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
                   {passage.footnote.map((footnote, footnoteIndex) => {
                     const parsed = parseFootnoteToVocabularyTerm(footnote);
                     const globalIndex = passageIndex === 0 ? footnoteIndex + 1 : footnoteIndex + 11;
+                    const termKey = `${passageIndex}-${footnoteIndex}`;
 
                     return (
                       <div key={footnoteIndex} className="bg-white border border-gray-200 rounded-lg p-3">
                         <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedTermIndices.has(termKey)}
+                            onChange={(e) => handleSelectTerm(termKey, e.target.checked)}
+                            className="mt-2 rounded border-gray-300"
+                          />
                           <span className="text-sm text-gray-500 min-w-[25px] mt-1">
                             {globalIndex}.
                           </span>
@@ -553,24 +773,51 @@ export default function PassageReview({
           {/* 용어 설명 편집 */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-gray-700">
                 용어 설명 ({localPassage.footnote.length}개)
               </label>
-              <button
-                onClick={addFootnote}
-                className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-md hover:bg-green-200 transition-colors"
-              >
-                + 용어 추가
-              </button>
+              <div className="flex gap-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer bg-gray-50 px-3 py-1 rounded-md hover:bg-gray-100 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={localPassage.footnote.length > 0 && localPassage.footnote.every((_, fIdx) =>
+                      selectedTermIndices.has(`single-${fIdx}`)
+                    )}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <span>전체 선택</span>
+                </label>
+                <button
+                  onClick={handleRegenerate}
+                  disabled={selectedTermIndices.size === 0 || regenerating}
+                  className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-md hover:bg-purple-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {regenerating ? '재생성 중...' : `선택 재생성 (${selectedTermIndices.size})`}
+                </button>
+                <button
+                  onClick={addFootnote}
+                  className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-md hover:bg-green-200 transition-colors"
+                >
+                  + 용어 추가
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3">
               {localPassage.footnote.map((footnote, index) => {
                 const parsed = parseFootnoteToVocabularyTerm(footnote);
+                const termKey = `single-${index}`;
 
                 return (
                   <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
                     <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedTermIndices.has(termKey)}
+                        onChange={(e) => handleSelectTerm(termKey, e.target.checked)}
+                        className="mt-2 rounded border-gray-300"
+                      />
                       <span className="text-sm text-gray-500 min-w-[25px] mt-1">
                         {index + 1}.
                       </span>
@@ -687,6 +934,126 @@ export default function PassageReview({
         prompt={lastUsedPrompt}
         stepName="2단계: 지문 검토"
       />
+
+      {/* 재생성 결과 모달 */}
+      {showRegenerateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">재생성 결과 확인</h3>
+
+            <div className="mb-4 flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                {regeneratedTerms.length}개 항목이 재생성되었습니다. 각 항목을 확인하고 저장하세요.
+              </div>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              {regeneratedTerms.map((term, index) => (
+                <div key={term.key || index} className="border border-gray-200 rounded-lg p-4">
+                  <div className="font-medium text-gray-900 mb-3">
+                    {index + 1}. {term.term}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* 원본 */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-gray-700">원본</h4>
+                      <div className="bg-gray-50 p-3 rounded text-sm">
+                        <div className="mb-2">
+                          <span className="font-medium">정의:</span> {term.original_definition}
+                        </div>
+                        <div>
+                          <span className="font-medium">예문:</span> {term.original_example || '-'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 재생성 */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-blue-700">재생성 (새로운 내용)</h4>
+                      <div className="bg-blue-50 p-3 rounded text-sm">
+                        <div className="mb-2">
+                          <span className="font-medium">정의:</span>
+                          <textarea
+                            value={term.new_definition}
+                            onChange={(e) => {
+                              setRegeneratedTerms(prev =>
+                                prev.map(t =>
+                                  t.key === term.key
+                                    ? { ...t, new_definition: e.target.value }
+                                    : t
+                                )
+                              );
+                            }}
+                            className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                            rows={2}
+                          />
+                        </div>
+                        <div>
+                          <span className="font-medium">예문:</span>
+                          <textarea
+                            value={term.new_example_sentence}
+                            onChange={(e) => {
+                              setRegeneratedTerms(prev =>
+                                prev.map(t =>
+                                  t.key === term.key
+                                    ? { ...t, new_example_sentence: e.target.value }
+                                    : t
+                                )
+                              );
+                            }}
+                            className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex justify-end gap-2">
+                    <button
+                      onClick={() => handleSaveRegenerated(term)}
+                      className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                    >
+                      이 항목 저장
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRegeneratedTerms(prev => prev.filter(t => t.key !== term.key));
+                      }}
+                      className="px-3 py-1 bg-gray-400 text-white rounded text-sm hover:bg-gray-500"
+                    >
+                      건너뛰기
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {regeneratedTerms.length > 0 && (
+              <div className="flex gap-3 justify-end border-t pt-4">
+                <button
+                  onClick={handleSaveAllRegenerated}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  모두 저장
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm('재생성된 내용을 저장하지 않고 닫으시겠습니까?')) {
+                      setShowRegenerateModal(false);
+                      setRegeneratedTerms([]);
+                    }
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                >
+                  닫기
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
