@@ -72,6 +72,7 @@ function convertDBToWorkflowData(dbData: any): WorkflowData {
     subject: contentSet.subject || '사회',
     grade: contentSet.grade || '',
     area: contentSet.area || '',
+    session_number: contentSet.session_number || null, // 차시 번호 추가
     maintopic: contentSet.main_topic || '',
     subtopic: contentSet.sub_topic || '',
     keyword: contentSet.keywords || '',
