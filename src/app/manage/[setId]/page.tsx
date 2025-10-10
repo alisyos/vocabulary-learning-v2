@@ -3750,22 +3750,23 @@ ${allParagraphs}`;
                                         <select
                                           value={(() => {
                                             const currentAnswer = question.correctAnswer || question.answer;
-                                            // 이미 번호 형식인지 확인 (1-5)
-                                            if (['1', '2', '3', '4', '5'].includes(currentAnswer)) {
+                                            // 이미 옵션 텍스트 형식이면 그대로 반환
+                                            if (question.options?.includes(currentAnswer)) {
                                               return currentAnswer;
                                             }
-                                            // 텍스트 형식이면 해당 옵션 찾아서 번호로 변환
-                                            const matchingIndex = question.options?.findIndex(option => 
-                                              option === currentAnswer
-                                            );
-                                            return matchingIndex >= 0 ? (matchingIndex + 1).toString() : '';
+                                            // 번호 형식(1-5)이면 해당 옵션 텍스트로 변환
+                                            if (['1', '2', '3', '4', '5'].includes(currentAnswer)) {
+                                              const index = parseInt(currentAnswer) - 1;
+                                              return question.options?.[index] || '';
+                                            }
+                                            return '';
                                           })()}
                                           onChange={(e) => handleComprehensiveChange(questionId, 'correctAnswer', e.target.value)}
                                           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         >
                                           <option value="">정답을 선택하세요</option>
                                           {question.options.map((option, optIndex) => (
-                                            <option key={optIndex} value={(optIndex + 1).toString()}>
+                                            <option key={optIndex} value={option}>
                                               {optIndex + 1}번: {option.length > 20 ? option.substring(0, 20) + '...' : option}
                                             </option>
                                           ))}
