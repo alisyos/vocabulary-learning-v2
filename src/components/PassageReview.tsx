@@ -369,22 +369,67 @@ export default function PassageReview({
 
   // 재생성된 항목 개별 저장
   const handleSaveRegenerated = (termData: any) => {
+    const newFootnote = vocabularyTermToFootnote(
+      termData.term,
+      termData.new_definition,
+      termData.new_example_sentence
+    );
+
+    // 먼저 localPassage를 복사하여 업데이트
+    const updatedPassage = { ...localPassage };
+
     if (isDualPassageFormat && termData.passageIndex !== undefined) {
-      // 2개 지문 형식
-      const newFootnote = vocabularyTermToFootnote(
-        termData.term,
-        termData.new_definition,
-        termData.new_example_sentence
-      );
-      handlePassageFootnoteChange(termData.passageIndex, termData.footnoteIndex, newFootnote);
+      // 2개 지문 형식: 현재 footnote 배열에서 용어명으로 인덱스 찾기
+      const currentFootnotes = localPassage.passages![termData.passageIndex].footnote;
+      const currentIndex = currentFootnotes.findIndex(footnote => {
+        const parsed = parseFootnoteToVocabularyTerm(footnote);
+        return parsed.term === termData.term;
+      });
+
+      if (currentIndex !== -1) {
+        // 깊은 복사로 passages 배열 업데이트
+        const updatedPassages = [...localPassage.passages!];
+        const updatedFootnote = [...updatedPassages[termData.passageIndex].footnote];
+        updatedFootnote[currentIndex] = newFootnote;
+        updatedPassages[termData.passageIndex] = {
+          ...updatedPassages[termData.passageIndex],
+          footnote: updatedFootnote
+        };
+        updatedPassage.passages = updatedPassages;
+
+        // 상태 업데이트
+        setLocalPassage(updatedPassage);
+        onUpdate(updatedPassage);
+
+        console.log(`✅ 용어 "${termData.term}" 저장 완료 (2개 지문)`);
+      } else {
+        console.error(`용어 "${termData.term}"을 찾을 수 없습니다.`);
+        alert(`용어 "${termData.term}"을 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.`);
+        return;
+      }
     } else {
-      // 단일 지문 형식
-      const newFootnote = vocabularyTermToFootnote(
-        termData.term,
-        termData.new_definition,
-        termData.new_example_sentence
-      );
-      handleFootnoteChange(termData.footnoteIndex, newFootnote);
+      // 단일 지문 형식: 현재 footnote 배열에서 용어명으로 인덱스 찾기
+      const currentIndex = localPassage.footnote.findIndex(footnote => {
+        const parsed = parseFootnoteToVocabularyTerm(footnote);
+        return parsed.term === termData.term;
+      });
+
+      if (currentIndex !== -1) {
+        // footnote 배열 업데이트
+        const updatedFootnote = [...localPassage.footnote];
+        updatedFootnote[currentIndex] = newFootnote;
+        updatedPassage.footnote = updatedFootnote;
+
+        // 상태 업데이트
+        setLocalPassage(updatedPassage);
+        onUpdate(updatedPassage);
+
+        console.log(`✅ 용어 "${termData.term}" 저장 완료 (단일 지문)`);
+      } else {
+        console.error(`용어 "${termData.term}"을 찾을 수 없습니다.`);
+        alert(`용어 "${termData.term}"을 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.`);
+        return;
+      }
     }
 
     // 재생성 목록에서 제거
@@ -404,25 +449,87 @@ export default function PassageReview({
 
   // 재생성된 모든 항목 일괄 저장
   const handleSaveAllRegenerated = () => {
+    let successCount = 0;
+    let failCount = 0;
+
+    // 먼저 localPassage를 복사하여 모든 변경사항을 한 번에 적용
+    const updatedPassage = { ...localPassage };
+
     regeneratedTerms.forEach(termData => {
+      const newFootnote = vocabularyTermToFootnote(
+        termData.term,
+        termData.new_definition,
+        termData.new_example_sentence
+      );
+
       if (isDualPassageFormat && termData.passageIndex !== undefined) {
-        const newFootnote = vocabularyTermToFootnote(
-          termData.term,
-          termData.new_definition,
-          termData.new_example_sentence
-        );
-        handlePassageFootnoteChange(termData.passageIndex, termData.footnoteIndex, newFootnote);
+        // 2개 지문 형식: 현재 footnote 배열에서 용어명으로 인덱스 찾기
+        if (!updatedPassage.passages) {
+          updatedPassage.passages = [...localPassage.passages!];
+        }
+
+        const currentFootnotes = updatedPassage.passages[termData.passageIndex].footnote;
+        const currentIndex = currentFootnotes.findIndex(footnote => {
+          const parsed = parseFootnoteToVocabularyTerm(footnote);
+          return parsed.term === termData.term;
+        });
+
+        if (currentIndex !== -1) {
+          // 깊은 복사로 passages 배열 업데이트
+          const updatedPassages = [...updatedPassage.passages];
+          const updatedFootnote = [...updatedPassages[termData.passageIndex].footnote];
+          updatedFootnote[currentIndex] = newFootnote;
+          updatedPassages[termData.passageIndex] = {
+            ...updatedPassages[termData.passageIndex],
+            footnote: updatedFootnote
+          };
+          updatedPassage.passages = updatedPassages;
+          successCount++;
+
+          console.log(`✅ 용어 "${termData.term}" 일괄 저장 완료 (2개 지문)`);
+        } else {
+          console.error(`용어 "${termData.term}"을 찾을 수 없습니다.`);
+          failCount++;
+        }
       } else {
-        const newFootnote = vocabularyTermToFootnote(
-          termData.term,
-          termData.new_definition,
-          termData.new_example_sentence
-        );
-        handleFootnoteChange(termData.footnoteIndex, newFootnote);
+        // 단일 지문 형식: 현재 footnote 배열에서 용어명으로 인덱스 찾기
+        if (!updatedPassage.footnote) {
+          updatedPassage.footnote = [...localPassage.footnote];
+        }
+
+        const currentIndex = updatedPassage.footnote.findIndex(footnote => {
+          const parsed = parseFootnoteToVocabularyTerm(footnote);
+          return parsed.term === termData.term;
+        });
+
+        if (currentIndex !== -1) {
+          // footnote 배열 업데이트
+          const updatedFootnote = [...updatedPassage.footnote];
+          updatedFootnote[currentIndex] = newFootnote;
+          updatedPassage.footnote = updatedFootnote;
+          successCount++;
+
+          console.log(`✅ 용어 "${termData.term}" 일괄 저장 완료 (단일 지문)`);
+        } else {
+          console.error(`용어 "${termData.term}"을 찾을 수 없습니다.`);
+          failCount++;
+        }
       }
     });
 
-    alert(`${regeneratedTerms.length}개 항목이 저장되었습니다.`);
+    // 모든 변경사항을 한 번에 적용
+    if (successCount > 0) {
+      setLocalPassage(updatedPassage);
+      onUpdate(updatedPassage);
+      console.log(`✅ 총 ${successCount}개 용어 일괄 저장 완료, 부모로 전달`);
+    }
+
+    if (failCount > 0) {
+      alert(`${successCount}개 항목이 저장되었습니다.\n${failCount}개 항목은 저장에 실패했습니다.`);
+    } else {
+      alert(`${successCount}개 항목이 모두 저장되었습니다.`);
+    }
+
     setShowRegenerateModal(false);
     setRegeneratedTerms([]);
     setSelectedTermIndices(new Set());
