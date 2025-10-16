@@ -531,7 +531,7 @@ export default function ContentSetReviewPage() {
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                         <div className="flex flex-col text-xs">
                           <span>어휘: {item.vocabularyQuestionCount || 0}</span>
-                          <span>문단: {item.total_paragraph_questions || 0}</span>
+                          <span>지문: {item.total_paragraph_questions || 0}</span>
                           <span>종합: {item.comprehensiveQuestionCount || 0}</span>
                         </div>
                       </td>

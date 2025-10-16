@@ -475,7 +475,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
     { id: 'passages', name: '지문', icon: '📖' },
     { id: 'vocabulary', name: '어휘', icon: '📚' },
     { id: 'vocab-questions', name: '어휘 문제', icon: '❓' },
-    { id: 'paragraph-questions', name: '문단 문제', icon: '📄' },
+    { id: 'paragraph-questions', name: '지문 문제', icon: '📄' },
     { id: 'comprehensive', name: '종합 문제', icon: '🧠' },
     { id: 'visual-materials', name: '시각자료', icon: '🖼️' }
   ];
@@ -668,7 +668,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                         <p><strong>지문 수:</strong> {data.contentSet.total_passages}</p>
                         <p><strong>어휘 수:</strong> {data.contentSet.total_vocabulary_terms}</p>
                         <p><strong>어휘 문제:</strong> {data.contentSet.total_vocabulary_questions}</p>
-                        <p><strong>문단 문제:</strong> {data.contentSet.total_paragraph_questions || 0}</p>
+                        <p><strong>지문 문제:</strong> {data.contentSet.total_paragraph_questions || 0}</p>
                         <p><strong>종합 문제:</strong> {data.contentSet.total_comprehensive_questions}</p>
                         <p><strong>생성일:</strong> {formatDate(data.contentSet.created_at || '')}</p>
                       </div>
@@ -1310,11 +1310,11 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                   </div>
                 )}
 
-                {/* 문단 문제 탭 */}
+                {/* 지문 문제 탭 */}
                 {activeTab === 'paragraph-questions' && (
                   <div className="space-y-6">
                     {(() => {
-                      // 지문별로 문단 문제를 그룹화
+                      // 지문별로 지문 문제를 그룹화
                       const questionsByPassage = {};
                       editableParagraphQuestions.forEach((question) => {
                         const passageKey = question.paragraphNumber || question.paragraph_number || 'unknown';

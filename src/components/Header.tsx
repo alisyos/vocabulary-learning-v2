@@ -93,6 +93,13 @@ export default function Header() {
       allowedRoles: ['admin'] // admin만 접근 가능
     },
     {
+      name: '종결 어미 정규화',
+      href: '/db-admin/normalize-endings',
+      icon: '📝',
+      description: '문제의 종결 어미 일괄 정규화 (~다 형태)',
+      allowedRoles: ['admin'] // admin만 접근 가능
+    },
+    {
       name: '콘텐츠세트 검수',
       href: '/db-admin/review',
       icon: '✅',
@@ -402,6 +409,12 @@ export default function Header() {
                     <>
                       <span className="mx-2">/</span>
                       <span className="text-gray-400">어휘 데이터 검수</span>
+                    </>
+                  )}
+                  {pathname.startsWith('/db-admin/normalize-endings') && (
+                    <>
+                      <span className="mx-2">/</span>
+                      <span className="text-gray-400">종결 어미 정규화</span>
                     </>
                   )}
                   {pathname.startsWith('/db-admin/review') && (

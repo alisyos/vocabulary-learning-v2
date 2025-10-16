@@ -249,6 +249,19 @@ export default function PassageReview({
     return localPassage.paragraphs.join('').length;
   };
 
+  // 용어가 단락에 포함되어 있는지 확인하는 함수
+  const isTermInParagraphs = (term: string, paragraphs: string[]): boolean => {
+    const combinedText = paragraphs.join(' ');
+    return combinedText.includes(term);
+  };
+
+  // 2개 지문 형식: 해당 지문의 단락에 용어가 있는지 확인
+  const isTermInPassageParagraphs = (term: string, passageIndex: number): boolean => {
+    if (!isDualPassageFormat || !localPassage.passages) return true;
+    const passage = localPassage.passages[passageIndex];
+    return isTermInParagraphs(term, passage.paragraphs);
+  };
+
   // === 어휘 재생성 기능 ===
   // 용어 선택 핸들러
   const handleSelectTerm = (termKey: string, checked: boolean) => {
@@ -670,6 +683,17 @@ export default function PassageReview({
                     <span className="text-xs text-gray-500 ml-2">
                       {passageIndex === 0 ? '(용어 1-10)' : '(용어 11-20)'}
                     </span>
+                    {(() => {
+                      const missingCount = passage.footnote.filter((footnote) => {
+                        const parsed = parseFootnoteToVocabularyTerm(footnote);
+                        return !isTermInPassageParagraphs(parsed.term, passageIndex);
+                      }).length;
+                      return missingCount > 0 ? (
+                        <span className="ml-2 text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                          ⚠️ {missingCount}개 본문에 없음
+                        </span>
+                      ) : null;
+                    })()}
                   </label>
                   <div className="flex gap-2">
                     <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer bg-gray-50 px-3 py-1 rounded-md hover:bg-gray-100 transition-colors">
@@ -714,9 +738,17 @@ export default function PassageReview({
                     const parsed = parseFootnoteToVocabularyTerm(footnote);
                     const globalIndex = passageIndex === 0 ? footnoteIndex + 1 : footnoteIndex + 11;
                     const termKey = `${passageIndex}-${footnoteIndex}`;
+                    const isTermMissing = !isTermInPassageParagraphs(parsed.term, passageIndex);
 
                     return (
-                      <div key={footnoteIndex} className="bg-white border border-gray-200 rounded-lg p-3">
+                      <div
+                        key={footnoteIndex}
+                        className={`border rounded-lg p-3 ${
+                          isTermMissing
+                            ? 'bg-orange-50 border-orange-300'
+                            : 'bg-white border-gray-200'
+                        }`}
+                      >
                         <div className="flex items-start gap-3">
                           <input
                             type="checkbox"
@@ -728,6 +760,12 @@ export default function PassageReview({
                             {globalIndex}.
                           </span>
                           <div className="flex-1 space-y-2">
+                            {isTermMissing && (
+                              <div className="flex items-center gap-2 text-orange-700 text-sm font-medium bg-orange-100 px-2 py-1 rounded">
+                                <span>⚠️</span>
+                                <span>이 용어가 지문 본문에 포함되어 있지 않습니다</span>
+                              </div>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                               <div>
                                 <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -737,7 +775,9 @@ export default function PassageReview({
                                   type="text"
                                   value={parsed.term}
                                   onChange={(e) => handlePassageVocabularyFieldChange(passageIndex, footnoteIndex, 'term', e.target.value)}
-                                  className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                  className={`w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm ${
+                                    isTermMissing ? 'border-orange-400' : 'border-gray-300'
+                                  }`}
                                   placeholder="용어 입력"
                                 />
                               </div>
@@ -810,14 +850,30 @@ export default function PassageReview({
                         {passage.footnote.map((footnote, footnoteIndex) => {
                           const parsed = parseFootnoteToVocabularyTerm(footnote);
                           const globalIndex = passageIndex === 0 ? footnoteIndex + 1 : footnoteIndex + 11;
+                          const isTermMissing = !isTermInPassageParagraphs(parsed.term, passageIndex);
                           return (
-                            <div key={footnoteIndex} className="flex items-start gap-2 p-2 bg-white rounded border border-gray-100">
-                              <span className="text-blue-600 font-medium">{globalIndex}.</span>
+                            <div
+                              key={footnoteIndex}
+                              className={`flex items-start gap-2 p-2 rounded border ${
+                                isTermMissing
+                                  ? 'bg-orange-50 border-orange-300'
+                                  : 'bg-white border-gray-100'
+                              }`}
+                            >
+                              <span className={`font-medium ${isTermMissing ? 'text-orange-600' : 'text-blue-600'}`}>
+                                {isTermMissing && '⚠️ '}
+                                {globalIndex}.
+                              </span>
                               <div className="flex-1">
                                 <span className="font-medium text-gray-800">{parsed.term}</span>
                                 <span className="text-gray-600">: {parsed.definition}</span>
                                 {parsed.example_sentence && (
                                   <span className="text-gray-500 italic"> (예: {parsed.example_sentence})</span>
+                                )}
+                                {isTermMissing && (
+                                  <div className="text-orange-700 text-xs mt-1">
+                                    본문에 포함되지 않음
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -893,6 +949,17 @@ export default function PassageReview({
             <div className="flex justify-between items-center mb-2">
               <label className="text-sm font-medium text-gray-700">
                 용어 설명 ({localPassage.footnote.length}개)
+                {(() => {
+                  const missingCount = localPassage.footnote.filter((footnote) => {
+                    const parsed = parseFootnoteToVocabularyTerm(footnote);
+                    return !isTermInParagraphs(parsed.term, localPassage.paragraphs);
+                  }).length;
+                  return missingCount > 0 ? (
+                    <span className="ml-2 text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                      ⚠️ {missingCount}개 본문에 없음
+                    </span>
+                  ) : null;
+                })()}
               </label>
               <div className="flex gap-2">
                 <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer bg-gray-50 px-3 py-1 rounded-md hover:bg-gray-100 transition-colors">
@@ -926,9 +993,17 @@ export default function PassageReview({
               {localPassage.footnote.map((footnote, index) => {
                 const parsed = parseFootnoteToVocabularyTerm(footnote);
                 const termKey = `single-${index}`;
+                const isTermMissing = !isTermInParagraphs(parsed.term, localPassage.paragraphs);
 
                 return (
-                  <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div
+                    key={index}
+                    className={`border rounded-lg p-3 ${
+                      isTermMissing
+                        ? 'bg-orange-50 border-orange-300'
+                        : 'bg-white border-gray-200'
+                    }`}
+                  >
                     <div className="flex items-start gap-3">
                       <input
                         type="checkbox"
@@ -940,6 +1015,12 @@ export default function PassageReview({
                         {index + 1}.
                       </span>
                       <div className="flex-1 space-y-2">
+                        {isTermMissing && (
+                          <div className="flex items-center gap-2 text-orange-700 text-sm font-medium bg-orange-100 px-2 py-1 rounded">
+                            <span>⚠️</span>
+                            <span>이 용어가 지문 본문에 포함되어 있지 않습니다</span>
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -949,7 +1030,9 @@ export default function PassageReview({
                               type="text"
                               value={parsed.term}
                               onChange={(e) => handleVocabularyFieldChange(index, 'term', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              className={`w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm ${
+                                isTermMissing ? 'border-orange-400' : 'border-gray-300'
+                              }`}
                               placeholder="용어 입력"
                             />
                           </div>
@@ -1010,14 +1093,30 @@ export default function PassageReview({
                   <div className="grid grid-cols-1 gap-2 text-sm">
                     {localPassage.footnote.map((footnote, index) => {
                       const parsed = parseFootnoteToVocabularyTerm(footnote);
+                      const isTermMissing = !isTermInParagraphs(parsed.term, localPassage.paragraphs);
                       return (
-                        <div key={index} className="flex items-start gap-2 p-2 bg-white rounded border border-gray-100">
-                          <span className="text-blue-600 font-medium">{index + 1}.</span>
+                        <div
+                          key={index}
+                          className={`flex items-start gap-2 p-2 rounded border ${
+                            isTermMissing
+                              ? 'bg-orange-50 border-orange-300'
+                              : 'bg-white border-gray-100'
+                          }`}
+                        >
+                          <span className={`font-medium ${isTermMissing ? 'text-orange-600' : 'text-blue-600'}`}>
+                            {isTermMissing && '⚠️ '}
+                            {index + 1}.
+                          </span>
                           <div className="flex-1">
                             <span className="font-medium text-gray-800">{parsed.term}</span>
                             <span className="text-gray-600">: {parsed.definition}</span>
                             {parsed.example_sentence && (
                               <span className="text-gray-500 italic"> (예: {parsed.example_sentence})</span>
+                            )}
+                            {isTermMissing && (
+                              <div className="text-orange-700 text-xs mt-1">
+                                본문에 포함되지 않음
+                              </div>
                             )}
                           </div>
                         </div>

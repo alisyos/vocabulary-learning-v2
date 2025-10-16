@@ -194,7 +194,7 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
     });
   });
 
-  // 각 문단별 문단 문제 그룹화
+  // 각 문단별 지문 문제 그룹화
   const paragraphQuestionsByParagraph: { [key: number]: Question[] } = {};
   editableParagraphQuestions.forEach(q => {
     const paragraphNumber = q.paragraphNumber || q.paragraph_number || 1;
@@ -210,7 +210,7 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
   const difficultVocabularyCount = vocabularyTermsData.filter(term => term.has_question_generated !== true).length;
   const totalVocabularyCount = vocabularyTermsData.length;
 
-  // 문단문제 유형별 분포 계산
+  // 지문문제 유형별 분포 계산
   const paragraphTypeStats = editableParagraphQuestions.reduce((acc, question) => {
     const originalType = question.questionType || question.question_type || question.type || '기타';
     const type = getParagraphQuestionTypeLabel(originalType);
@@ -633,7 +633,7 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
         </div>
       </div>
 
-      <!-- 두 번째 행: 어휘 문제 + 문단 문제 + 종합 문제 -->
+      <!-- 두 번째 행: 어휘 문제 + 지문 문제 + 종합 문제 -->
       <div class="info-row">
         <div class="info-card">
           <h3>어휘 문제</h3>
@@ -647,14 +647,14 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
         </div>
 
         <div class="info-card">
-          <h3>문단 문제</h3>
+          <h3>지문 문제</h3>
           <p><strong>총 문제 수:</strong> ${totalParagraphQuestions}개</p>
           ${totalParagraphQuestions > 0 ? `
           <p><strong>유형별 분포:</strong></p>
           <div style="margin-top: 8px;">
             ${Object.entries(paragraphTypeStats).map(([type, count]) => `<div style="margin-bottom: 4px; color: #6c757d; font-size: 0.9em;">• ${type}: ${count}개</div>`).join('')}
           </div>
-          ` : `<p><strong>문제형태:</strong> 저장된 문단 문제가 없습니다</p>`}
+          ` : `<p><strong>문제형태:</strong> 저장된 지문 문제가 없습니다</p>`}
         </div>
 
         <div class="info-card">
@@ -673,7 +673,7 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
       <button class="tab active" onclick="showTab('passage')">지문 (${editablePassages.length > 0 ? editablePassages.length : 1}개)</button>
       <button class="tab" onclick="showTab('vocabulary-list')">어휘 (${editableVocabulary.length}개)</button>
       <button class="tab" onclick="showTab('vocabulary')">어휘 문제 (${editableVocabQuestions.length}개)</button>
-      <button class="tab" onclick="showTab('paragraph')">문단 문제 (${totalParagraphQuestions}개)</button>
+      <button class="tab" onclick="showTab('paragraph')">지문 문제 (${totalParagraphQuestions}개)</button>
       <button class="tab" onclick="showTab('comprehensive')">종합 문제 (${totalMainSets}세트, ${editableComprehensive.length}개)</button>
       <button class="tab" onclick="showTab('images')">시각자료</button>
     </div>
@@ -997,14 +997,14 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
       }).join('')}
     </div>
 
-    <!-- 문단 문제 탭 -->
+    <!-- 지문 문제 탭 -->
     <div id="paragraph-tab" class="tab-content">
-      <h2 style="color: #2c3e50; margin-bottom: 30px;">📖 문단별 문제</h2>
+      <h2 style="color: #2c3e50; margin-bottom: 30px;">📖 지문별 문제</h2>
       ${Object.entries(paragraphQuestionsByParagraph).sort(([a], [b]) => Number(a) - Number(b)).map(([paragraphNumber, questions]) => `
         <div style="margin-bottom: 40px;">
           <div style="background-color: #2c3e50; color: white; padding: 18px 24px; border-radius: 8px; margin-bottom: 25px; border-bottom: 3px solid #1a252f;">
             <h3 style="margin: 0; font-size: 18px; font-weight: bold; text-align: center;">
-              📖 ${paragraphNumber}문단 문제 (${questions.length}개)
+              📖 ${paragraphNumber}문단 지문 문제 (${questions.length}개)
             </h3>
           </div>
 
@@ -1033,7 +1033,7 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
           ${questions.map(q => `
             <div class="question-container">
               <div class="question-header">
-                <span class="question-number">문단 문제 ${q.question_number || q.questionNumber}</span>
+                <span class="question-number">지문 문제 ${q.question_number || q.questionNumber}</span>
                 <span class="question-type">${getParagraphQuestionTypeLabel(q.question_type || q.questionType || '')}</span>
               </div>
 
@@ -1269,7 +1269,7 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
         'passage': '지문',
         'vocabulary-list': '어휘',
         'vocabulary': '어휘 문제',
-        'paragraph': '문단 문제',
+        'paragraph': '지문 문제',
         'comprehensive': '종합 문제',
         'images': '시각자료'
       };
