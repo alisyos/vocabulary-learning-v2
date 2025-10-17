@@ -167,7 +167,7 @@ export default function SetDetailPage({ params }: { params: { setId: string } })
 
     try {
       setLoadingImages(true);
-      const response = await fetch(`/api/images?session_number=${encodeURIComponent(sessionNumber)}`);
+      const response = await fetch(`/api/images?session_number=${encodeURIComponent(sessionNumber)}&visible_only=true`);
       const result = await response.json();
 
       if (result.success) {

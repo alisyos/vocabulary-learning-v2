@@ -668,6 +668,7 @@ export interface ImageData {
   source?: string; // 출처
   memo?: string; // 메모
   uploaded_by?: string; // 업로드한 사용자 ID
+  is_visible?: boolean; // 표시 여부 (콘텐츠 관리 페이지에서 표시할지 여부)
   created_at?: string;
   updated_at?: string;
 }

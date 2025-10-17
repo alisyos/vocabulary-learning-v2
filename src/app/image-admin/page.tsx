@@ -11,7 +11,14 @@ export default function ImageAdminPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [sessionNumberFilter, setSessionNumberFilter] = useState('');
+  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'visible' | 'hidden'>('all');
   const [editingImage, setEditingImage] = useState<ImageData | null>(null);
+
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalImages, setTotalImages] = useState(0);
+  const imagesPerPage = 30;
 
   // 이미지 업로드 폼 상태
   interface FileWithMetadata {
@@ -33,12 +40,23 @@ export default function ImageAdminPage() {
       if (sessionNumberFilter) {
         params.append('session_number', sessionNumberFilter);
       }
+      if (visibilityFilter === 'visible') {
+        params.append('visible_only', 'true');
+      } else if (visibilityFilter === 'hidden') {
+        params.append('hidden_only', 'true');
+      }
+      params.append('page', currentPage.toString());
+      params.append('limit', imagesPerPage.toString());
 
       const response = await fetch(`/api/images?${params}`);
       const result = await response.json();
 
       if (result.success) {
         setImages(result.data);
+        if (result.pagination) {
+          setTotalPages(result.pagination.totalPages);
+          setTotalImages(result.pagination.total);
+        }
       } else {
         alert('이미지 목록을 불러오는데 실패했습니다.');
       }
@@ -52,7 +70,12 @@ export default function ImageAdminPage() {
 
   useEffect(() => {
     loadImages();
-  }, [sessionNumberFilter]);
+  }, [sessionNumberFilter, visibilityFilter, currentPage]);
+
+  // 필터 변경 시 첫 페이지로 이동
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sessionNumberFilter, visibilityFilter]);
 
   // 파일 처리 공통 함수
   const processFiles = (files: FileList | File[]) => {
@@ -195,8 +218,8 @@ export default function ImageAdminPage() {
       const fileInput = document.getElementById('file-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
 
-      // 목록 새로고침
-      loadImages();
+      // 첫 페이지로 이동 후 목록 새로고침
+      setCurrentPage(1);
     } catch (error) {
       console.error('업로드 오류:', error);
       alert('이미지 업로드 중 오류가 발생했습니다.');
@@ -262,6 +285,36 @@ export default function ImageAdminPage() {
     } catch (error) {
       console.error('삭제 오류:', error);
       alert('이미지 삭제 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 이미지 표시/숨김 토글
+  const handleToggleVisibility = async (id: string, currentVisibility: boolean, fileName: string) => {
+    const newVisibility = !currentVisibility;
+    const action = newVisibility ? '표시' : '숨김';
+
+    try {
+      const response = await fetch(`/api/images/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          is_visible: newVisibility
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`'${fileName}' 이미지가 ${action} 상태로 변경되었습니다.`);
+        loadImages();
+      } else {
+        alert(`상태 변경 실패: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('상태 변경 오류:', error);
+      alert('이미지 상태 변경 중 오류가 발생했습니다.');
     }
   };
 
@@ -467,22 +520,44 @@ export default function ImageAdminPage() {
 
         {/* 필터 및 통계 */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">🔍 이미지 목록</h2>
-            <div className="flex items-center space-x-4">
-              <div>
-                <label className="text-sm text-gray-600 mr-2">차시 필터:</label>
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold mb-4">🔍 이미지 목록</h2>
+
+            {/* 필터 그룹 */}
+            <div className="flex flex-wrap items-center gap-4">
+              {/* 차시 필터 */}
+              <div className="flex items-center">
+                <label className="text-sm text-gray-600 mr-2 whitespace-nowrap">차시:</label>
                 <input
                   type="text"
                   value={sessionNumberFilter}
                   onChange={(e) => setSessionNumberFilter(e.target.value)}
                   placeholder="예: 1-1"
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 w-32"
                 />
               </div>
+
+              {/* 표시 상태 필터 */}
+              <div className="flex items-center">
+                <label className="text-sm text-gray-600 mr-2 whitespace-nowrap">상태:</label>
+                <select
+                  value={visibilityFilter}
+                  onChange={(e) => setVisibilityFilter(e.target.value as 'all' | 'visible' | 'hidden')}
+                  className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">전체</option>
+                  <option value="visible">표시만</option>
+                  <option value="hidden">숨김만</option>
+                </select>
+              </div>
+
+              {/* 필터 초기화 버튼 */}
               <button
-                onClick={() => setSessionNumberFilter('')}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                onClick={() => {
+                  setSessionNumberFilter('');
+                  setVisibilityFilter('all');
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
               >
                 필터 초기화
               </button>
@@ -490,7 +565,12 @@ export default function ImageAdminPage() {
           </div>
 
           <div className="text-sm text-gray-600">
-            총 <span className="font-semibold text-blue-600">{images.length}</span>개의 이미지
+            총 <span className="font-semibold text-blue-600">{totalImages}</span>개의 이미지
+            {totalPages > 1 && (
+              <span className="ml-2">
+                (페이지 {currentPage}/{totalPages})
+              </span>
+            )}
           </div>
         </div>
 
@@ -508,9 +588,18 @@ export default function ImageAdminPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {images.map((image) => (
-              <div key={image.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div
+                key={image.id}
+                className={`rounded-lg shadow-md overflow-hidden transition-all ${
+                  image.is_visible !== false
+                    ? 'bg-white'
+                    : 'bg-gray-400 opacity-60'
+                }`}
+              >
                 {/* 이미지 미리보기 */}
-                <div className="relative h-48 bg-gray-100">
+                <div className={`relative h-48 ${
+                  image.is_visible !== false ? 'bg-gray-100' : 'bg-gray-500'
+                }`}>
                   <img
                     src={getImagePublicUrl(image.file_path)}
                     alt={image.file_name}
@@ -523,9 +612,19 @@ export default function ImageAdminPage() {
 
                 {/* 이미지 정보 */}
                 <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 truncate mb-2" title={image.file_name}>
-                    {image.file_name}
-                  </h3>
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-semibold text-gray-900 truncate flex-1" title={image.file_name}>
+                      {image.file_name}
+                    </h3>
+                    {/* 표시 상태 뱃지 */}
+                    <span className={`ml-2 px-2 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap ${
+                      image.is_visible !== false
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {image.is_visible !== false ? '표시' : '숨김'}
+                    </span>
+                  </div>
 
                   <div className="space-y-1 text-sm text-gray-600 mb-3">
                     {image.session_number && (
@@ -557,23 +656,123 @@ export default function ImageAdminPage() {
                   </div>
 
                   {/* 액션 버튼 */}
-                  <div className="flex space-x-2">
+                  <div className="space-y-2">
+                    {/* 표시/숨김 토글 버튼 */}
                     <button
-                      onClick={() => setEditingImage(image)}
-                      className="flex-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 text-sm font-medium transition-colors"
+                      onClick={() => image.id && handleToggleVisibility(image.id, image.is_visible !== false, image.file_name)}
+                      className={`w-full px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        image.is_visible !== false
+                          ? 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-300'
+                          : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-300'
+                      }`}
+                      title={image.is_visible !== false ? '콘텐츠 페이지에서 숨기기' : '콘텐츠 페이지에 표시하기'}
                     >
-                      수정
+                      {image.is_visible !== false ? '👁️ 숨기기' : '👁️‍🗨️ 표시하기'}
                     </button>
-                    <button
-                      onClick={() => image.id && handleDelete(image.id, image.file_name)}
-                      className="flex-1 px-3 py-1.5 bg-red-50 text-red-700 rounded-md hover:bg-red-100 text-sm font-medium transition-colors"
-                    >
-                      삭제
-                    </button>
+
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => setEditingImage(image)}
+                        className="flex-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 text-sm font-medium transition-colors"
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={() => image.id && handleDelete(image.id, image.file_name)}
+                        className="flex-1 px-3 py-1.5 bg-red-50 text-red-700 rounded-md hover:bg-red-100 text-sm font-medium transition-colors"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* 페이지네이션 컨트롤 */}
+        {!loading && totalPages > 1 && (
+          <div className="mt-8 flex justify-center items-center space-x-2">
+            {/* 처음으로 */}
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-2 rounded-md bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="처음 페이지"
+            >
+              «
+            </button>
+
+            {/* 이전 페이지 */}
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-2 rounded-md bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="이전 페이지"
+            >
+              ‹
+            </button>
+
+            {/* 페이지 번호 */}
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => {
+                  // 현재 페이지 주변 페이지만 표시
+                  if (totalPages <= 7) return true;
+                  if (page === 1 || page === totalPages) return true;
+                  if (Math.abs(page - currentPage) <= 1) return true;
+                  return false;
+                })
+                .map((page, index, array) => {
+                  // 페이지 번호 사이에 ... 표시
+                  const prevPage = array[index - 1];
+                  const showEllipsis = prevPage && page - prevPage > 1;
+
+                  return (
+                    <div key={page} className="flex items-center space-x-1">
+                      {showEllipsis && (
+                        <span className="px-2 text-gray-400">...</span>
+                      )}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* 다음 페이지 */}
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 rounded-md bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="다음 페이지"
+            >
+              ›
+            </button>
+
+            {/* 마지막으로 */}
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 rounded-md bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="마지막 페이지"
+            >
+              »
+            </button>
+
+            {/* 페이지 정보 */}
+            <div className="ml-4 text-sm text-gray-600">
+              {totalImages}개 중 {((currentPage - 1) * imagesPerPage) + 1}-{Math.min(currentPage * imagesPerPage, totalImages)}
+            </div>
           </div>
         )}
 

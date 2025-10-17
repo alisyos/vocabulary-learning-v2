@@ -4,10 +4,11 @@ import { getImageDataById, updateImageData, deleteImageData } from '@/lib/supaba
 // 이미지 상세 조회
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const imageData = await getImageDataById(params.id);
+    const { id } = await params;
+    const imageData = await getImageDataById(id);
 
     if (!imageData) {
       return NextResponse.json(
@@ -36,16 +37,18 @@ export async function GET(
 // 이미지 메타데이터 수정
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
-    const { session_number, source, memo } = body;
+    const { session_number, source, memo, is_visible } = body;
 
-    const updatedImage = await updateImageData(params.id, {
+    const updatedImage = await updateImageData(id, {
       session_number,
       source,
-      memo
+      memo,
+      is_visible
     });
 
     return NextResponse.json({
@@ -69,11 +72,12 @@ export async function PATCH(
 // 이미지 삭제
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // 먼저 이미지 데이터 조회 (file_path 필요)
-    const imageData = await getImageDataById(params.id);
+    const imageData = await getImageDataById(id);
 
     if (!imageData) {
       return NextResponse.json(
@@ -83,7 +87,7 @@ export async function DELETE(
     }
 
     // Storage 파일 및 DB 메타데이터 삭제
-    await deleteImageData(params.id, imageData.file_path);
+    await deleteImageData(id, imageData.file_path);
 
     return NextResponse.json({
       success: true,

@@ -1224,16 +1224,21 @@ export function getVocabularyQuestionTypeLabel(questionType: string, detailedQue
  */
 export async function getImageDataList(filters?: {
   session_number?: string;
+  is_visible?: boolean;
 }): Promise<import('../types').ImageData[]> {
   try {
     let query = supabase
       .from('image_data')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false});
 
     // 필터 적용
     if (filters?.session_number) {
       query = query.eq('session_number', filters.session_number);
+    }
+
+    if (filters?.is_visible !== undefined) {
+      query = query.eq('is_visible', filters.is_visible);
     }
 
     const { data, error } = await query;
