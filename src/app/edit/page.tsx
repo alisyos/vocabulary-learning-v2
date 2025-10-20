@@ -189,7 +189,8 @@ function convertDBToWorkflowData(dbData: any): WorkflowData {
     questionFormat: cq.questionFormat === '객관식' ? 'multiple_choice' : 'short_answer',
     question: cq.question || cq.question_text,
     options: cq.options,
-    correctAnswer: cq.answer || cq.correctAnswer || cq.correct_answer,
+    answer: cq.answer || cq.correctAnswer || cq.correct_answer, // ✅ 컴포넌트는 answer 필드 사용
+    correctAnswer: cq.answer || cq.correctAnswer || cq.correct_answer, // 호환성 유지
     explanation: cq.explanation,
     isSupplementary: cq.difficulty === '보완' || cq.isSupplementary || cq.is_supplementary || false,
     questionSetNumber: cq.questionSetNumber || cq.question_set_number || 1,

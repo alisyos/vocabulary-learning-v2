@@ -625,53 +625,97 @@ export default function ComprehensiveQuestions({
 
   // 선택지 수정 (객관식 문제용)
   const handleOptionUpdate = (questionIndex: number, optionIndex: number, value: string) => {
-    const updated = [...localQuestions];
-    if (updated[questionIndex].options) {
-      const oldOptionValue = updated[questionIndex].options![optionIndex];
+    const updated = localQuestions.map((q, i) => {
+      if (i === questionIndex && q.options) {
+        const oldOptionValue = q.options[optionIndex];
 
-      // 선택지 업데이트
-      updated[questionIndex].options![optionIndex] = value;
+        // 선택지 배열을 불변하게 복사하여 업데이트
+        const newOptions = [...q.options];
+        newOptions[optionIndex] = value;
 
-      // 🔧 수정한 선택지가 현재 정답이라면, 정답도 함께 업데이트
-      if (updated[questionIndex].answer === oldOptionValue) {
-        updated[questionIndex].answer = value;
-        console.log(`✅ 정답도 함께 업데이트: "${oldOptionValue}" → "${value}"`);
+        // 🔧 수정한 선택지가 현재 정답이라면, 정답도 함께 업데이트
+        const newAnswer = q.answer === oldOptionValue ? value : q.answer;
+
+        if (q.answer === oldOptionValue) {
+          console.log(`✅ [8단계] 정답도 함께 업데이트: "${oldOptionValue}" → "${value}"`);
+          console.log(`✅ [8단계] 문제 ID: ${q.id}, 유형: ${q.type}`);
+        }
+
+        // 완전히 새로운 객체 반환 (불변 업데이트)
+        const updatedQuestion = {
+          ...q,
+          options: newOptions,
+          answer: newAnswer
+        };
+
+        console.log(`📝 [8단계] 선택지 ${optionIndex + 1} 수정 완료:`, {
+          questionId: q.id,
+          type: q.type,
+          oldOption: oldOptionValue,
+          newOption: value,
+          oldAnswer: q.answer,
+          newAnswer: updatedQuestion.answer,
+          isAnswerUpdated: q.answer !== updatedQuestion.answer
+        });
+
+        return updatedQuestion;
       }
+      return q;
+    });
 
-      setLocalQuestions(updated);
-      onUpdate(updated); // 검토 단계에서는 기본값(false) 사용
-    }
+    console.log(`🔄 [8단계] onUpdate 호출 - 총 ${updated.length}개 문제 전달`);
+    setLocalQuestions(updated);
+    onUpdate(updated); // 검토 단계에서는 기본값(false) 사용
   };
 
   // 선택지 추가 (객관식 문제용)
   const addOption = (questionIndex: number) => {
-    const updated = [...localQuestions];
-    if (!updated[questionIndex].options) {
-      updated[questionIndex].options = [];
-    }
-    updated[questionIndex].options!.push('새로운 선택지');
+    const updated = localQuestions.map((q, i) => {
+      if (i === questionIndex) {
+        const currentOptions = q.options || [];
+        const newOptions = [...currentOptions, '새로운 선택지'];
+
+        // 완전히 새로운 객체 반환 (불변 업데이트)
+        return {
+          ...q,
+          options: newOptions
+        };
+      }
+      return q;
+    });
+
     setLocalQuestions(updated);
     onUpdate(updated); // 검토 단계에서는 기본값(false) 사용
   };
 
   // 선택지 제거 (객관식 문제용)
   const removeOption = (questionIndex: number, optionIndex: number) => {
-    const updated = [...localQuestions];
-    if (updated[questionIndex].options && updated[questionIndex].options!.length > 2) {
-      const removedOptionValue = updated[questionIndex].options![optionIndex];
+    const updated = localQuestions.map((q, i) => {
+      if (i === questionIndex && q.options && q.options.length > 2) {
+        const removedOptionValue = q.options[optionIndex];
 
-      // 선택지 삭제
-      updated[questionIndex].options!.splice(optionIndex, 1);
+        // 선택지 배열을 불변하게 복사하여 삭제
+        const newOptions = q.options.filter((_, idx) => idx !== optionIndex);
 
-      // 🔧 삭제한 선택지가 현재 정답이라면, 정답을 첫 번째 남은 선택지로 업데이트
-      if (updated[questionIndex].answer === removedOptionValue) {
-        updated[questionIndex].answer = updated[questionIndex].options![0];
-        console.log(`⚠️ 삭제된 선택지가 정답이었습니다. 정답을 첫 번째 선택지로 변경: "${removedOptionValue}" → "${updated[questionIndex].options![0]}"`);
+        // 🔧 삭제한 선택지가 현재 정답이라면, 정답을 첫 번째 남은 선택지로 업데이트
+        const newAnswer = q.answer === removedOptionValue ? newOptions[0] : q.answer;
+
+        if (q.answer === removedOptionValue) {
+          console.log(`⚠️ 삭제된 선택지가 정답이었습니다. 정답을 첫 번째 선택지로 변경: "${removedOptionValue}" → "${newOptions[0]}"`);
+        }
+
+        // 완전히 새로운 객체 반환 (불변 업데이트)
+        return {
+          ...q,
+          options: newOptions,
+          answer: newAnswer
+        };
       }
+      return q;
+    });
 
-      setLocalQuestions(updated);
-      onUpdate(updated); // 검토 단계에서는 기본값(false) 사용
-    }
+    setLocalQuestions(updated);
+    onUpdate(updated); // 검토 단계에서는 기본값(false) 사용
   };
 
     if (currentStep === 'generation') {

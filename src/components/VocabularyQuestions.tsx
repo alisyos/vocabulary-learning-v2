@@ -553,18 +553,26 @@ export default function VocabularyQuestions({
     const updated = localQuestions.map(q => {
       if (q.id === questionId) {
         const oldOptionValue = (q as any)[field];
-        const updatedQuestion = { ...q, [field]: value };
 
         // 🔧 수정한 선택지가 현재 정답이라면, 정답도 함께 업데이트
         const currentAnswer = q.correct_answer || q.answer;
+        const newAnswer = currentAnswer === oldOptionValue ? value : currentAnswer;
+
         if (currentAnswer === oldOptionValue) {
-          // correct_answer 또는 answer 필드를 업데이트
-          if (q.correct_answer !== undefined) {
-            updatedQuestion.correct_answer = value;
-          } else if ((q as any).answer !== undefined) {
-            (updatedQuestion as any).answer = value;
-          }
           console.log(`✅ 정답도 함께 업데이트: "${oldOptionValue}" → "${value}"`);
+        }
+
+        // 완전히 새로운 객체 반환 (불변 업데이트)
+        const updatedQuestion: any = {
+          ...q,
+          [field]: value
+        };
+
+        // correct_answer 또는 answer 필드 업데이트
+        if (q.correct_answer !== undefined) {
+          updatedQuestion.correct_answer = newAnswer;
+        } else if ((q as any).answer !== undefined) {
+          updatedQuestion.answer = newAnswer;
         }
 
         return updatedQuestion;
