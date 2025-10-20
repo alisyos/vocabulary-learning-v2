@@ -627,7 +627,17 @@ export default function ComprehensiveQuestions({
   const handleOptionUpdate = (questionIndex: number, optionIndex: number, value: string) => {
     const updated = [...localQuestions];
     if (updated[questionIndex].options) {
+      const oldOptionValue = updated[questionIndex].options![optionIndex];
+
+      // 선택지 업데이트
       updated[questionIndex].options![optionIndex] = value;
+
+      // 🔧 수정한 선택지가 현재 정답이라면, 정답도 함께 업데이트
+      if (updated[questionIndex].answer === oldOptionValue) {
+        updated[questionIndex].answer = value;
+        console.log(`✅ 정답도 함께 업데이트: "${oldOptionValue}" → "${value}"`);
+      }
+
       setLocalQuestions(updated);
       onUpdate(updated); // 검토 단계에서는 기본값(false) 사용
     }
@@ -648,7 +658,17 @@ export default function ComprehensiveQuestions({
   const removeOption = (questionIndex: number, optionIndex: number) => {
     const updated = [...localQuestions];
     if (updated[questionIndex].options && updated[questionIndex].options!.length > 2) {
+      const removedOptionValue = updated[questionIndex].options![optionIndex];
+
+      // 선택지 삭제
       updated[questionIndex].options!.splice(optionIndex, 1);
+
+      // 🔧 삭제한 선택지가 현재 정답이라면, 정답을 첫 번째 남은 선택지로 업데이트
+      if (updated[questionIndex].answer === removedOptionValue) {
+        updated[questionIndex].answer = updated[questionIndex].options![0];
+        console.log(`⚠️ 삭제된 선택지가 정답이었습니다. 정답을 첫 번째 선택지로 변경: "${removedOptionValue}" → "${updated[questionIndex].options![0]}"`);
+      }
+
       setLocalQuestions(updated);
       onUpdate(updated); // 검토 단계에서는 기본값(false) 사용
     }

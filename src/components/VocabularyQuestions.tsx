@@ -550,9 +550,27 @@ export default function VocabularyQuestions({
   // 선택지 수정 - ID 기반으로 변경
   const handleOptionUpdate = (questionId: string, optionIndex: number, value: string) => {
     const field = `option_${optionIndex + 1}` as keyof VocabularyQuestion;
-    const updated = localQuestions.map(q => 
-      q.id === questionId ? { ...q, [field]: value } : q
-    );
+    const updated = localQuestions.map(q => {
+      if (q.id === questionId) {
+        const oldOptionValue = (q as any)[field];
+        const updatedQuestion = { ...q, [field]: value };
+
+        // 🔧 수정한 선택지가 현재 정답이라면, 정답도 함께 업데이트
+        const currentAnswer = q.correct_answer || q.answer;
+        if (currentAnswer === oldOptionValue) {
+          // correct_answer 또는 answer 필드를 업데이트
+          if (q.correct_answer !== undefined) {
+            updatedQuestion.correct_answer = value;
+          } else if ((q as any).answer !== undefined) {
+            (updatedQuestion as any).answer = value;
+          }
+          console.log(`✅ 정답도 함께 업데이트: "${oldOptionValue}" → "${value}"`);
+        }
+
+        return updatedQuestion;
+      }
+      return q;
+    });
     setLocalQuestions(updated);
     onUpdate(updated);
   };
