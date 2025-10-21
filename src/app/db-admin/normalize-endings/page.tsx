@@ -12,10 +12,19 @@ interface PreviewStats {
   comprehensiveChanged: number;
 }
 
+interface PreviewItem {
+  id: string;
+  questionNumber: number;
+  questionType: 'vocabulary' | 'paragraph' | 'comprehensive';
+  original: Record<string, string>;
+  normalized: Record<string, string>;
+  hasChanges: boolean;
+}
+
 interface PreviewData {
-  vocabularyQuestions: any[];
-  paragraphQuestions: any[];
-  comprehensiveQuestions: any[];
+  vocabularyQuestions: PreviewItem[];
+  paragraphQuestions: PreviewItem[];
+  comprehensiveQuestions: PreviewItem[];
   stats: PreviewStats;
 }
 
@@ -39,14 +48,23 @@ export default function NormalizeEndingsPage() {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [result, setResult] = useState<ExecutionResult | null>(null);
   const [showPreviewDetails, setShowPreviewDetails] = useState(false);
+  const [contentSetId, setContentSetId] = useState('');
+
+  // 편집된 데이터를 추적
+  const [editedData, setEditedData] = useState<Map<string, Record<string, string>>>(new Map());
 
   // 미리보기 가져오기
   const handlePreview = async () => {
     setLoading(true);
     setResult(null);
+    setEditedData(new Map()); // 편집 데이터 초기화
 
     try {
-      const response = await fetch('/api/normalize-endings/preview?limit=10');
+      const url = contentSetId
+        ? `/api/normalize-endings/preview?content_set_id=${contentSetId}`
+        : '/api/normalize-endings/preview?limit=10';
+
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.success) {
@@ -62,10 +80,102 @@ export default function NormalizeEndingsPage() {
     }
   };
 
+  // 정규화된 값 편집 핸들러
+  const handleEditNormalized = (itemId: string, field: string, value: string) => {
+    setEditedData(prev => {
+      const newMap = new Map(prev);
+      const itemData = newMap.get(itemId) || {};
+      itemData[field] = value;
+      newMap.set(itemId, itemData);
+      return newMap;
+    });
+  };
+
+  // 편집된 값 가져오기 (편집되지 않았으면 원래 normalized 값)
+  const getNormalizedValue = (item: PreviewItem, field: string): string => {
+    const edited = editedData.get(item.id);
+    if (edited && edited[field] !== undefined) {
+      return edited[field];
+    }
+    return item.normalized[field] || '';
+  };
+
+  // 수정된 내용 적용
+  const handleApplyChanges = async () => {
+    if (!preview) return;
+
+    const hasEdits = editedData.size > 0;
+    const totalChanges =
+      preview.vocabularyQuestions.length +
+      preview.paragraphQuestions.length +
+      preview.comprehensiveQuestions.length;
+
+    const confirmed = confirm(
+      `${hasEdits ? '✏️ 수정된 내용을 포함하여 ' : ''}총 ${totalChanges}개의 변경사항을 적용하시겠습니까?\n\n` +
+      (hasEdits ? `직접 수정한 항목: ${editedData.size}개\n` : '') +
+      '이 작업은 되돌릴 수 없습니다.'
+    );
+
+    if (!confirmed) return;
+
+    setLoading(true);
+    setResult(null);
+
+    try {
+      // 적용할 데이터 준비
+      const updates = {
+        vocabularyQuestions: preview.vocabularyQuestions.map(item => ({
+          id: item.id,
+          updates: Object.keys(item.normalized).reduce((acc, field) => {
+            acc[field] = getNormalizedValue(item, field);
+            return acc;
+          }, {} as Record<string, string>)
+        })),
+        paragraphQuestions: preview.paragraphQuestions.map(item => ({
+          id: item.id,
+          updates: Object.keys(item.normalized).reduce((acc, field) => {
+            acc[field] = getNormalizedValue(item, field);
+            return acc;
+          }, {} as Record<string, string>)
+        })),
+        comprehensiveQuestions: preview.comprehensiveQuestions.map(item => ({
+          id: item.id,
+          updates: Object.keys(item.normalized).reduce((acc, field) => {
+            acc[field] = getNormalizedValue(item, field);
+            return acc;
+          }, {} as Record<string, string>)
+        }))
+      };
+
+      const response = await fetch('/api/normalize-endings/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+
+      const data = await response.json();
+      setResult(data);
+
+      if (data.success) {
+        alert(`✅ 적용 완료!\n\n${data.summary.totalUpdated}개의 문제가 업데이트되었습니다.`);
+        setPreview(null);
+        setEditedData(new Map());
+      } else {
+        alert(`❌ 적용 실패\n\n${data.message}`);
+      }
+    } catch (error) {
+      console.error('적용 오류:', error);
+      alert('적용 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 일괄 실행
   const handleExecute = async () => {
+    const scope = contentSetId ? `콘텐츠 세트 ID: ${contentSetId}의 문제` : '모든 문제';
     const confirmed = confirm(
-      '⚠️ 주의: 모든 문제의 종결 어미를 일괄 수정합니다.\n\n' +
+      `⚠️ 주의: ${scope}의 종결 어미를 일괄 수정합니다.\n\n` +
       '이 작업은 되돌릴 수 없습니다.\n' +
       '계속하시겠습니까?'
     );
@@ -76,7 +186,11 @@ export default function NormalizeEndingsPage() {
     setResult(null);
 
     try {
-      const response = await fetch('/api/normalize-endings', {
+      const url = contentSetId
+        ? `/api/normalize-endings?content_set_id=${contentSetId}`
+        : '/api/normalize-endings';
+
+      const response = await fetch(url, {
         method: 'POST'
       });
       const data = await response.json();
@@ -98,9 +212,10 @@ export default function NormalizeEndingsPage() {
 
   // 강제 재정규화 (변경사항 비교 없이 무조건 업데이트)
   const handleForceExecute = async () => {
+    const scope = contentSetId ? `콘텐츠 세트 ID: ${contentSetId}의 데이터` : '모든 데이터';
     const confirmed = confirm(
       '⚠️⚠️⚠️ 강제 재정규화 모드 ⚠️⚠️⚠️\n\n' +
-      '변경사항 유무와 관계없이 모든 데이터를 재정규화합니다.\n' +
+      `변경사항 유무와 관계없이 ${scope}를 재정규화합니다.\n` +
       '최신 normalizeEndingSentence 함수가 적용됩니다.\n\n' +
       '이 작업은 되돌릴 수 없습니다.\n' +
       '정말로 계속하시겠습니까?'
@@ -112,7 +227,11 @@ export default function NormalizeEndingsPage() {
     setResult(null);
 
     try {
-      const response = await fetch('/api/force-normalize-endings', {
+      const url = contentSetId
+        ? `/api/force-normalize-endings?content_set_id=${contentSetId}`
+        : '/api/force-normalize-endings';
+
+      const response = await fetch(url, {
         method: 'POST'
       });
       const data = await response.json();
@@ -149,10 +268,42 @@ export default function NormalizeEndingsPage() {
           </p>
         </div>
 
+        {/* 콘텐츠 세트 ID 검색 */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">
+            🔍 콘텐츠 세트 검색
+          </h2>
+          <div className="flex gap-4 items-center">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                콘텐츠 세트 ID (선택사항)
+              </label>
+              <input
+                type="text"
+                value={contentSetId}
+                onChange={(e) => setContentSetId(e.target.value)}
+                placeholder="예: 123e4567-e89b-12d3-a456-426614174000 (비워두면 전체 검수)"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            {contentSetId && (
+              <button
+                onClick={() => setContentSetId('')}
+                className="mt-7 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                초기화
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-gray-600 mt-2">
+            💡 특정 콘텐츠 세트만 검수하려면 ID를 입력하세요. 비워두면 전체 데이터를 대상으로 합니다.
+          </p>
+        </div>
+
         {/* 변환 규칙 안내 */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
           <h2 className="text-lg font-semibold text-blue-900 mb-3">
-            📝 변환 규칙 (8가지)
+            📝 변환 규칙 (12가지)
           </h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
@@ -175,10 +326,10 @@ export default function NormalizeEndingsPage() {
               <span className="mx-2">→</span>
               <span className="text-blue-700">있다</span>
             </div>
-            <div>
+            <div className="bg-yellow-100 p-2 rounded">
               <span className="font-medium text-gray-700">필요합니다</span>
               <span className="mx-2">→</span>
-              <span className="text-blue-700">필요하다</span>
+              <span className="text-blue-700 font-bold">필요하다</span>
             </div>
             <div>
               <span className="font-medium text-gray-700">도구입니다</span>
@@ -195,7 +346,30 @@ export default function NormalizeEndingsPage() {
               <span className="mx-2">→</span>
               <span className="text-blue-700">공부한다</span>
             </div>
+            <div className="bg-yellow-100 p-2 rounded">
+              <span className="font-medium text-gray-700">됩니다</span>
+              <span className="mx-2">→</span>
+              <span className="text-blue-700 font-bold">된다</span>
+            </div>
+            <div className="bg-yellow-100 p-2 rounded">
+              <span className="font-medium text-gray-700">납니다</span>
+              <span className="mx-2">→</span>
+              <span className="text-blue-700 font-bold">난다</span>
+            </div>
+            <div>
+              <span className="font-medium text-gray-700">갔습니다</span>
+              <span className="mx-2">→</span>
+              <span className="text-blue-700">갔다</span>
+            </div>
+            <div>
+              <span className="font-medium text-gray-700">먹었습니다</span>
+              <span className="mx-2">→</span>
+              <span className="text-blue-700">먹었다</span>
+            </div>
           </div>
+          <p className="text-xs text-gray-600 mt-3">
+            💡 <strong className="text-yellow-700">노란색 배경</strong> = 최근 추가된 특수 규칙
+          </p>
         </div>
 
         {/* 액션 버튼 */}
@@ -226,9 +400,18 @@ export default function NormalizeEndingsPage() {
         {/* 미리보기 결과 */}
         {preview && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              📊 미리보기 통계 (샘플 기준)
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                📊 미리보기 통계 {contentSetId ? '(콘텐츠 세트 전체)' : '(샘플 기준)'}
+              </h2>
+              <button
+                onClick={handleApplyChanges}
+                disabled={loading}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 font-semibold shadow-md"
+              >
+                {editedData.size > 0 ? `✏️ 수정 내용 적용 (${editedData.size}개 편집됨)` : '✅ 변경사항 적용'}
+              </button>
+            </div>
 
             <div className="grid grid-cols-3 gap-4 mb-6">
               {/* 어휘 문제 */}
@@ -278,30 +461,39 @@ export default function NormalizeEndingsPage() {
                       <span className="text-sm text-gray-600">({preview.vocabularyQuestions.length}개 변경)</span>
                     </h3>
                     <div className="space-y-3">
-                      {preview.vocabularyQuestions.slice(0, 5).map((item, idx) => (
-                        <div key={idx} className="bg-green-50 border border-green-200 p-4 rounded-lg">
-                          <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-green-200">
-                            문제 #{item.questionNumber}
+                      {preview.vocabularyQuestions.slice(0, 5).map((item, idx) => {
+                        const isEdited = editedData.has(item.id);
+                        return (
+                          <div key={idx} className={`border p-4 rounded-lg ${isEdited ? 'bg-yellow-50 border-yellow-400' : 'bg-green-50 border-green-200'}`}>
+                            <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-green-200 flex items-center justify-between">
+                              <span>문제 #{item.questionNumber}</span>
+                              {isEdited && <span className="text-xs bg-yellow-200 px-2 py-1 rounded">✏️ 편집됨</span>}
+                            </div>
+                            <div className="space-y-2">
+                              {Object.keys(item.original).map(key => (
+                                <div key={key} className="ml-2">
+                                  <div className="text-xs text-gray-500 mb-1 font-medium">
+                                    {key === 'question_text' ? '문제' :
+                                     key === 'explanation' ? '해설' :
+                                     key.startsWith('option_') ? `보기 ${key.split('_')[1]}` : key}
+                                  </div>
+                                  <div className="bg-white p-2 rounded mb-1 border-l-2 border-red-400">
+                                    <span className="text-red-600 line-through text-sm">{item.original[key]}</span>
+                                  </div>
+                                  <div className="bg-white rounded border-l-2 border-green-500">
+                                    <textarea
+                                      value={getNormalizedValue(item, key)}
+                                      onChange={(e) => handleEditNormalized(item.id, key, e.target.value)}
+                                      className="w-full p-2 text-sm text-green-700 font-medium border-none focus:ring-2 focus:ring-green-400 rounded resize-none"
+                                      rows={2}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            {Object.keys(item.original).map(key => (
-                              <div key={key} className="ml-2">
-                                <div className="text-xs text-gray-500 mb-1 font-medium">
-                                  {key === 'question_text' ? '문제' :
-                                   key === 'explanation' ? '해설' :
-                                   key.startsWith('option_') ? `보기 ${key.split('_')[1]}` : key}
-                                </div>
-                                <div className="bg-white p-2 rounded mb-1 border-l-2 border-red-400">
-                                  <span className="text-red-600 line-through">{item.original[key]}</span>
-                                </div>
-                                <div className="bg-white p-2 rounded border-l-2 border-green-500">
-                                  <span className="text-green-700 font-medium">{item.normalized[key]}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {preview.vocabularyQuestions.length > 5 && (
                         <div className="text-center text-sm text-gray-500 py-2">
                           ... 외 {preview.vocabularyQuestions.length - 5}개 더
@@ -319,30 +511,39 @@ export default function NormalizeEndingsPage() {
                       <span className="text-sm text-gray-600">({preview.paragraphQuestions.length}개 변경)</span>
                     </h3>
                     <div className="space-y-3">
-                      {preview.paragraphQuestions.slice(0, 5).map((item, idx) => (
-                        <div key={idx} className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                          <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-blue-200">
-                            문제 #{item.questionNumber}
+                      {preview.paragraphQuestions.slice(0, 5).map((item, idx) => {
+                        const isEdited = editedData.has(item.id);
+                        return (
+                          <div key={idx} className={`border p-4 rounded-lg ${isEdited ? 'bg-yellow-50 border-yellow-400' : 'bg-blue-50 border-blue-200'}`}>
+                            <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-blue-200 flex items-center justify-between">
+                              <span>문제 #{item.questionNumber}</span>
+                              {isEdited && <span className="text-xs bg-yellow-200 px-2 py-1 rounded">✏️ 편집됨</span>}
+                            </div>
+                            <div className="space-y-2">
+                              {Object.keys(item.original).map(key => (
+                                <div key={key} className="ml-2">
+                                  <div className="text-xs text-gray-500 mb-1 font-medium">
+                                    {key === 'question_text' ? '문제' :
+                                     key === 'explanation' ? '해설' :
+                                     key.startsWith('option_') ? `보기 ${key.split('_')[1]}` : key}
+                                  </div>
+                                  <div className="bg-white p-2 rounded mb-1 border-l-2 border-red-400">
+                                    <span className="text-red-600 line-through text-sm">{item.original[key]}</span>
+                                  </div>
+                                  <div className="bg-white rounded border-l-2 border-green-500">
+                                    <textarea
+                                      value={getNormalizedValue(item, key)}
+                                      onChange={(e) => handleEditNormalized(item.id, key, e.target.value)}
+                                      className="w-full p-2 text-sm text-green-700 font-medium border-none focus:ring-2 focus:ring-green-400 rounded resize-none"
+                                      rows={2}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            {Object.keys(item.original).map(key => (
-                              <div key={key} className="ml-2">
-                                <div className="text-xs text-gray-500 mb-1 font-medium">
-                                  {key === 'question_text' ? '문제' :
-                                   key === 'explanation' ? '해설' :
-                                   key.startsWith('option_') ? `보기 ${key.split('_')[1]}` : key}
-                                </div>
-                                <div className="bg-white p-2 rounded mb-1 border-l-2 border-red-400">
-                                  <span className="text-red-600 line-through">{item.original[key]}</span>
-                                </div>
-                                <div className="bg-white p-2 rounded border-l-2 border-green-500">
-                                  <span className="text-green-700 font-medium">{item.normalized[key]}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {preview.paragraphQuestions.length > 5 && (
                         <div className="text-center text-sm text-gray-500 py-2">
                           ... 외 {preview.paragraphQuestions.length - 5}개 더
@@ -360,30 +561,39 @@ export default function NormalizeEndingsPage() {
                       <span className="text-sm text-gray-600">({preview.comprehensiveQuestions.length}개 변경)</span>
                     </h3>
                     <div className="space-y-3">
-                      {preview.comprehensiveQuestions.slice(0, 5).map((item, idx) => (
-                        <div key={idx} className="bg-purple-50 border border-purple-200 p-4 rounded-lg">
-                          <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-purple-200">
-                            문제 #{item.questionNumber}
+                      {preview.comprehensiveQuestions.slice(0, 5).map((item, idx) => {
+                        const isEdited = editedData.has(item.id);
+                        return (
+                          <div key={idx} className={`border p-4 rounded-lg ${isEdited ? 'bg-yellow-50 border-yellow-400' : 'bg-purple-50 border-purple-200'}`}>
+                            <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-purple-200 flex items-center justify-between">
+                              <span>문제 #{item.questionNumber}</span>
+                              {isEdited && <span className="text-xs bg-yellow-200 px-2 py-1 rounded">✏️ 편집됨</span>}
+                            </div>
+                            <div className="space-y-2">
+                              {Object.keys(item.original).map(key => (
+                                <div key={key} className="ml-2">
+                                  <div className="text-xs text-gray-500 mb-1 font-medium">
+                                    {key === 'question_text' ? '문제' :
+                                     key === 'explanation' ? '해설' :
+                                     key.startsWith('option_') ? `보기 ${key.split('_')[1]}` : key}
+                                  </div>
+                                  <div className="bg-white p-2 rounded mb-1 border-l-2 border-red-400">
+                                    <span className="text-red-600 line-through text-sm">{item.original[key]}</span>
+                                  </div>
+                                  <div className="bg-white rounded border-l-2 border-green-500">
+                                    <textarea
+                                      value={getNormalizedValue(item, key)}
+                                      onChange={(e) => handleEditNormalized(item.id, key, e.target.value)}
+                                      className="w-full p-2 text-sm text-green-700 font-medium border-none focus:ring-2 focus:ring-green-400 rounded resize-none"
+                                      rows={2}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            {Object.keys(item.original).map(key => (
-                              <div key={key} className="ml-2">
-                                <div className="text-xs text-gray-500 mb-1 font-medium">
-                                  {key === 'question_text' ? '문제' :
-                                   key === 'explanation' ? '해설' :
-                                   key.startsWith('option_') ? `보기 ${key.split('_')[1]}` : key}
-                                </div>
-                                <div className="bg-white p-2 rounded mb-1 border-l-2 border-red-400">
-                                  <span className="text-red-600 line-through">{item.original[key]}</span>
-                                </div>
-                                <div className="bg-white p-2 rounded border-l-2 border-green-500">
-                                  <span className="text-green-700 font-medium">{item.normalized[key]}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {preview.comprehensiveQuestions.length > 5 && (
                         <div className="text-center text-sm text-gray-500 py-2">
                           ... 외 {preview.comprehensiveQuestions.length - 5}개 더
@@ -469,15 +679,33 @@ export default function NormalizeEndingsPage() {
             📖 사용 가이드
           </h2>
           <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-            <li>먼저 <strong>"미리보기"</strong> 버튼을 클릭하여 변경될 내용을 확인하세요.</li>
-            <li>변경 내용이 올바른지 확인한 후 <strong>"일괄 실행 (변경분만)"</strong> 버튼을 클릭하세요.</li>
+            <li>
+              <strong className="text-blue-700">✨ 권장 방법 (검토 후 적용)</strong>
+              <ul className="list-disc list-inside ml-6 mt-1 space-y-1">
+                <li>콘텐츠 세트 ID를 입력하여 특정 세트 선택 (또는 비워두면 전체 샘플)</li>
+                <li><strong>"미리보기"</strong> 버튼으로 자동 변경 내용 확인</li>
+                <li>필요시 각 필드를 <strong>직접 수정</strong>하여 원하는 대로 조정</li>
+                <li><strong>"✅ 변경사항 적용"</strong> 버튼으로 검토된 내용 저장</li>
+              </ul>
+            </li>
+            <li className="mt-3">
+              <strong>일괄 실행 (변경분만)</strong>: 미리보기 없이 자동으로 변경된 항목만 업데이트
+            </li>
             <li className="text-orange-700 font-medium">
               <strong>"강제 재정규화 (전체)"</strong>는 이미 정규화된 데이터도 다시 처리합니다.
               정규화 로직이 업데이트된 경우에만 사용하세요.
             </li>
-            <li>실행 후에는 되돌릴 수 없으므로 신중하게 결정하세요.</li>
-            <li>실행 완료 후 통계를 확인하여 정상적으로 처리되었는지 검토하세요.</li>
+            <li className="mt-2 text-red-700 font-medium">
+              ⚠️ 모든 작업은 되돌릴 수 없으므로 신중하게 결정하세요.
+            </li>
           </ol>
+
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+            <p className="text-sm text-blue-800">
+              <strong>💡 팁:</strong> 편집된 항목은 노란색 배경으로 표시되며,
+              "✏️ 편집됨" 뱃지가 나타납니다. 적용 버튼에는 편집된 항목 수가 표시됩니다.
+            </p>
+          </div>
         </div>
       </div>
     </div>

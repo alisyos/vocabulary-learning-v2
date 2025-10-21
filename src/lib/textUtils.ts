@@ -11,6 +11,7 @@
  * - "~습니다" → "~다"
  * - "~입니다" → "~이다"
  * - "~ㅂ니다" → "~다"
+ * - 특수 케이스: 필요합니다 → 필요하다, 됩니다 → 된다, 납니다 → 난다
  *
  * @param text 원본 텍스트
  * @returns 정규화된 텍스트
@@ -19,6 +20,7 @@
  * normalizeEndingSentence("이것은 도구입니다.") // "이것은 도구이다."
  * normalizeEndingSentence("했습니다.") // "했다."
  * normalizeEndingSentence("필요합니다.") // "필요하다."
+ * normalizeEndingSentence("됩니다.") // "된다."
  */
 export function normalizeEndingSentence(text: string | null | undefined): string {
   if (!text) return '';
@@ -29,7 +31,15 @@ export function normalizeEndingSentence(text: string | null | undefined): string
   // 예: "설명합니다"는 "합니다" 규칙을 먼저 적용해야 "설명한다"가 됩니다.
   //     만약 "습니다"를 먼저 적용하면 "설명합다"가 되어 버립니다.
 
-  // 1. "~합니다" → "~한다" (가장 먼저!)
+  // 0. 특수 케이스 (불규칙 동사 및 특수 패턴) - 가장 먼저 처리!
+  //    "필요합니다" → "필요하다" (일반 "합니다" 규칙보다 우선)
+  normalized = normalized.replace(/필요합니다/g, '필요하다');
+  //    "됩니다" → "된다"
+  normalized = normalized.replace(/됩니다/g, '된다');
+  //    "납니다" → "난다"
+  normalized = normalized.replace(/납니다/g, '난다');
+
+  // 1. "~합니다" → "~한다" (특수 케이스 다음에 처리)
   //    예: 설명합니다 → 설명한다, 공부합니다 → 공부한다, 뜻합니다 → 뜻한다
   normalized = normalized.replace(/([가-힣])합니다/g, '$1한다');
 

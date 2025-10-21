@@ -15,8 +15,10 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const contentSetId = searchParams.get('content_set_id');
 
-    console.log(`📋 종결 어미 정규화 미리보기 시작 (샘플 ${limit}개)`);
+    const scope = contentSetId ? `콘텐츠 세트 ${contentSetId}` : `샘플 ${limit}개`;
+    console.log(`📋 종결 어미 정규화 미리보기 시작 (${scope})`);
 
     const preview = {
       vocabularyQuestions: [] as any[],
@@ -34,10 +36,17 @@ export async function GET(request: Request) {
 
     // 1. 어휘 문제 미리보기
     console.log('📚 어휘 문제 샘플 조회 중...');
-    const { data: vocabQuestions, error: vocabError } = await supabase
+    let vocabQuery = supabase
       .from('vocabulary_questions')
-      .select('id, question_number, question_text, option_1, option_2, option_3, option_4, option_5, explanation')
-      .limit(limit);
+      .select('id, question_number, question_text, option_1, option_2, option_3, option_4, option_5, explanation, content_set_id');
+
+    if (contentSetId) {
+      vocabQuery = vocabQuery.eq('content_set_id', contentSetId);
+    } else {
+      vocabQuery = vocabQuery.limit(limit);
+    }
+
+    const { data: vocabQuestions, error: vocabError } = await vocabQuery;
 
     if (vocabError) throw vocabError;
 
@@ -92,10 +101,17 @@ export async function GET(request: Request) {
 
     // 2. 문단 문제 미리보기
     console.log('📄 문단 문제 샘플 조회 중...');
-    const { data: paragraphQuestions, error: paragraphError } = await supabase
+    let paragraphQuery = supabase
       .from('paragraph_questions')
-      .select('id, question_number, question_text, option_1, option_2, option_3, option_4, option_5, explanation')
-      .limit(limit);
+      .select('id, question_number, question_text, option_1, option_2, option_3, option_4, option_5, explanation, content_set_id');
+
+    if (contentSetId) {
+      paragraphQuery = paragraphQuery.eq('content_set_id', contentSetId);
+    } else {
+      paragraphQuery = paragraphQuery.limit(limit);
+    }
+
+    const { data: paragraphQuestions, error: paragraphError } = await paragraphQuery;
 
     if (paragraphError) throw paragraphError;
 
@@ -150,10 +166,17 @@ export async function GET(request: Request) {
 
     // 3. 종합 문제 미리보기
     console.log('🧠 종합 문제 샘플 조회 중...');
-    const { data: comprehensiveQuestions, error: comprehensiveError } = await supabase
+    let comprehensiveQuery = supabase
       .from('comprehensive_questions')
-      .select('id, question_number, question_text, option_1, option_2, option_3, option_4, option_5, explanation')
-      .limit(limit);
+      .select('id, question_number, question_text, option_1, option_2, option_3, option_4, option_5, explanation, content_set_id');
+
+    if (contentSetId) {
+      comprehensiveQuery = comprehensiveQuery.eq('content_set_id', contentSetId);
+    } else {
+      comprehensiveQuery = comprehensiveQuery.limit(limit);
+    }
+
+    const { data: comprehensiveQuestions, error: comprehensiveError } = await comprehensiveQuery;
 
     if (comprehensiveError) throw comprehensiveError;
 

@@ -13,7 +13,11 @@ import { normalizeEndingSentence } from '@/lib/textUtils';
  */
 export async function POST(request: Request) {
   try {
-    console.log('🚀 종결 어미 정규화 일괄 실행 시작');
+    const { searchParams } = new URL(request.url);
+    const contentSetId = searchParams.get('content_set_id');
+
+    const scope = contentSetId ? `콘텐츠 세트 ${contentSetId}` : '전체 데이터';
+    console.log(`🚀 종결 어미 정규화 일괄 실행 시작 (${scope})`);
 
     const stats = {
       vocabularyQuestions: { total: 0, updated: 0, errors: 0 },
@@ -26,9 +30,12 @@ export async function POST(request: Request) {
     // ========================================
     console.log('📚 어휘 문제 정규화 시작...');
 
-    const { data: vocabQuestions, error: vocabFetchError } = await supabase
-      .from('vocabulary_questions')
-      .select('*');
+    let vocabQuery = supabase.from('vocabulary_questions').select('*');
+    if (contentSetId) {
+      vocabQuery = vocabQuery.eq('content_set_id', contentSetId);
+    }
+
+    const { data: vocabQuestions, error: vocabFetchError } = await vocabQuery;
 
     if (vocabFetchError) throw vocabFetchError;
 
@@ -95,9 +102,12 @@ export async function POST(request: Request) {
     // ========================================
     console.log('📄 문단 문제 정규화 시작...');
 
-    const { data: paragraphQuestions, error: paragraphFetchError } = await supabase
-      .from('paragraph_questions')
-      .select('*');
+    let paragraphQuery = supabase.from('paragraph_questions').select('*');
+    if (contentSetId) {
+      paragraphQuery = paragraphQuery.eq('content_set_id', contentSetId);
+    }
+
+    const { data: paragraphQuestions, error: paragraphFetchError } = await paragraphQuery;
 
     if (paragraphFetchError) throw paragraphFetchError;
 
@@ -164,9 +174,12 @@ export async function POST(request: Request) {
     // ========================================
     console.log('🧠 종합 문제 정규화 시작...');
 
-    const { data: comprehensiveQuestions, error: comprehensiveFetchError } = await supabase
-      .from('comprehensive_questions')
-      .select('*');
+    let comprehensiveQuery = supabase.from('comprehensive_questions').select('*');
+    if (contentSetId) {
+      comprehensiveQuery = comprehensiveQuery.eq('content_set_id', contentSetId);
+    }
+
+    const { data: comprehensiveQuestions, error: comprehensiveFetchError } = await comprehensiveQuery;
 
     if (comprehensiveFetchError) throw comprehensiveFetchError;
 

@@ -723,6 +723,221 @@ console.log('Retrieved prompt:', prompt);
    - 프롬프트 조회 성공률 추적
    - 실패 원인 분석 로깅
 
+## 🔧 DB 일괄 수정 작업 가이드
+
+시스템 운영 중 저장된 데이터의 일괄 수정이 필요한 경우, 다음 패턴을 따라 안전하게 작업을 수행할 수 있습니다.
+
+### 📋 작업 패턴
+
+#### 1. API 엔드포인트 작성
+
+일괄 수정 API는 다음 구조를 따릅니다:
+
+```typescript
+// src/app/api/fix-[작업명]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export async function POST(request: NextRequest) {
+  try {
+    const { dryRun = true } = await request.json();
+
+    // 1. 대상 레코드 조회 (페이지네이션)
+    let allRecords: any[] = [];
+    let currentPage = 0;
+    const pageSize = 1000;
+    let hasMoreData = true;
+
+    while (hasMoreData) {
+      const { data: pageData, error: fetchError } = await supabase
+        .from('테이블명')
+        .select('*')
+        .filter('필드명', 'operator', '조건값')
+        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+
+      if (fetchError) throw fetchError;
+      if (pageData && pageData.length > 0) {
+        allRecords.push(...pageData);
+        if (pageData.length < pageSize) hasMoreData = false;
+      } else {
+        hasMoreData = false;
+      }
+      currentPage++;
+    }
+
+    // 2. JavaScript에서 필터링 및 변환 로직 적용
+    const updates = allRecords
+      .filter(record => /* 조건 */)
+      .map(record => ({
+        id: record.id,
+        original: record.필드명,
+        converted: /* 변환 로직 */,
+        needsUpdate: /* 변경 필요 여부 */
+      }));
+
+    const updatesNeeded = updates.filter(u => u.needsUpdate);
+
+    // 3. 드라이런 모드
+    if (dryRun) {
+      return NextResponse.json({
+        success: true,
+        dryRun: true,
+        message: `드라이런 모드: ${updatesNeeded.length}개 레코드가 변환됩니다.`,
+        samples: updatesNeeded.slice(0, 15) // 샘플 15개 제공
+      });
+    }
+
+    // 4. 실제 업데이트 (배치 처리)
+    let successCount = 0;
+    let errorCount = 0;
+    const batchSize = 100;
+
+    for (let i = 0; i < updatesNeeded.length; i += batchSize) {
+      const batch = updatesNeeded.slice(i, i + batchSize);
+
+      const batchPromises = batch.map(async (update) => {
+        const { error } = await supabase
+          .from('테이블명')
+          .update({ 필드명: update.converted })
+          .eq('id', update.id);
+
+        return error ? { success: false } : { success: true };
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      successCount += batchResults.filter(r => r.success).length;
+      errorCount += batchResults.filter(r => !r.success).length;
+
+      // API 부하 방지를 위한 대기
+      if (i + batchSize < updatesNeeded.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      dryRun: false,
+      successCount,
+      errorCount
+    });
+
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    });
+  }
+}
+```
+
+#### 2. 실행 프로세스
+
+```bash
+# 1. 개발 서버 실행
+npm run dev
+
+# 2. 드라이런 모드로 미리보기
+curl -X POST http://localhost:3000/api/fix-[작업명] \
+  -H "Content-Type: application/json" \
+  -d '{"dryRun": true}'
+
+# 3. 결과 확인 후 실제 실행
+curl -X POST http://localhost:3000/api/fix-[작업명] \
+  -H "Content-Type: application/json" \
+  -d '{"dryRun": false}'
+
+# 4. 서버 종료
+pkill -f "next dev"
+```
+
+### 📚 완료된 일괄 수정 작업 목록
+
+#### 1. 큰따옴표 → 작은따옴표 변환
+- **파일**: `src/app/api/fix-explanation-quotes/route.ts`
+- **대상**: `comprehensive_questions.explanation`
+- **내용**: 모든 큰따옴표(")를 작은따옴표(')로 변환
+- **처리**: 4,112개 성공 (2025-01-21)
+
+#### 2. 질문 텍스트 롤링 변환
+- **파일**: `src/app/api/fix-question-text-rolling/route.ts`
+- **대상**: `comprehensive_questions.question_text`
+- **내용**: 6가지 유사 질문을 3가지 질문으로 롤링 분산
+  - 대상 질문:
+    1. '다음 글의 핵심 주제로 가장 적절한 것은 무엇인가요?'
+    2. '다음 글의 핵심 내용을 가장 잘 요약한 것은 무엇인가요?'
+    3. '이 글의 핵심 메시지로 가장 적절한 내용을 고르세요.'
+    4. '다음 글의 핵심 메시지로 알맞은 것을 고르세요.'
+    5. '이 글의 핵심 내용을 바르게 정리한 것은 무엇인가요?'
+    6. '글쓴이가 전하고자 하는 핵심 메시지는 무엇인가요?'
+  - 변환 질문:
+    1. '이 글이 말하고자 하는 가장 중요한 내용은 무엇인가요?'
+    2. '이 글의 중심 내용으로 가장 적절한 것은 무엇인가요?'
+    3. '이 글이 주로 이야기하고 있는 중심 내용은 무엇인가요?'
+- **처리**: 606개 성공 (523 + 83) (2025-01-21)
+
+#### 3. '지문에서' → '이 글에서' 텍스트 교체
+- **파일**: `src/app/api/fix-question-text-replace/route.ts`
+- **대상**: `comprehensive_questions.question_text`
+- **내용**: 모든 '지문에서'를 '이 글에서'로 변환
+- **처리**: 283개 성공 (2025-01-21)
+
+#### 4. 예문 괄호 정리
+- **파일**: `src/app/api/clean-example-sentences/route.ts`
+- **대상**: `vocabulary_terms.example_sentence`
+- **내용**: 불완전한 괄호 패턴 제거 및 정리
+- **처리**: 이전 작업 (기록용)
+
+### 🎯 작업 시 주의사항
+
+1. **반드시 드라이런 먼저 실행**
+   - 변경 범위와 샘플 확인
+   - 예상치 못한 부작용 사전 점검
+
+2. **배치 처리 사용**
+   - 100개씩 배치로 나누어 처리
+   - 배치 간 100ms 대기로 API 부하 방지
+
+3. **에러 처리**
+   - 개별 레코드 실패 시에도 전체 작업 계속
+   - 실패 레코드 ID와 오류 메시지 기록
+
+4. **로그 출력**
+   - 진행 상황을 콘솔에 상세히 출력
+   - 배치별 성공/실패 건수 표시
+
+5. **API 재사용성**
+   - dryRun 옵션으로 안전성 확보
+   - 동일 작업 반복 실행 가능
+
+### 💡 확장 가능한 사용 예시
+
+```typescript
+// 다양한 변환 작업 예시
+
+// 1. 텍스트 교체
+const converted = original.replaceAll('이전텍스트', '새텍스트');
+
+// 2. 정규식 기반 변환
+const converted = original.replace(/패턴/g, '대체문자');
+
+// 3. 조건부 변환
+const converted = original.includes('조건')
+  ? original.replace('조건', '변환')
+  : original;
+
+// 4. 롤링 분산
+const rollingIndex = i % 3;
+const converted = ROLLING_OPTIONS[rollingIndex];
+
+// 5. 복잡한 변환 로직
+const converted = complexTransformFunction(original);
+```
+
 ---
 
 이 가이드를 따라 Supabase를 활용하여 고성능, 확장 가능한 학습 콘텐츠 생성 시스템을 구축하고 운영하세요.
