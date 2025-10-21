@@ -103,14 +103,14 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
     "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
     "answer": "정답",
     "answerInitials": "초성 힌트 (단답형일 때만)",
-    "explanation": "해설 (어떤 차별화 전략을 사용했는지 간단히 언급)"
+    "explanation": "해설 (정답의 근거와 지문 내용 기반 설명)"
   },
   {
     "question": "두 번째 보완 문제 (원본 및 첫 번째와 모두 다른 제3의 관점)",
     "options": ["선택지1", "선택지2", "선택지3", "선택지4", "선택지5"],
     "answer": "정답",
     "answerInitials": "초성 힌트 (단답형일 때만)",
-    "explanation": "해설 (어떤 차별화 전략을 사용했는지 간단히 언급)"
+    "explanation": "해설 (정답의 근거와 지문 내용 기반 설명)"
   }
 ]
 
@@ -119,7 +119,7 @@ ${typePrompt || `${originalQuestion.type} 유형의 문제를 생성하세요.`}
 - 단답형이 아닌 경우 options 배열을 포함하십시오
 - 정답과 해설은 지문에 명확히 근거해야 합니다
 - **각 보완 문제는 원본 문제 및 서로와도 명확히 구별되어야 합니다**
-- 해설에 어떤 차별화 전략을 사용했는지 간단히 기재하십시오`;
+- 해설은 정답의 근거를 지문 내용에 기반하여 명확히 설명해야 합니다 (차별화 전략 설명 불필요)`;
 
     console.log('✅ Supplementary prompt generated successfully:', supplementaryPrompt.length, 'characters');
 
