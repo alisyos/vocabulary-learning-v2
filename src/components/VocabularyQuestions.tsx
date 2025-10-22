@@ -90,6 +90,10 @@ export default function VocabularyQuestions({
   const [showAdditionalGenerationModal, setShowAdditionalGenerationModal] = useState(false);
   const [additionalSelectedTerms, setAdditionalSelectedTerms] = useState<string[]>([]);
   const [additionalSelectedQuestionTypes, setAdditionalSelectedQuestionTypes] = useState<VocabularyQuestionType[]>(Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[]);
+
+  // 🆕 문제 추가 시 유형 선택을 위한 state
+  const [showAddQuestionModal, setShowAddQuestionModal] = useState(false);
+  const [selectedQuestionTypeForAdd, setSelectedQuestionTypeForAdd] = useState<VocabularyQuestionType>('5지선다 객관식');
   
   // 병렬 스트리밍 진행률 실시간 업데이트
   useEffect(() => {
@@ -750,22 +754,34 @@ export default function VocabularyQuestions({
     onUpdate(updated);
   };
 
-  // 문제 추가
+  // 문제 추가 버튼 클릭 - 유형 선택 모달 열기
   const addQuestion = () => {
-    // 선택된 유형 중 첫 번째를 기본값으로 사용 (선택된 유형이 없으면 5지선다 사용)
-    const defaultQuestionType = selectedQuestionTypes.length > 0 ? selectedQuestionTypes[0] : '5지선다 객관식';
-    const isMultipleChoice = defaultQuestionType.includes('객관식');
-    const optionCount = defaultQuestionType === '2개중 선택형' ? 2 :
-                       defaultQuestionType === '3개중 선택형' ? 3 :
-                       defaultQuestionType === '낱말 골라 쓰기' ? 4 : 5;
-    
+    setShowAddQuestionModal(true);
+  };
+
+  // 선택된 유형으로 문제 추가 실행
+  const confirmAddQuestion = () => {
+    const questionType = selectedQuestionTypeForAdd;
+    const isMultipleChoice = questionType.includes('객관식') ||
+                            questionType === '2개중 선택형' ||
+                            questionType === '3개중 선택형' ||
+                            questionType === '낱말 골라 쓰기';
+    const optionCount = questionType === '2개중 선택형' ? 2 :
+                       questionType === '3개중 선택형' ? 3 :
+                       questionType === '낱말 골라 쓰기' ? 4 : 5;
+
+    // 🔑 현재 선택된 용어를 사용 (4단계에서 탭별로 문제 추가)
+    const termForNewQuestion = currentStep === 'review' && selectedTerm
+      ? selectedTerm
+      : '새로운 용어';
+
     const newQuestion: VocabularyQuestion = {
-      id: `vocab_new_${Date.now()}`,
+      id: `vocab_new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       content_set_id: '',
       question_number: localQuestions.length + 1,
-      question_type: defaultQuestionType,
+      question_type: questionType,
       difficulty: '일반', // 새 문제는 기본적으로 '일반' (기본문제)로 설정
-      term: '새로운 용어',
+      term: termForNewQuestion,
       question_text: '질문을 입력하세요',
       option_1: isMultipleChoice ? '선택지 1' : undefined,
       option_2: isMultipleChoice ? '선택지 2' : undefined,
@@ -776,10 +792,13 @@ export default function VocabularyQuestions({
       answer_initials: !isMultipleChoice ? 'ㅇㅇ' : undefined,
       explanation: '해설을 입력하세요'
     };
-    
+
     const updated = [...localQuestions, newQuestion];
     setLocalQuestions(updated);
     onUpdate(updated);
+
+    // 모달 닫기
+    setShowAddQuestionModal(false);
   };
 
   // 문제 삭제 - ID 기반으로 변경
@@ -1822,6 +1841,80 @@ export default function VocabularyQuestions({
                     ? '문제 유형을 선택해주세요'
                     : `${additionalSelectedTerms.length}개 용어 × ${additionalSelectedQuestionTypes.length}가지 유형으로 추가 생성`
                 }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 문제 추가 시 유형 선택 모달 */}
+      {showAddQuestionModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-800">문제 유형 선택</h3>
+              <button
+                onClick={() => setShowAddQuestionModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-4">
+                {selectedTerm ? `"${selectedTerm}"` : '새 문제'}에 대한 문제 유형을 선택하세요.
+              </p>
+
+              <div className="space-y-2">
+                {(Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[]).map((type) => {
+                  const isSelected = selectedQuestionTypeForAdd === type;
+                  return (
+                    <label
+                      key={type}
+                      className={`
+                        flex items-center space-x-3 p-3 rounded border cursor-pointer transition-all
+                        ${isSelected
+                          ? 'bg-green-50 border-green-500 text-green-900'
+                          : 'bg-white border-gray-200 hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      <input
+                        type="radio"
+                        name="questionType"
+                        checked={isSelected}
+                        onChange={() => setSelectedQuestionTypeForAdd(type)}
+                        className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500"
+                      />
+                      <span className="text-sm font-medium flex-1">
+                        {type}
+                      </span>
+                      {isSelected && (
+                        <span className="text-green-600">✓</span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 버튼 */}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowAddQuestionModal(false)}
+                className="bg-gray-100 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-200 transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmAddQuestion}
+                className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors font-medium"
+              >
+                추가
               </button>
             </div>
           </div>

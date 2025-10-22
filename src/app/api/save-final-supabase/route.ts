@@ -260,59 +260,84 @@ export async function POST(request: NextRequest) {
     };
 
     // Transform vocabulary questions
-    const transformedVocabularyQuestions: Omit<VocabularyQuestion, 'id' | 'content_set_id' | 'created_at'>[] = 
-      vocabularyQuestions?.map((q: { 
-        term?: string; 
-        question: string; 
-        options: string[]; 
-        correctAnswer: string; 
-        answer: string; 
-        explanation: string;
+    const transformedVocabularyQuestions: Omit<VocabularyQuestion, 'id' | 'content_set_id' | 'created_at'>[] =
+      vocabularyQuestions?.map((q: {
+        term?: string;
+        question?: string;
+        question_text?: string;
+        options?: string[];
+        option_1?: string;
+        option_2?: string;
+        option_3?: string;
+        option_4?: string;
+        option_5?: string;
+        correctAnswer?: string;
+        correct_answer?: string;
+        answer?: string;
+        explanation?: string;
         questionType?: string;
+        question_type?: string;
         difficulty?: string;
-        answerInitials?: string; // 초성 힌트 추가
+        answerInitials?: string;
+        answer_initials?: string;
       }, index: number) => {
         console.log(`어휘문제 ${index + 1} 원본:`, q);
-        
+
+        // 🔑 필드명 정규화 (snake_case와 camelCase 모두 지원)
+        const questionText = q.question_text || q.question || '';
+        const questionType = q.question_type || q.questionType || '';
+        const answerInitials = q.answer_initials || q.answerInitials;
+
+        // 옵션 정규화 (배열 형식과 개별 필드 모두 지원)
+        const options = q.options || [
+          q.option_1,
+          q.option_2,
+          q.option_3,
+          q.option_4,
+          q.option_5
+        ].filter(Boolean);
+
+        // 정답 정규화
+        const correctAnswer = q.correct_answer || q.correctAnswer || q.answer || '';
+
         // questionType 매핑 (6가지 → 2가지)
         let mappedQuestionType: '객관식' | '주관식';
-        const originalQuestionType = q.questionType || '';
-        
-        if (originalQuestionType) {
-          mappedQuestionType = mapVocabularyQuestionType(originalQuestionType);
-          console.log(`어휘문제 ${index + 1} 타입 매핑: "${originalQuestionType}" → "${mappedQuestionType}"`);
+
+        if (questionType) {
+          mappedQuestionType = mapVocabularyQuestionType(questionType);
+          console.log(`어휘문제 ${index + 1} 타입 매핑: "${questionType}" → "${mappedQuestionType}"`);
         } else {
           // fallback: 옵션 배열 유무로 판단
-          mappedQuestionType = (q.options && q.options.length > 0) ? '객관식' : '주관식';
-          console.log(`어휘문제 ${index + 1} 타입 fallback: 옵션수 ${q.options?.length || 0} → "${mappedQuestionType}"`);
+          mappedQuestionType = (options && options.length > 0) ? '객관식' : '주관식';
+          console.log(`어휘문제 ${index + 1} 타입 fallback: 옵션수 ${options?.length || 0} → "${mappedQuestionType}"`);
         }
-        
+
         // difficulty 결정 (UI에서 설정된 값 사용, 없으면 기본값)
         const difficulty = q.difficulty || '일반';
-        
+
         // 주관식 문제인 경우 초성 힌트 처리
         const isSubjective = mappedQuestionType === '주관식';
-        const answerInitials = isSubjective ? q.answerInitials : null;
-        
-        console.log(`어휘문제 ${index + 1} 초성 힌트 처리: 주관식=${isSubjective}, answerInitials="${answerInitials}"`);
-        
+        const finalAnswerInitials = isSubjective ? answerInitials : null;
+
+        console.log(`어휘문제 ${index + 1} 초성 힌트 처리: 주관식=${isSubjective}, answerInitials="${finalAnswerInitials}"`);
+
         // ✅ 완전한 DB 스키마 활용 (detailed_question_type, answer_initials 컬럼 추가 완료)
         const result = {
           question_number: index + 1,
           question_type: mappedQuestionType,
           difficulty: difficulty as '일반' | '보완',
           term: q.term || '', // 어휘 용어 저장
-          question_text: q.question,
-          option_1: q.options?.[0],
-          option_2: q.options?.[1],
-          option_3: q.options?.[2],
-          option_4: q.options?.[3],
-          option_5: q.options?.[4],
-          correct_answer: q.answer || q.correctAnswer,
-          explanation: q.explanation,
+          question_text: questionText,
+          option_1: options[0],
+          option_2: options[1],
+          option_3: options[2],
+          option_4: options[3],
+          option_5: options[4],
+          correct_answer: correctAnswer,
+          explanation: q.explanation || '',
           // ✅ 6가지 상세 유형 및 초성 힌트 저장
-          detailed_question_type: originalQuestionType, // 6가지 상세 유형 저장
-          answer_initials: isSubjective ? answerInitials : null // 주관식만 초성 힌트 저장
+          detailed_question_type: questionType, // 6가지 상세 유형 저장
+          answer_initials: finalAnswerInitials // 주관식만 초성 힌트 저장
         };
         
         // 디버깅 정보 추가
@@ -321,13 +346,13 @@ export async function POST(request: NextRequest) {
           difficulty: result.difficulty,
           term: result.term,
           has_options: !!(result.option_1),
-          answer_length: result.correct_answer.length
+          answer_length: (result.correct_answer || '').length
         });
         
         // 6가지 상세 유형 정보는 로그로만 출력 (향후 DB 컬럼 추가 시 활용)
         console.log(`어휘문제 ${index + 1} 메타 정보 (로그용):`, {
-          original_question_type: originalQuestionType,
-          answer_initials: answerInitials,
+          original_question_type: questionType,
+          answer_initials: finalAnswerInitials,
           is_subjective: isSubjective
         });
         console.log(`어휘문제 ${index + 1} 변환 결과:`, result);
