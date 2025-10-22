@@ -78,13 +78,18 @@ export default function VocabularyQuestions({
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<VocabularyQuestionType[]>(Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[]);
   const [selectedTerm, setSelectedTerm] = useState<string>('');
-  
+
   // 🚀 병렬 스트리밍 진행률 추적을 위한 state
   const [generationProgress, setGenerationProgress] = useState<string>('');
   const [typeProgress, setTypeProgress] = useState<Record<string, { progress: number; status: string }>>({});
-  
+
   // 초기 용어 순서를 기억하기 위한 state
   const [termOrder, setTermOrder] = useState<string[]>([]);
+
+  // 🆕 추가 생성 기능을 위한 state
+  const [showAdditionalGenerationModal, setShowAdditionalGenerationModal] = useState(false);
+  const [additionalSelectedTerms, setAdditionalSelectedTerms] = useState<string[]>([]);
+  const [additionalSelectedQuestionTypes, setAdditionalSelectedQuestionTypes] = useState<VocabularyQuestionType[]>(Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[]);
   
   // 병렬 스트리밍 진행률 실시간 업데이트
   useEffect(() => {
@@ -198,10 +203,276 @@ export default function VocabularyQuestions({
       .filter(Boolean);
   };
 
+  // 🆕 추가 어휘 문제 생성 함수 (기존 문제 유지)
+  const handleAdditionalGeneration = async () => {
+    const selectedTermsList = additionalSelectedTerms
+      .map(index => getAllFootnotes()[parseInt(index)])
+      .filter(Boolean);
+
+    if (selectedTermsList.length === 0) {
+      alert('추가 생성할 용어를 선택해주세요.');
+      return;
+    }
+
+    if (additionalSelectedQuestionTypes.length === 0) {
+      alert('문제 유형을 선택해주세요.');
+      return;
+    }
+
+    // 🔑 중요: 추가 생성 모달을 먼저 닫아야 로딩 모달이 보입니다
+    setShowAdditionalGenerationModal(false);
+    setGeneratingVocab(true);
+
+    try {
+      // 로컬 스토리지에서 선택된 모델 가져오기
+      const selectedModel = localStorage.getItem('selectedGPTModel') || 'gpt-4.1';
+
+      // 병렬 스트리밍 초기화
+      console.log(`🚀 ${additionalSelectedQuestionTypes.length}개 문제 유형을 병렬 스트리밍으로 추가 생성 시작`);
+
+      // 각 문제 유형별 진행률 초기화
+      const initialProgress: Record<string, { progress: number; status: string }> = {};
+      additionalSelectedQuestionTypes.forEach(type => {
+        initialProgress[type] = { progress: 0, status: '대기 중' };
+      });
+      setTypeProgress(initialProgress);
+      setGenerationProgress(`${additionalSelectedQuestionTypes.length}개 문제 유형을 병렬 스트리밍으로 생성 중...`);
+
+      // 지문 데이터 구성 (공통)
+      let passageText = '';
+      if (editablePassage.passages && editablePassage.passages.length > 0) {
+        // 2개 지문 형식
+        passageText = editablePassage.passages.map((passage, index) =>
+          `[지문 ${index + 1}]\n${passage.title}\n\n${passage.paragraphs.join('\n\n')}`
+        ).join('\n\n---\n\n');
+      } else {
+        // 단일 지문 형식 (기존)
+        passageText = `${editablePassage.title}\n\n${editablePassage.paragraphs.join('\n\n')}`;
+      }
+
+      // 병렬 처리: 용어별 × 문제유형별로 개별 통신
+      const allCombinations: Array<{term: string, questionType: string, key: string}> = [];
+      selectedTermsList.forEach(term => {
+        additionalSelectedQuestionTypes.forEach(questionType => {
+          allCombinations.push({
+            term,
+            questionType,
+            key: `${term}_${questionType}`
+          });
+        });
+      });
+
+      console.log(`🚀 총 ${allCombinations.length}개 개별 문제를 병렬 추가 생성 시작`);
+
+      // 각 개별 문제별 진행률 초기화
+      const initialIndividualProgress: Record<string, { progress: number; status: string }> = {};
+      allCombinations.forEach(({key}) => {
+        initialIndividualProgress[key] = { progress: 0, status: '대기 중' };
+      });
+      setTypeProgress(initialIndividualProgress);
+      setGenerationProgress(`총 ${allCombinations.length}개 개별 문제를 병렬 생성 중...`);
+
+      const generationPromises = allCombinations.map(async ({term, questionType, key}, index) => {
+        console.log(`🎯 개별 문제 병렬 생성 시작 (${index + 1}/${allCombinations.length}): ${term} - ${questionType}`);
+
+        try {
+          // 해당 문제 상태를 '생성 중'으로 업데이트
+          setTypeProgress(prev => ({
+            ...prev,
+            [key]: { progress: 0, status: '생성 중' }
+          }));
+
+          // 개별 용어만 전송
+          const response = await fetch('/api/generate-vocabulary-stream', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              terms: [term], // 단일 용어만 전송
+              passage: passageText,
+              division: division,
+              questionType: questionType,
+              model: selectedModel
+            }),
+          });
+
+          if (!response.ok) {
+            console.error(`❌ ${term} - ${questionType} 문제 생성 실패`);
+            setTypeProgress(prev => ({
+              ...prev,
+              [key]: { progress: 0, status: '실패' }
+            }));
+            return { term, questionType, key, questions: [], usedPrompt: '', success: false };
+          }
+
+          // 스트리밍 응답 처리
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          if (!reader) {
+            throw new Error('스트리밍 응답을 읽을 수 없습니다.');
+          }
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') continue;
+
+                try {
+                  const parsed = JSON.parse(data);
+
+                  if (parsed.type === 'start') {
+                    setTypeProgress(prev => ({
+                      ...prev,
+                      [key]: { progress: 10, status: '시작됨' }
+                    }));
+                  } else if (parsed.type === 'progress') {
+                    // 진행률을 텍스트 길이 기반으로 계산 (10% ~ 90%)
+                    const progressPercent = Math.min(90, 10 + Math.floor((parsed.totalChars || 0) / 100));
+                    setTypeProgress(prev => ({
+                      ...prev,
+                      [key]: {
+                        progress: progressPercent,
+                        status: `생성 중 (${parsed.totalChars || 0}자)`
+                      }
+                    }));
+                  } else if (parsed.type === 'complete') {
+                    console.log(`✅ ${term} - ${questionType} 문제 ${parsed.vocabularyQuestions?.length || 0}개 생성 완료`);
+                    setTypeProgress(prev => ({
+                      ...prev,
+                      [key]: {
+                        progress: 100,
+                        status: `완료 (${parsed.vocabularyQuestions?.length || 0}개)`
+                      }
+                    }));
+                    return {
+                      term,
+                      questionType,
+                      key,
+                      questions: parsed.vocabularyQuestions || [],
+                      usedPrompt: parsed._metadata?.usedPrompt || '',
+                      success: true
+                    };
+                  } else if (parsed.type === 'error') {
+                    console.error(`❌ ${term} - ${questionType} 스트리밍 오류:`, parsed.error);
+                    setTypeProgress(prev => ({
+                      ...prev,
+                      [key]: { progress: 0, status: '오류' }
+                    }));
+                    return { term, questionType, key, questions: [], usedPrompt: '', success: false };
+                  }
+                } catch (e) {
+                  console.error('파싱 오류:', e);
+                }
+              }
+            }
+          }
+
+          // 스트리밍이 완료되었지만 complete 메시지를 받지 못한 경우
+          return { term, questionType, key, questions: [], usedPrompt: '', success: false };
+
+        } catch (error) {
+          console.error(`❌ ${term} - ${questionType} 문제 생성 중 오류:`, error);
+          return { term, questionType, key, questions: [], usedPrompt: '', success: false };
+        }
+      });
+
+      // 모든 병렬 스트리밍 완료 대기
+      const generationResults = await Promise.all(generationPromises);
+
+      // 결과 집계
+      const newQuestions: VocabularyQuestion[] = [];
+      let lastUsedPrompt = '';
+      let successCount = 0;
+      let questionIndex = 0;
+
+      for (const result of generationResults) {
+        if (result.success && result.questions.length > 0) {
+          // 각 문제에 고유한 ID 할당
+          const questionsWithUniqueIds = result.questions.map((q, idx) => ({
+            ...q,
+            id: q.id || `vocab_add_${Date.now()}_${questionIndex++}_${idx}_${Math.random().toString(36).substr(2, 9)}`
+          }));
+          newQuestions.push(...questionsWithUniqueIds);
+          successCount++;
+
+          // 첫 번째 성공한 개별 문제의 프롬프트를 저장
+          if (!lastUsedPrompt && result.usedPrompt) {
+            lastUsedPrompt = result.usedPrompt;
+          }
+        }
+      }
+
+      console.log(`🎉 추가 생성 완료: ${successCount}/${allCombinations.length}개 문제 성공, 총 ${newQuestions.length}개 문제 생성`);
+
+      setGenerationProgress(`🎉 추가 생성 완료: 총 ${newQuestions.length}개 문제 (${successCount}/${allCombinations.length}개 성공)`);
+
+      if (newQuestions.length === 0) {
+        throw new Error('모든 문제 유형 생성에 실패했습니다.');
+      }
+
+      // 생성된 문제들의 difficulty 기본값 설정
+      const questionsWithDefaults = newQuestions.map(question => ({
+        ...question,
+        difficulty: question.difficulty || '일반'
+      }));
+
+      // 🔑 핵심: 기존 문제에 새 문제 추가 (덮어쓰지 않음!)
+      const updatedQuestions = [...localQuestions, ...questionsWithDefaults];
+
+      // 🆕 새로 추가된 용어 목록 추출
+      const newTerms = Array.from(new Set(questionsWithDefaults.map(q => q.term)));
+      console.log('📝 새로 추가된 용어:', newTerms);
+
+      // 🆕 termOrder 업데이트: 기존 termOrder에 새 용어 추가
+      const updatedTermOrder = [...termOrder];
+      newTerms.forEach(term => {
+        if (!updatedTermOrder.includes(term)) {
+          updatedTermOrder.push(term);
+        }
+      });
+      setTermOrder(updatedTermOrder);
+      console.log('📋 업데이트된 termOrder:', updatedTermOrder);
+
+      // 🆕 selectedTerm을 새로 추가된 첫 번째 용어로 설정 (사용자가 바로 확인할 수 있도록)
+      if (newTerms.length > 0) {
+        setSelectedTerm(newTerms[0]);
+        console.log('🎯 selectedTerm 변경:', newTerms[0]);
+      }
+
+      // 상태 업데이트
+      setLocalQuestions(updatedQuestions);
+      onUpdate(updatedQuestions, lastUsedPrompt);
+
+      // 선택된 용어 초기화 (모달은 이미 닫혔음)
+      setAdditionalSelectedTerms([]);
+
+      alert(`✅ ${newQuestions.length}개의 문제가 추가되었습니다!\n추가된 용어: ${newTerms.join(', ')}`);
+
+    } catch (error) {
+      console.error('Error:', error);
+      setGenerationProgress('');
+      alert('어휘 문제 추가 생성 중 오류가 발생했습니다.');
+    } finally {
+      setGeneratingVocab(false);
+      setTimeout(() => setGenerationProgress(''), 3000);
+    }
+  };
+
   // 어휘 문제 생성 (스트리밍 지원)
   const handleGenerateVocabulary = async () => {
     const selectedTermsList = getSelectedTerms();
-    
+
     if (selectedTermsList.length === 0) {
       alert('어휘 문제를 생성할 용어를 선택해주세요.');
       return;
@@ -879,6 +1150,14 @@ export default function VocabularyQuestions({
         <div className="flex items-center space-x-4">
           <h2 className="text-xl font-bold text-gray-800">4단계: 어휘 문제 검토 및 수정</h2>
           <button
+            onClick={() => setShowAdditionalGenerationModal(true)}
+            disabled={generatingVocab}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+            title="빠진 어휘가 있으면 추가로 문제를 생성할 수 있습니다"
+          >
+            + 어휘 추가 생성
+          </button>
+          <button
             onClick={onNext}
             disabled={loading || localQuestions.length === 0}
             className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
@@ -1278,6 +1557,276 @@ export default function VocabularyQuestions({
         prompt={lastUsedPrompt}
         stepName="4단계: 어휘 문제 검토"
       />
+
+      {/* 🚀 어휘 추가 생성 중 로딩 모달 */}
+      {generatingVocab && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-[100]"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+        >
+          <div className="bg-white backdrop-blur-sm p-8 rounded-xl shadow-lg border border-gray-100 text-center max-w-lg w-full mx-4">
+            {/* 로딩 스피너 */}
+            <div className="w-12 h-12 border-3 border-gray-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
+
+            {/* 메시지 */}
+            <h3 className="text-lg font-medium text-gray-800 mb-1">
+              🚀 어휘 문제 추가 생성 중
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              선택된 {additionalSelectedTerms.length}개 용어로 {additionalSelectedQuestionTypes.length}가지 유형의 문제를 <strong>병렬 스트리밍</strong>으로 생성하고 있습니다
+            </p>
+
+            {/* 전체 진행률 */}
+            {generationProgress && (
+              <div className="mb-4">
+                <p className="text-sm text-green-600 font-medium mb-2">
+                  {generationProgress}
+                </p>
+                {Object.keys(typeProgress).length > 0 && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.round(Object.values(typeProgress).reduce((sum, p) => sum + p.progress, 0) / Object.keys(typeProgress).length)}%`
+                      }}
+                    ></div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 개별 문제 유형별 진행률 */}
+            {Object.keys(typeProgress).length > 0 && (
+              <div className="space-y-2 text-left max-h-60 overflow-y-auto">
+                <h4 className="text-xs font-medium text-gray-700 mb-2 text-center">개별 문제 진행률:</h4>
+                {Object.entries(typeProgress).map(([type, progress]) => (
+                  <div key={type} className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600 truncate flex-1 mr-2">{type}</span>
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
+                            progress.progress === 100 ? 'bg-green-500' :
+                            progress.progress > 0 ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                          style={{ width: `${progress.progress}%` }}
+                        ></div>
+                      </div>
+                      <span className={`text-xs w-12 text-right ${
+                        progress.progress === 100 ? 'text-green-600' :
+                        progress.progress > 0 ? 'text-green-600' : 'text-gray-400'
+                      }`}>
+                        {progress.progress}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-green-600 mt-4">
+              🚀 병렬 스트리밍으로 빠르고 안정적! 기존 문제는 유지됩니다
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 어휘 추가 생성 모달 */}
+      {showAdditionalGenerationModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-800">어휘 문제 추가 생성</h3>
+              <button
+                onClick={() => setShowAdditionalGenerationModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-4">
+                기존 문제는 유지하면서 새로운 어휘에 대한 문제를 추가로 생성합니다.
+              </p>
+
+              {/* 문제 유형 선택 */}
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-lg font-semibold text-gray-800">문제 유형 선택</h4>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm text-gray-600">
+                      {additionalSelectedQuestionTypes.length}/6개 선택됨
+                    </span>
+                    <button
+                      onClick={() => {
+                        const allTypes = Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[];
+                        setAdditionalSelectedQuestionTypes(prev =>
+                          prev.length === allTypes.length ? [] : allTypes
+                        );
+                      }}
+                      className="text-sm bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1 rounded transition-colors"
+                    >
+                      {additionalSelectedQuestionTypes.length === 6 ? '전체 해제' : '전체 선택'}
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {(Object.values(VOCABULARY_QUESTION_TYPES) as VocabularyQuestionType[]).map((type) => {
+                      const isSelected = additionalSelectedQuestionTypes.includes(type);
+                      return (
+                        <label
+                          key={type}
+                          className={`
+                            flex items-center space-x-3 p-3 rounded border cursor-pointer transition-all
+                            ${isSelected
+                              ? 'bg-purple-50 border-purple-200 text-purple-900'
+                              : 'bg-white border-gray-200 hover:bg-gray-50'
+                            }
+                          `}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAdditionalSelectedQuestionTypes(prev => [...prev, type]);
+                              } else {
+                                setAdditionalSelectedQuestionTypes(prev => prev.filter(t => t !== type));
+                              }
+                            }}
+                            className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
+                          />
+                          <span className="text-sm font-medium">
+                            {type}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* 어휘 선택 */}
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-lg font-semibold text-gray-800">추가 생성할 어휘 선택</h4>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm text-gray-600">
+                      {additionalSelectedTerms.length}/{getAllFootnotes().length}개 선택됨
+                    </span>
+                    <button
+                      onClick={() => {
+                        const allFootnotes = getAllFootnotes();
+                        const generatedTerms = Array.from(new Set(localQuestions.map(q => q.term)));
+                        const availableIndices = allFootnotes
+                          .map((footnote, index) => {
+                            const termName = footnote.split(':')[0]?.trim() || footnote;
+                            return !generatedTerms.includes(termName) ? index.toString() : null;
+                          })
+                          .filter(Boolean) as string[];
+
+                        setAdditionalSelectedTerms(prev =>
+                          prev.length === availableIndices.length ? [] : availableIndices
+                        );
+                      }}
+                      className="text-sm bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded transition-colors"
+                    >
+                      {additionalSelectedTerms.length > 0 ? '전체 해제' : '선택 가능한 용어 모두 선택'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto">
+                  <p className="text-sm text-gray-600 mb-3">
+                    아래 목록에서 추가로 문제를 생성할 어휘를 선택하세요:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {(() => {
+                      const allFootnotes = getAllFootnotes();
+                      const generatedTerms = Array.from(new Set(localQuestions.map(q => q.term)));
+
+                      return allFootnotes.map((footnote, index) => {
+                        const termIndex = index.toString();
+                        const termName = footnote.split(':')[0]?.trim() || footnote;
+                        const isAlreadyGenerated = generatedTerms.includes(termName);
+                        const isSelected = additionalSelectedTerms.includes(termIndex);
+
+                        return (
+                          <label
+                            key={index}
+                            className={`
+                              flex items-center space-x-3 p-3 rounded border transition-all
+                              ${isAlreadyGenerated
+                                ? 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed'
+                                : isSelected
+                                  ? 'bg-green-50 border-green-200 text-green-900 cursor-pointer'
+                                  : 'bg-white border-gray-200 hover:bg-gray-50 cursor-pointer'
+                              }
+                            `}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={isAlreadyGenerated}
+                              onChange={() => {
+                                if (!isAlreadyGenerated) {
+                                  setAdditionalSelectedTerms(prev =>
+                                    prev.includes(termIndex)
+                                      ? prev.filter(id => id !== termIndex)
+                                      : [...prev, termIndex]
+                                  );
+                                }
+                              }}
+                              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 disabled:opacity-50"
+                            />
+                            <div className="flex-1 flex items-center justify-between">
+                              <span className="text-sm font-medium">
+                                {termName}
+                              </span>
+                              {isAlreadyGenerated && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-2">
+                                  생성됨
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 버튼 */}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowAdditionalGenerationModal(false)}
+                className="bg-gray-100 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-200 transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleAdditionalGeneration}
+                disabled={additionalSelectedTerms.length === 0 || additionalSelectedQuestionTypes.length === 0}
+                className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                {additionalSelectedTerms.length === 0
+                  ? '용어를 선택해주세요'
+                  : additionalSelectedQuestionTypes.length === 0
+                    ? '문제 유형을 선택해주세요'
+                    : `${additionalSelectedTerms.length}개 용어 × ${additionalSelectedQuestionTypes.length}가지 유형으로 추가 생성`
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
