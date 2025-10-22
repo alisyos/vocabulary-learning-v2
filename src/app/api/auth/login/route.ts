@@ -15,6 +15,7 @@ const ACCOUNTS: AccountWithRole[] = [
   { userId: 'user4', password: '4444', name: '사용자4', role: 'admin' },
   { userId: 'user5', password: '5555', name: '사용자5', role: 'admin' },
   { userId: 'ahn', password: '0000', name: '안선생님', role: 'admin' },
+  { userId: 'kang', password: '4321', name: '강선생님', role: 'admin' },
   { userId: 'test', password: '0000', name: '테스트계정', role: 'admin' },
   { userId: 'almond', password: 'almond11@', name: '검수담당자', role: 'reviewer' },
 ];

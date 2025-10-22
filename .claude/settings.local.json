@@ -31,7 +31,8 @@
       "Bash(sed:*)",
       "Bash(cat:*)",
       "Bash(perl:*)",
-      "Bash(pgrep:*)"
+      "Bash(pgrep:*)",
+      "Bash(timeout 120 npm run dev:*)"
     ],
     "deny": []
   }
