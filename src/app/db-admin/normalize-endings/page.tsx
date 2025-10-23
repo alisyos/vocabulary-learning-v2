@@ -302,73 +302,115 @@ export default function NormalizeEndingsPage() {
 
         {/* 변환 규칙 안내 */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-blue-900 mb-3">
-            📝 변환 규칙 (12가지)
+          <h2 className="text-lg font-semibold text-blue-900 mb-4">
+            📝 변환 규칙
           </h2>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="font-medium text-gray-700">설명합니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700">설명한다</span>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">뜻합니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700">뜻한다</span>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">했습니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700">했다</span>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">있습니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700">있다</span>
-            </div>
-            <div className="bg-yellow-100 p-2 rounded">
-              <span className="font-medium text-gray-700">필요합니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700 font-bold">필요하다</span>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">도구입니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700">도구이다</span>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">의미합니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700">의미한다</span>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">공부합니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700">공부한다</span>
-            </div>
-            <div className="bg-yellow-100 p-2 rounded">
-              <span className="font-medium text-gray-700">됩니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700 font-bold">된다</span>
-            </div>
-            <div className="bg-yellow-100 p-2 rounded">
-              <span className="font-medium text-gray-700">납니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700 font-bold">난다</span>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">갔습니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700">갔다</span>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">먹었습니다</span>
-              <span className="mx-2">→</span>
-              <span className="text-blue-700">먹었다</span>
+
+          {/* 텍스트 표현 개선 */}
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-purple-800 mb-2">✨ 텍스트 표현 개선</h3>
+            <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
+              <div className="text-center">
+                <span className="font-bold text-gray-800">예:</span>
+                <span className="mx-2 text-lg">→</span>
+                <span className="text-purple-700 font-bold">예를 들어</span>
+              </div>
+              <div className="text-xs text-gray-600 mt-1 text-center">
+                예: 사과, 바나나 → 예를 들어 사과, 바나나
+              </div>
             </div>
           </div>
-          <p className="text-xs text-gray-600 mt-3">
-            💡 <strong className="text-yellow-700">노란색 배경</strong> = 최근 추가된 특수 규칙
+
+          {/* 핵심 일반 규칙 */}
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-blue-800 mb-2">🌟 핵심 일반 규칙 (3가지)</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-green-100 p-3 rounded-lg border-2 border-green-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">합니다</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-green-700 font-bold">한다</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  설명합니다 → 설명한다<br/>
+                  필요합니다 → 필요한다
+                </div>
+              </div>
+              <div className="bg-green-100 p-3 rounded-lg border-2 border-green-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">입니다</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-green-700 font-bold">이다</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  도구입니다 → 도구이다<br/>
+                  것입니다 → 것이다
+                </div>
+              </div>
+              <div className="bg-green-100 p-3 rounded-lg border-2 border-green-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">습니다</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-green-700 font-bold">다</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  갔습니다 → 갔다<br/>
+                  했습니다 → 했다
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 불규칙 특수 케이스 */}
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-orange-800 mb-2">⚡ 불규칙 특수 케이스 (2가지)</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-yellow-100 p-2 rounded border border-yellow-400">
+                <span className="font-medium text-gray-700">됩니다</span>
+                <span className="mx-2">→</span>
+                <span className="text-orange-700 font-bold">된다</span>
+                <span className="text-xs text-gray-600 ml-2">(불규칙 활용)</span>
+              </div>
+              <div className="bg-yellow-100 p-2 rounded border border-yellow-400">
+                <span className="font-medium text-gray-700">납니다</span>
+                <span className="mx-2">→</span>
+                <span className="text-orange-700 font-bold">난다</span>
+                <span className="text-xs text-gray-600 ml-2">(불규칙 활용)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 자동 처리 규칙 */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-700 mb-2">🔄 자동 처리 규칙 (예시)</h3>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="bg-white p-2 rounded">
+                <span className="font-medium text-gray-600">았습니다</span>
+                <span className="mx-2">→</span>
+                <span className="text-blue-700">았다</span>
+              </div>
+              <div className="bg-white p-2 rounded">
+                <span className="font-medium text-gray-600">었습니다</span>
+                <span className="mx-2">→</span>
+                <span className="text-blue-700">었다</span>
+              </div>
+              <div className="bg-white p-2 rounded">
+                <span className="font-medium text-gray-600">였습니다</span>
+                <span className="mx-2">→</span>
+                <span className="text-blue-700">였다</span>
+              </div>
+              <div className="bg-white p-2 rounded">
+                <span className="font-medium text-gray-600">습니까</span>
+                <span className="mx-2">→</span>
+                <span className="text-blue-700">는가</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-blue-200">
+            💡 <strong className="text-green-700">초록색 배경</strong> = 핵심 일반 규칙 (대부분의 경우 적용)
+            <br/>
+            💡 <strong className="text-yellow-700">노란색 배경</strong> = 불규칙 특수 케이스 (우선 처리)
           </p>
         </div>
 

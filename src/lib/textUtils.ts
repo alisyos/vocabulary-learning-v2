@@ -5,21 +5,24 @@
  */
 
 /**
- * 종결 어미를 "~다" 형태로 정규화
+ * 종결 어미를 "~다" 형태로 정규화하고 텍스트 표현을 개선
  *
  * 변환 규칙:
- * - "~습니다" → "~다"
- * - "~입니다" → "~이다"
+ * - 텍스트 표현: "예:" → "예를 들어"
+ * - "~합니다" → "~한다" (예: 설명합니다 → 설명한다, 필요합니다 → 필요한다)
+ * - "~습니다" → "~다" (예: 했습니다 → 했다, 갔습니다 → 갔다)
+ * - "~입니다" → "~이다" (예: 도구입니다 → 도구이다)
  * - "~ㅂ니다" → "~다"
- * - 특수 케이스: 필요합니다 → 필요하다, 됩니다 → 된다, 납니다 → 난다
+ * - 특수 케이스(불규칙): 됩니다 → 된다, 납니다 → 난다
  *
  * @param text 원본 텍스트
  * @returns 정규화된 텍스트
  *
  * @example
+ * normalizeEndingSentence("예: 사과, 바나나") // "예를 들어 사과, 바나나"
  * normalizeEndingSentence("이것은 도구입니다.") // "이것은 도구이다."
  * normalizeEndingSentence("했습니다.") // "했다."
- * normalizeEndingSentence("필요합니다.") // "필요하다."
+ * normalizeEndingSentence("필요합니다.") // "필요한다."
  * normalizeEndingSentence("됩니다.") // "된다."
  */
 export function normalizeEndingSentence(text: string | null | undefined): string {
@@ -31,16 +34,18 @@ export function normalizeEndingSentence(text: string | null | undefined): string
   // 예: "설명합니다"는 "합니다" 규칙을 먼저 적용해야 "설명한다"가 됩니다.
   //     만약 "습니다"를 먼저 적용하면 "설명합다"가 되어 버립니다.
 
-  // 0. 특수 케이스 (불규칙 동사 및 특수 패턴) - 가장 먼저 처리!
-  //    "필요합니다" → "필요하다" (일반 "합니다" 규칙보다 우선)
-  normalized = normalized.replace(/필요합니다/g, '필요하다');
-  //    "됩니다" → "된다"
+  // -1. 텍스트 표현 정규화
+  //     "예:" → "예를 들어" (문장 시작 또는 중간에 등장)
+  normalized = normalized.replace(/예:/g, '예를 들어');
+
+  // 0. 특수 케이스 (불규칙 동사) - 가장 먼저 처리!
+  //    "됩니다" → "된다" (되다의 불규칙 활용)
   normalized = normalized.replace(/됩니다/g, '된다');
-  //    "납니다" → "난다"
+  //    "납니다" → "난다" (나다의 불규칙 활용)
   normalized = normalized.replace(/납니다/g, '난다');
 
-  // 1. "~합니다" → "~한다" (특수 케이스 다음에 처리)
-  //    예: 설명합니다 → 설명한다, 공부합니다 → 공부한다, 뜻합니다 → 뜻한다
+  // 1. "~합니다" → "~한다" (일반 규칙)
+  //    예: 설명합니다 → 설명한다, 공부합니다 → 공부한다, 필요합니다 → 필요한다, 의미합니다 → 의미한다
   normalized = normalized.replace(/([가-힣])합니다/g, '$1한다');
 
   // 2. "~였습니다" → "~였다"
