@@ -959,20 +959,24 @@ export const db = {
       const passageIndexToIdMap: { [key: number]: string } = {};
       insertedPassages?.forEach((passage) => {
         // passage_number - 1이 passageIndex와 매칭됨
-        passageIndexToIdMap[passage.passage_number - 1] = passage.id;
+        const idx = passage.passage_number - 1;
+        passageIndexToIdMap[idx] = passage.id;
+        console.log(`📖 매핑 생성: passageIndex ${idx} → passage_id ${passage.id} (passage_number: ${passage.passage_number})`);
       });
-      
-      console.log('📖 Passage Index to ID 매핑:', passageIndexToIdMap);
-      
+
+      console.log('📖 Passage Index to ID 매핑 완료:', passageIndexToIdMap);
+
       // 4. Vocabulary Terms를 passage_id와 함께 저장
-      const vocabularyTermsWithId = vocabularyTermsTemp.map(v => {
+      const vocabularyTermsWithId = vocabularyTermsTemp.map((v, index) => {
         const { passageIndex, ...termData } = v;
         const passageId = passageIndexToIdMap[passageIndex] || null;
-        
+
         if (!passageId) {
-          console.warn(`⚠️ 어휘 "${termData.term}"의 passage_id를 찾을 수 없음 (passageIndex: ${passageIndex})`);
+          console.warn(`⚠️ [어휘 ${index + 1}] "${termData.term}"의 passage_id를 찾을 수 없음 (passageIndex: ${passageIndex})`);
+        } else {
+          console.log(`✅ [어휘 ${index + 1}] "${termData.term}" → passageIndex: ${passageIndex}, passage_id: ${passageId}`);
         }
-        
+
         return {
           ...termData,
           content_set_id: contentSetId,

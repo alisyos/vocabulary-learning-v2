@@ -186,20 +186,31 @@ export async function POST(request: NextRequest) {
       editablePassage.passages.forEach((passage, passageIndex) => {
         if (passage.footnote && Array.isArray(passage.footnote)) {
           console.log(`📚 지문 ${passageIndex + 1} 어휘 용어:`, passage.footnote.length, '개');
-          passage.footnote.forEach(footnote => {
+          console.log(`📝 지문 ${passageIndex + 1} 어휘 목록:`, passage.footnote.map(f => {
+            const parsed = parseFootnoteToVocabularyTerm(f);
+            return parsed.term;
+          }).join(', '));
+
+          passage.footnote.forEach((footnote, footnoteIndex) => {
             vocabularyTermsWithPassageInfo.push({ footnote, passageIndex });
+            console.log(`  ✓ 어휘 ${footnoteIndex + 1}: passageIndex=${passageIndex}`);
           });
         }
       });
     } else if (editablePassage?.footnote && Array.isArray(editablePassage.footnote)) {
       // 기존 단일 지문 형식
       console.log('📄 단일 지문 어휘 용어 처리');
-      editablePassage.footnote.forEach(footnote => {
+      editablePassage.footnote.forEach((footnote, footnoteIndex) => {
         vocabularyTermsWithPassageInfo.push({ footnote, passageIndex: 0 });
+        console.log(`  ✓ 어휘 ${footnoteIndex + 1}: passageIndex=0`);
       });
     }
-    
+
     console.log('📚 총 어휘 용어 수:', vocabularyTermsWithPassageInfo.length, '개');
+    console.log('📊 passageIndex별 어휘 분포:', vocabularyTermsWithPassageInfo.reduce((acc, item) => {
+      acc[item.passageIndex] = (acc[item.passageIndex] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>));
     
     // 어휘 문제에서 사용된 용어들 추출 (문제 생성 여부 판단용)
     const vocabularyQuestionTerms = new Set(

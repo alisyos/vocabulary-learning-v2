@@ -9,6 +9,7 @@
  *
  * 변환 규칙:
  * - 텍스트 표현: "예:" → "예를 들어"
+ * - 의문형 존댓말: "~가?" → "~가요?", "~까?" → "~까요?"
  * - "~합니다" → "~한다" (예: 설명합니다 → 설명한다, 필요합니다 → 필요한다)
  * - "~습니다" → "~다" (예: 했습니다 → 했다, 갔습니다 → 갔다)
  * - "~입니다" → "~이다" (예: 도구입니다 → 도구이다)
@@ -20,6 +21,8 @@
  *
  * @example
  * normalizeEndingSentence("예: 사과, 바나나") // "예를 들어 사과, 바나나"
+ * normalizeEndingSentence("무엇인가?") // "무엇인가요?"
+ * normalizeEndingSentence("알을까?") // "알을까요?"
  * normalizeEndingSentence("이것은 도구입니다.") // "이것은 도구이다."
  * normalizeEndingSentence("했습니다.") // "했다."
  * normalizeEndingSentence("필요합니다.") // "필요한다."
@@ -37,6 +40,12 @@ export function normalizeEndingSentence(text: string | null | undefined): string
   // -1. 텍스트 표현 정규화
   //     "예:" → "예를 들어" (문장 시작 또는 중간에 등장)
   normalized = normalized.replace(/예:/g, '예를 들어');
+
+  // -0.5. 의문형 반말 → 존댓말 변환
+  //      "~가?" → "~가요?"
+  normalized = normalized.replace(/([가-힣])가\?/g, '$1가요?');
+  //      "~까?" → "~까요?"
+  normalized = normalized.replace(/([가-힣])까\?/g, '$1까요?');
 
   // 0. 특수 케이스 (불규칙 동사) - 가장 먼저 처리!
   //    "됩니다" → "된다" (되다의 불규칙 활용)

@@ -48,6 +48,7 @@ export default function NormalizeEndingsPage() {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [result, setResult] = useState<ExecutionResult | null>(null);
   const [showPreviewDetails, setShowPreviewDetails] = useState(false);
+  const [showRules, setShowRules] = useState(false); // 변환 규칙 숨김/보기 상태 (기본값: 숨김)
   const [contentSetId, setContentSetId] = useState('');
 
   // 편집된 데이터를 추적
@@ -302,21 +303,53 @@ export default function NormalizeEndingsPage() {
 
         {/* 변환 규칙 안내 */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-blue-900 mb-4">
-            📝 변환 규칙
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-blue-900">
+              📝 변환 규칙
+            </h2>
+            <button
+              onClick={() => setShowRules(!showRules)}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
+            >
+              {showRules ? '▲ 변환 규칙 숨기기' : '▼ 변환 규칙 보기'}
+            </button>
+          </div>
 
-          {/* 텍스트 표현 개선 */}
+          {showRules && (
+            <div>
+              {/* 텍스트 표현 개선 */}
           <div className="mb-4">
-            <h3 className="text-sm font-bold text-purple-800 mb-2">✨ 텍스트 표현 개선</h3>
-            <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
-              <div className="text-center">
-                <span className="font-bold text-gray-800">예:</span>
-                <span className="mx-2 text-lg">→</span>
-                <span className="text-purple-700 font-bold">예를 들어</span>
+            <h3 className="text-sm font-bold text-purple-800 mb-2">✨ 텍스트 표현 개선 (3가지)</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">예:</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-purple-700 font-bold">예를 들어</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  예: 사과 → 예를 들어 사과
+                </div>
               </div>
-              <div className="text-xs text-gray-600 mt-1 text-center">
-                예: 사과, 바나나 → 예를 들어 사과, 바나나
+              <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">가?</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-purple-700 font-bold">가요?</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  무엇인가? → 무엇인가요?
+                </div>
+              </div>
+              <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">까?</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-purple-700 font-bold">까요?</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  알을까? → 알을까요?
+                </div>
               </div>
             </div>
           </div>
@@ -407,11 +440,13 @@ export default function NormalizeEndingsPage() {
             </div>
           </div>
 
-          <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-blue-200">
-            💡 <strong className="text-green-700">초록색 배경</strong> = 핵심 일반 규칙 (대부분의 경우 적용)
-            <br/>
-            💡 <strong className="text-yellow-700">노란색 배경</strong> = 불규칙 특수 케이스 (우선 처리)
-          </p>
+              <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-blue-200">
+                💡 <strong className="text-green-700">초록색 배경</strong> = 핵심 일반 규칙 (대부분의 경우 적용)
+                <br/>
+                💡 <strong className="text-yellow-700">노란색 배경</strong> = 불규칙 특수 케이스 (우선 처리)
+              </p>
+            </div>
+          )}
         </div>
 
         {/* 액션 버튼 */}
