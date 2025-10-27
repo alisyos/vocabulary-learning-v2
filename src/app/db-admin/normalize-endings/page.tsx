@@ -47,7 +47,7 @@ export default function NormalizeEndingsPage() {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [result, setResult] = useState<ExecutionResult | null>(null);
-  const [showPreviewDetails, setShowPreviewDetails] = useState(false);
+  const [showPreviewDetails, setShowPreviewDetails] = useState(true); // 기본값: 보기
   const [showRules, setShowRules] = useState(false); // 변환 규칙 숨김/보기 상태 (기본값: 숨김)
   const [contentSetId, setContentSetId] = useState('');
 
@@ -317,6 +317,65 @@ export default function NormalizeEndingsPage() {
 
           {showRules && (
             <div>
+              {/* 용어 통일 및 문장 형태 변환 */}
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-indigo-800 mb-2">🔄 용어 통일 및 문장 형태 변환 (5가지)</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-indigo-100 p-3 rounded-lg border border-indigo-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">핵심 주제</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-indigo-700 font-bold">중심 내용</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  핵심 주제는 → 중심 내용은
+                </div>
+              </div>
+              <div className="bg-indigo-100 p-3 rounded-lg border border-indigo-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">말함</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-indigo-700 font-bold">함</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  이야기를 말함 → 이야기를 함
+                </div>
+              </div>
+              <div className="bg-indigo-100 p-3 rounded-lg border border-indigo-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">까닭</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-indigo-700 font-bold">이유</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  그 까닭은 → 그 이유는
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="bg-indigo-100 p-3 rounded-lg border-2 border-indigo-500">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">고르세요.</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-indigo-700 font-bold">무엇인가요?</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  적절한 것을 고르세요. → 무엇인가요?
+                </div>
+              </div>
+              <div className="bg-indigo-100 p-3 rounded-lg border-2 border-indigo-500">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">고르시오.</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-indigo-700 font-bold">무엇인가요?</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  적절한 것을 고르시오. → 무엇인가요?
+                </div>
+              </div>
+            </div>
+          </div>
+
               {/* 텍스트 표현 개선 */}
           <div className="mb-4">
             <h3 className="text-sm font-bold text-purple-800 mb-2">✨ 텍스트 표현 개선 (3가지)</h3>
@@ -538,7 +597,7 @@ export default function NormalizeEndingsPage() {
                       <span className="text-sm text-gray-600">({preview.vocabularyQuestions.length}개 변경)</span>
                     </h3>
                     <div className="space-y-3">
-                      {preview.vocabularyQuestions.slice(0, 5).map((item, idx) => {
+                      {preview.vocabularyQuestions.slice(0, 10).map((item, idx) => {
                         const isEdited = editedData.has(item.id);
                         return (
                           <div key={idx} className={`border p-4 rounded-lg ${isEdited ? 'bg-yellow-50 border-yellow-400' : 'bg-green-50 border-green-200'}`}>
@@ -571,9 +630,9 @@ export default function NormalizeEndingsPage() {
                           </div>
                         );
                       })}
-                      {preview.vocabularyQuestions.length > 5 && (
+                      {preview.vocabularyQuestions.length > 10 && (
                         <div className="text-center text-sm text-gray-500 py-2">
-                          ... 외 {preview.vocabularyQuestions.length - 5}개 더
+                          ... 외 {preview.vocabularyQuestions.length - 10}개 더
                         </div>
                       )}
                     </div>
@@ -588,7 +647,7 @@ export default function NormalizeEndingsPage() {
                       <span className="text-sm text-gray-600">({preview.paragraphQuestions.length}개 변경)</span>
                     </h3>
                     <div className="space-y-3">
-                      {preview.paragraphQuestions.slice(0, 5).map((item, idx) => {
+                      {preview.paragraphQuestions.slice(0, 10).map((item, idx) => {
                         const isEdited = editedData.has(item.id);
                         return (
                           <div key={idx} className={`border p-4 rounded-lg ${isEdited ? 'bg-yellow-50 border-yellow-400' : 'bg-blue-50 border-blue-200'}`}>
@@ -621,9 +680,9 @@ export default function NormalizeEndingsPage() {
                           </div>
                         );
                       })}
-                      {preview.paragraphQuestions.length > 5 && (
+                      {preview.paragraphQuestions.length > 10 && (
                         <div className="text-center text-sm text-gray-500 py-2">
-                          ... 외 {preview.paragraphQuestions.length - 5}개 더
+                          ... 외 {preview.paragraphQuestions.length - 10}개 더
                         </div>
                       )}
                     </div>
@@ -638,7 +697,7 @@ export default function NormalizeEndingsPage() {
                       <span className="text-sm text-gray-600">({preview.comprehensiveQuestions.length}개 변경)</span>
                     </h3>
                     <div className="space-y-3">
-                      {preview.comprehensiveQuestions.slice(0, 5).map((item, idx) => {
+                      {preview.comprehensiveQuestions.slice(0, 10).map((item, idx) => {
                         const isEdited = editedData.has(item.id);
                         return (
                           <div key={idx} className={`border p-4 rounded-lg ${isEdited ? 'bg-yellow-50 border-yellow-400' : 'bg-purple-50 border-purple-200'}`}>
@@ -671,9 +730,9 @@ export default function NormalizeEndingsPage() {
                           </div>
                         );
                       })}
-                      {preview.comprehensiveQuestions.length > 5 && (
+                      {preview.comprehensiveQuestions.length > 10 && (
                         <div className="text-center text-sm text-gray-500 py-2">
-                          ... 외 {preview.comprehensiveQuestions.length - 5}개 더
+                          ... 외 {preview.comprehensiveQuestions.length - 10}개 더
                         </div>
                       )}
                     </div>

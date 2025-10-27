@@ -732,11 +732,55 @@ export default function VocabularyQuestions({
         questions: matchingQuestions.map(q => ({ id: q.id, term: q.term, question_text: q.question_text }))
       });
     }
-    
-    const updated = localQuestions.map(q => 
-      q.id === questionId ? { ...q, [field]: value } : q
-    );
-    
+
+    const updated = localQuestions.map(q => {
+      if (q.id === questionId) {
+        // 선택지 필드를 수정하는 경우 (option_1 ~ option_5)
+        const isOptionField = /^option_[1-5]$/.test(String(field));
+
+        if (isOptionField) {
+          // 기존 선택지 값 가져오기
+          const oldOptionValue = (q as any)[field];
+
+          // 🔧 수정한 선택지가 현재 정답이라면, 정답도 함께 업데이트
+          const currentAnswer = q.correct_answer || q.answer;
+          const newAnswer = currentAnswer === oldOptionValue ? value : currentAnswer;
+
+          if (currentAnswer === oldOptionValue) {
+            console.log(`✅ 선택지 수정으로 정답도 함께 업데이트: "${oldOptionValue}" → "${value}"`);
+          }
+
+          // 🔧 options 배열도 함께 업데이트 (저장 시 반영되도록)
+          const optionIndex = parseInt(String(field).replace('option_', '')) - 1;
+          const updatedOptions = q.options ? [...q.options] : [];
+          if (updatedOptions[optionIndex] !== undefined) {
+            updatedOptions[optionIndex] = value as string;
+          }
+
+          // 완전히 새로운 객체 반환 (불변 업데이트)
+          const updatedQuestion: any = {
+            ...q,
+            [field]: value,
+            // options 배열도 업데이트
+            ...(q.options ? { options: updatedOptions } : {})
+          };
+
+          // correct_answer 또는 answer 필드 업데이트
+          if (q.correct_answer !== undefined) {
+            updatedQuestion.correct_answer = newAnswer;
+          } else if ((q as any).answer !== undefined) {
+            updatedQuestion.answer = newAnswer;
+          }
+
+          return updatedQuestion;
+        }
+
+        // 선택지가 아닌 다른 필드 수정
+        return { ...q, [field]: value };
+      }
+      return q;
+    });
+
     // 디버깅: difficulty 필드 업데이트 시 로그 출력
     if (field === 'difficulty') {
       const originalQuestion = localQuestions.find(q => q.id === questionId);
@@ -749,7 +793,7 @@ export default function VocabularyQuestions({
         allQuestionIds: localQuestions.map(q => q.id)
       });
     }
-    
+
     setLocalQuestions(updated);
     onUpdate(updated);
   };
@@ -852,10 +896,18 @@ export default function VocabularyQuestions({
           console.log(`✅ 정답도 함께 업데이트: "${oldOptionValue}" → "${value}"`);
         }
 
+        // 🔧 options 배열도 함께 업데이트 (저장 시 반영되도록)
+        const updatedOptions = q.options ? [...q.options] : [];
+        if (updatedOptions[optionIndex] !== undefined) {
+          updatedOptions[optionIndex] = value;
+        }
+
         // 완전히 새로운 객체 반환 (불변 업데이트)
         const updatedQuestion: any = {
           ...q,
-          [field]: value
+          [field]: value,
+          // options 배열도 업데이트
+          ...(q.options ? { options: updatedOptions } : {})
         };
 
         // correct_answer 또는 answer 필드 업데이트

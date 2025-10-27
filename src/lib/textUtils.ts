@@ -8,6 +8,8 @@
  * 종결 어미를 "~다" 형태로 정규화하고 텍스트 표현을 개선
  *
  * 변환 규칙:
+ * - 용어 통일: "핵심 주제" → "중심 내용", "말함" → "함", "까닭" → "이유"
+ * - 문장 형태: "고르세요." → "무엇인가요?", "고르시오." → "무엇인가요?"
  * - 텍스트 표현: "예:" → "예를 들어"
  * - 의문형 존댓말: "~가?" → "~가요?", "~까?" → "~까요?"
  * - "~합니다" → "~한다" (예: 설명합니다 → 설명한다, 필요합니다 → 필요한다)
@@ -20,6 +22,11 @@
  * @returns 정규화된 텍스트
  *
  * @example
+ * normalizeEndingSentence("핵심 주제") // "중심 내용"
+ * normalizeEndingSentence("말함") // "함"
+ * normalizeEndingSentence("까닭") // "이유"
+ * normalizeEndingSentence("고르세요.") // "무엇인가요?"
+ * normalizeEndingSentence("고르시오.") // "무엇인가요?"
  * normalizeEndingSentence("예: 사과, 바나나") // "예를 들어 사과, 바나나"
  * normalizeEndingSentence("무엇인가?") // "무엇인가요?"
  * normalizeEndingSentence("알을까?") // "알을까요?"
@@ -36,6 +43,18 @@ export function normalizeEndingSentence(text: string | null | undefined): string
   // ⚠️ 중요: 더 구체적인 패턴을 먼저 적용해야 합니다!
   // 예: "설명합니다"는 "합니다" 규칙을 먼저 적용해야 "설명한다"가 됩니다.
   //     만약 "습니다"를 먼저 적용하면 "설명합다"가 되어 버립니다.
+
+  // -2. 용어 통일 및 문장 형태 변환 (가장 먼저 처리)
+  //     "핵심 주제" → "중심 내용"
+  normalized = normalized.replace(/핵심 주제/g, '중심 내용');
+  //     "말함" → "함" (독립적으로 사용될 때)
+  normalized = normalized.replace(/말함/g, '함');
+  //     "까닭" → "이유"
+  normalized = normalized.replace(/까닭/g, '이유');
+  //     "고르세요." → "무엇인가요?"
+  normalized = normalized.replace(/고르세요\./g, '무엇인가요?');
+  //     "고르시오." → "무엇인가요?"
+  normalized = normalized.replace(/고르시오\./g, '무엇인가요?');
 
   // -1. 텍스트 표현 정규화
   //     "예:" → "예를 들어" (문장 시작 또는 중간에 등장)

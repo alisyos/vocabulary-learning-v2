@@ -187,7 +187,7 @@ export default function ManagePage() {
       return false;
     }
 
-    // 차시 필터 (완전 일치 검색)
+    // 차시 필터 (완전 일치 검색 + 범위 검색)
     if (filters.session) {
       // "없음" 또는 "null" 입력 시 차시 정보가 없는 항목만 표시
       if (filters.session === '없음' || filters.session.toLowerCase() === 'null') {
@@ -195,9 +195,22 @@ export default function ManagePage() {
           return false;
         }
       } else {
-        // 일반 완전 일치 검색
-        if (String(item.session_number) !== filters.session) {
-          return false;
+        // 범위 검색: "50~55" 형태
+        const rangeMatch = filters.session.match(/^(\d+)\s*[~-]\s*(\d+)$/);
+        if (rangeMatch) {
+          const startSession = parseInt(rangeMatch[1], 10);
+          const endSession = parseInt(rangeMatch[2], 10);
+          const currentSession = parseInt(String(item.session_number || ''), 10);
+
+          // 범위 내에 없으면 필터링
+          if (isNaN(currentSession) || currentSession < startSession || currentSession > endSession) {
+            return false;
+          }
+        } else {
+          // 일반 완전 일치 검색
+          if (String(item.session_number) !== filters.session) {
+            return false;
+          }
         }
       }
     }
@@ -775,11 +788,14 @@ export default function ManagePage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">차시</label>
               <input
                 type="text"
-                placeholder="차시 번호 입력 (예: 29) 또는 '없음'"
+                placeholder="예: 29 또는 50~55 또는 '없음'"
                 value={filters.session}
                 onChange={(e) => setFilters(prev => ({ ...prev, session: e.target.value }))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                범위 검색: 50~55 또는 50-55
+              </p>
             </div>
           </div>
 

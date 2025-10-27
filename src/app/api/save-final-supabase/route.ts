@@ -299,14 +299,17 @@ export async function POST(request: NextRequest) {
         const questionType = q.question_type || q.questionType || '';
         const answerInitials = q.answer_initials || q.answerInitials;
 
-        // 옵션 정규화 (배열 형식과 개별 필드 모두 지원)
-        const options = q.options || [
-          q.option_1,
-          q.option_2,
-          q.option_3,
-          q.option_4,
-          q.option_5
-        ].filter(Boolean);
+        // 옵션 정규화: 개별 필드와 배열을 병합
+        // 🔧 개별 필드가 있으면 우선 사용, 없으면 options 배열의 해당 인덱스 값 사용
+        // (4단계에서 일부만 수정해도 나머지는 유지되도록)
+        const optionsArray = q.options || [];
+        const options = [
+          q.option_1 !== undefined ? q.option_1 : (optionsArray[0] || undefined),
+          q.option_2 !== undefined ? q.option_2 : (optionsArray[1] || undefined),
+          q.option_3 !== undefined ? q.option_3 : (optionsArray[2] || undefined),
+          q.option_4 !== undefined ? q.option_4 : (optionsArray[3] || undefined),
+          q.option_5 !== undefined ? q.option_5 : (optionsArray[4] || undefined)
+        ];
 
         // 정답 정규화
         const correctAnswer = q.correct_answer || q.correctAnswer || q.answer || '';
