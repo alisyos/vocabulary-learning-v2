@@ -3,6 +3,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+interface NormalizationRule {
+  id: string;
+  label: string;
+  category: '용어통일' | '문장형태' | '텍스트표현' | '의문형존댓말' | '일반규칙' | '불규칙';
+  color: string;
+}
+
 interface PreviewStats {
   vocabularyTotal: number;
   vocabularyChanged: number;
@@ -18,6 +25,7 @@ interface PreviewItem {
   questionType: 'vocabulary' | 'paragraph' | 'comprehensive';
   original: Record<string, string>;
   normalized: Record<string, string>;
+  appliedRules: NormalizationRule[];
   hasChanges: boolean;
 }
 
@@ -319,8 +327,8 @@ export default function NormalizeEndingsPage() {
             <div>
               {/* 용어 통일 및 문장 형태 변환 */}
           <div className="mb-4">
-            <h3 className="text-sm font-bold text-indigo-800 mb-2">🔄 용어 통일 및 문장 형태 변환 (5가지)</h3>
-            <div className="grid grid-cols-3 gap-3">
+            <h3 className="text-sm font-bold text-indigo-800 mb-2">🔄 용어 통일 및 문장 형태 변환 (6가지)</h3>
+            <div className="grid grid-cols-4 gap-3">
               <div className="bg-indigo-100 p-3 rounded-lg border border-indigo-400">
                 <div className="text-center">
                   <span className="font-bold text-gray-800">핵심 주제</span>
@@ -351,6 +359,16 @@ export default function NormalizeEndingsPage() {
                   그 까닭은 → 그 이유는
                 </div>
               </div>
+              <div className="bg-indigo-100 p-3 rounded-lg border border-indigo-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">지문에서</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-indigo-700 font-bold">이 글에서</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  지문에서 → 이 글에서
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div className="bg-indigo-100 p-3 rounded-lg border-2 border-indigo-500">
@@ -378,8 +396,8 @@ export default function NormalizeEndingsPage() {
 
               {/* 텍스트 표현 개선 */}
           <div className="mb-4">
-            <h3 className="text-sm font-bold text-purple-800 mb-2">✨ 텍스트 표현 개선 (3가지)</h3>
-            <div className="grid grid-cols-3 gap-3">
+            <h3 className="text-sm font-bold text-purple-800 mb-2">✨ 텍스트 표현 개선 (4가지)</h3>
+            <div className="grid grid-cols-4 gap-3">
               <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
                 <div className="text-center">
                   <span className="font-bold text-gray-800">예:</span>
@@ -388,6 +406,16 @@ export default function NormalizeEndingsPage() {
                 </div>
                 <div className="text-xs text-gray-600 mt-1 text-center">
                   예: 사과 → 예를 들어 사과
+                </div>
+              </div>
+              <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">라 한다</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-purple-700 font-bold">라고 한다</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  라 한다 → 라고 한다
                 </div>
               </div>
               <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
@@ -601,9 +629,20 @@ export default function NormalizeEndingsPage() {
                         const isEdited = editedData.has(item.id);
                         return (
                           <div key={idx} className={`border p-4 rounded-lg ${isEdited ? 'bg-yellow-50 border-yellow-400' : 'bg-green-50 border-green-200'}`}>
-                            <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-green-200 flex items-center justify-between">
-                              <span>문제 #{item.questionNumber}</span>
-                              {isEdited && <span className="text-xs bg-yellow-200 px-2 py-1 rounded">✏️ 편집됨</span>}
+                            <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-green-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <span>문제 #{item.questionNumber}</span>
+                                {isEdited && <span className="text-xs bg-yellow-200 px-2 py-1 rounded">✏️ 편집됨</span>}
+                              </div>
+                              {item.appliedRules && item.appliedRules.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {item.appliedRules.map((rule, rIdx) => (
+                                    <span key={rIdx} className={`text-xs px-2 py-0.5 rounded-full ${rule.color} font-medium`}>
+                                      {rule.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div className="space-y-2">
                               {Object.keys(item.original).map(key => (
@@ -651,9 +690,20 @@ export default function NormalizeEndingsPage() {
                         const isEdited = editedData.has(item.id);
                         return (
                           <div key={idx} className={`border p-4 rounded-lg ${isEdited ? 'bg-yellow-50 border-yellow-400' : 'bg-blue-50 border-blue-200'}`}>
-                            <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-blue-200 flex items-center justify-between">
-                              <span>문제 #{item.questionNumber}</span>
-                              {isEdited && <span className="text-xs bg-yellow-200 px-2 py-1 rounded">✏️ 편집됨</span>}
+                            <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-blue-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <span>문제 #{item.questionNumber}</span>
+                                {isEdited && <span className="text-xs bg-yellow-200 px-2 py-1 rounded">✏️ 편집됨</span>}
+                              </div>
+                              {item.appliedRules && item.appliedRules.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {item.appliedRules.map((rule, rIdx) => (
+                                    <span key={rIdx} className={`text-xs px-2 py-0.5 rounded-full ${rule.color} font-medium`}>
+                                      {rule.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div className="space-y-2">
                               {Object.keys(item.original).map(key => (
@@ -701,9 +751,20 @@ export default function NormalizeEndingsPage() {
                         const isEdited = editedData.has(item.id);
                         return (
                           <div key={idx} className={`border p-4 rounded-lg ${isEdited ? 'bg-yellow-50 border-yellow-400' : 'bg-purple-50 border-purple-200'}`}>
-                            <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-purple-200 flex items-center justify-between">
-                              <span>문제 #{item.questionNumber}</span>
-                              {isEdited && <span className="text-xs bg-yellow-200 px-2 py-1 rounded">✏️ 편집됨</span>}
+                            <div className="font-medium text-gray-900 mb-2 pb-2 border-b border-purple-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <span>문제 #{item.questionNumber}</span>
+                                {isEdited && <span className="text-xs bg-yellow-200 px-2 py-1 rounded">✏️ 편집됨</span>}
+                              </div>
+                              {item.appliedRules && item.appliedRules.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {item.appliedRules.map((rule, rIdx) => (
+                                    <span key={rIdx} className={`text-xs px-2 py-0.5 rounded-full ${rule.color} font-medium`}>
+                                      {rule.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div className="space-y-2">
                               {Object.keys(item.original).map(key => (

@@ -6,13 +6,14 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// "~다"로 끝나는 문자열을 "~다."로 변환하는 함수
+// 5자 이상이면서 "~다"로 끝나는 문자열을 "~다."로 변환하는 함수
+// (짧은 단어인 "바다", "수다" 등은 제외)
 function addPeriodIfNeeded(text: string | null): { converted: string | null; changed: boolean } {
   if (!text) return { converted: text, changed: false };
 
   const trimmed = text.trim();
-  // "다"로 끝나면서 마침표가 없는 경우
-  if (trimmed.endsWith('다') && !trimmed.endsWith('다.')) {
+  // 5자 이상이면서 "다"로 끝나고 마침표가 없는 경우
+  if (trimmed.length >= 5 && trimmed.endsWith('다') && !trimmed.endsWith('다.')) {
     return { converted: trimmed + '.', changed: true };
   }
 

@@ -33,7 +33,10 @@
       "Bash(perl:*)",
       "Bash(pgrep:*)",
       "Bash(timeout 120 npm run dev:*)",
-      "Bash(timeout 180 npm run dev)"
+      "Bash(timeout 180 npm run dev)",
+      "Bash(timeout 5 npm run dev:*)",
+      "Bash(python3:*)",
+      "Read(//tmp/**)"
     ],
     "deny": []
   }

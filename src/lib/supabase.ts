@@ -213,8 +213,37 @@ export const db = {
       `)
       .eq('id', id)
       .single()
-    
+
     if (error) throw error
+
+    // 데이터 정렬: 각 테이블을 적절한 순서로 정렬
+    if (data) {
+      // ✅ 지문: passage_number로 정렬 (1, 2, ...)
+      if (data.passages && Array.isArray(data.passages)) {
+        data.passages.sort((a: any, b: any) => (a.passage_number || 0) - (b.passage_number || 0))
+      }
+
+      // ✅ 어휘 용어: order_index로 정렬
+      if (data.vocabulary_terms && Array.isArray(data.vocabulary_terms)) {
+        data.vocabulary_terms.sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0))
+      }
+
+      // ✅ 어휘 문제: question_number로 정렬
+      if (data.vocabulary_questions && Array.isArray(data.vocabulary_questions)) {
+        data.vocabulary_questions.sort((a: any, b: any) => (a.question_number || 0) - (b.question_number || 0))
+      }
+
+      // ✅ 문단 문제: question_number로 정렬
+      if (data.paragraph_questions && Array.isArray(data.paragraph_questions)) {
+        data.paragraph_questions.sort((a: any, b: any) => (a.question_number || 0) - (b.question_number || 0))
+      }
+
+      // ✅ 종합 문제: question_number로 정렬
+      if (data.comprehensive_questions && Array.isArray(data.comprehensive_questions)) {
+        data.comprehensive_questions.sort((a: any, b: any) => (a.question_number || 0) - (b.question_number || 0))
+      }
+    }
+
     return data
   },
 

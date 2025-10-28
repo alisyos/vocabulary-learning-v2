@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { normalizeEndingSentence } from '@/lib/textUtils';
+import { normalizeEndingSentence, normalizeWithRules, NormalizationRule } from '@/lib/textUtils';
 
 /**
  * 종결 어미 정규화 미리보기 API
@@ -57,14 +57,16 @@ export async function GET(request: Request) {
           questionNumber: q.question_number,
           original: {},
           normalized: {},
+          appliedRules: [] as NormalizationRule[],
           hasChanges: false
         };
 
         // 문제 텍스트
-        const questionNormalized = normalizeEndingSentence(q.question_text);
-        if (q.question_text !== questionNormalized) {
+        const questionResult = normalizeWithRules(q.question_text);
+        if (q.question_text !== questionResult.normalized) {
           changes.original.question_text = q.question_text;
-          changes.normalized.question_text = questionNormalized;
+          changes.normalized.question_text = questionResult.normalized;
+          changes.appliedRules.push(...questionResult.appliedRules);
           changes.hasChanges = true;
         }
 
@@ -73,20 +75,22 @@ export async function GET(request: Request) {
           const optionKey = `option_${i}` as keyof typeof q;
           const optionValue = q[optionKey];
           if (optionValue) {
-            const optionNormalized = normalizeEndingSentence(optionValue);
-            if (optionValue !== optionNormalized) {
+            const optionResult = normalizeWithRules(optionValue);
+            if (optionValue !== optionResult.normalized) {
               changes.original[optionKey] = optionValue;
-              changes.normalized[optionKey] = optionNormalized;
+              changes.normalized[optionKey] = optionResult.normalized;
+              changes.appliedRules.push(...optionResult.appliedRules);
               changes.hasChanges = true;
             }
           }
         });
 
         // 해설
-        const explanationNormalized = normalizeEndingSentence(q.explanation);
-        if (q.explanation !== explanationNormalized) {
+        const explanationResult = normalizeWithRules(q.explanation);
+        if (q.explanation !== explanationResult.normalized) {
           changes.original.explanation = q.explanation;
-          changes.normalized.explanation = explanationNormalized;
+          changes.normalized.explanation = explanationResult.normalized;
+          changes.appliedRules.push(...explanationResult.appliedRules);
           changes.hasChanges = true;
         }
 
@@ -122,14 +126,16 @@ export async function GET(request: Request) {
           questionNumber: q.question_number,
           original: {},
           normalized: {},
+          appliedRules: [] as NormalizationRule[],
           hasChanges: false
         };
 
         // 문제 텍스트
-        const questionNormalized = normalizeEndingSentence(q.question_text);
-        if (q.question_text !== questionNormalized) {
+        const questionResult = normalizeWithRules(q.question_text);
+        if (q.question_text !== questionResult.normalized) {
           changes.original.question_text = q.question_text;
-          changes.normalized.question_text = questionNormalized;
+          changes.normalized.question_text = questionResult.normalized;
+          changes.appliedRules.push(...questionResult.appliedRules);
           changes.hasChanges = true;
         }
 
@@ -138,20 +144,22 @@ export async function GET(request: Request) {
           const optionKey = `option_${i}` as keyof typeof q;
           const optionValue = q[optionKey];
           if (optionValue) {
-            const optionNormalized = normalizeEndingSentence(optionValue);
-            if (optionValue !== optionNormalized) {
+            const optionResult = normalizeWithRules(optionValue);
+            if (optionValue !== optionResult.normalized) {
               changes.original[optionKey] = optionValue;
-              changes.normalized[optionKey] = optionNormalized;
+              changes.normalized[optionKey] = optionResult.normalized;
+              changes.appliedRules.push(...optionResult.appliedRules);
               changes.hasChanges = true;
             }
           }
         });
 
         // 해설
-        const explanationNormalized = normalizeEndingSentence(q.explanation);
-        if (q.explanation !== explanationNormalized) {
+        const explanationResult = normalizeWithRules(q.explanation);
+        if (q.explanation !== explanationResult.normalized) {
           changes.original.explanation = q.explanation;
-          changes.normalized.explanation = explanationNormalized;
+          changes.normalized.explanation = explanationResult.normalized;
+          changes.appliedRules.push(...explanationResult.appliedRules);
           changes.hasChanges = true;
         }
 
@@ -187,14 +195,16 @@ export async function GET(request: Request) {
           questionNumber: q.question_number,
           original: {},
           normalized: {},
+          appliedRules: [] as NormalizationRule[],
           hasChanges: false
         };
 
         // 문제 텍스트
-        const questionNormalized = normalizeEndingSentence(q.question_text);
-        if (q.question_text !== questionNormalized) {
+        const questionResult = normalizeWithRules(q.question_text);
+        if (q.question_text !== questionResult.normalized) {
           changes.original.question_text = q.question_text;
-          changes.normalized.question_text = questionNormalized;
+          changes.normalized.question_text = questionResult.normalized;
+          changes.appliedRules.push(...questionResult.appliedRules);
           changes.hasChanges = true;
         }
 
@@ -203,20 +213,22 @@ export async function GET(request: Request) {
           const optionKey = `option_${i}` as keyof typeof q;
           const optionValue = q[optionKey];
           if (optionValue) {
-            const optionNormalized = normalizeEndingSentence(optionValue);
-            if (optionValue !== optionNormalized) {
+            const optionResult = normalizeWithRules(optionValue);
+            if (optionValue !== optionResult.normalized) {
               changes.original[optionKey] = optionValue;
-              changes.normalized[optionKey] = optionNormalized;
+              changes.normalized[optionKey] = optionResult.normalized;
+              changes.appliedRules.push(...optionResult.appliedRules);
               changes.hasChanges = true;
             }
           }
         });
 
         // 해설
-        const explanationNormalized = normalizeEndingSentence(q.explanation);
-        if (q.explanation !== explanationNormalized) {
+        const explanationResult = normalizeWithRules(q.explanation);
+        if (q.explanation !== explanationResult.normalized) {
           changes.original.explanation = q.explanation;
-          changes.normalized.explanation = explanationNormalized;
+          changes.normalized.explanation = explanationResult.normalized;
+          changes.appliedRules.push(...explanationResult.appliedRules);
           changes.hasChanges = true;
         }
 

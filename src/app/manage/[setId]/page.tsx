@@ -3418,9 +3418,7 @@ ${allParagraphs}`;
                                 <option value="주관식 단답형">주관식 단답형</option>
                                 <option value="어절 순서 맞추기">어절 순서 맞추기</option>
                                 <option value="OX문제">OX문제</option>
-                                <option value="유의어 고르기">유의어 고르기</option>
-                                <option value="반의어 고르기">반의어 고르기</option>
-                                <option value="문단 요약">문단 요약</option>
+                                <option value="객관식 일반형">객관식 일반형</option>
                               </select>
                             </div>
                             <div>
