@@ -396,7 +396,7 @@ export default function NormalizeEndingsPage() {
 
               {/* 텍스트 표현 개선 */}
           <div className="mb-4">
-            <h3 className="text-sm font-bold text-purple-800 mb-2">✨ 텍스트 표현 개선 (4가지)</h3>
+            <h3 className="text-sm font-bold text-purple-800 mb-2">✨ 텍스트 표현 개선 (8가지)</h3>
             <div className="grid grid-cols-4 gap-3">
               <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
                 <div className="text-center">
@@ -410,12 +410,44 @@ export default function NormalizeEndingsPage() {
               </div>
               <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
                 <div className="text-center">
-                  <span className="font-bold text-gray-800">라 한다</span>
+                  <span className="font-bold text-gray-800">(이)라 한다</span>
                   <span className="mx-2 text-lg">→</span>
-                  <span className="text-purple-700 font-bold">라고 한다</span>
+                  <span className="text-purple-700 font-bold">(이)라고 한다</span>
                 </div>
                 <div className="text-xs text-gray-600 mt-1 text-center">
-                  라 한다 → 라고 한다
+                  라 한다 / 이라 한다 → 라고 한다 / 이라고 한다
+                </div>
+              </div>
+              <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">라고/이라고</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-purple-700 font-bold">(이)라고</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  라고/이라고 → (이)라고
+                </div>
+              </div>
+              <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">나/이나</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-purple-700 font-bold">(이)나</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  나/이나 → (이)나
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-3 mt-3">
+              <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
+                <div className="text-center">
+                  <span className="font-bold text-gray-800">로/으로</span>
+                  <span className="mx-2 text-lg">→</span>
+                  <span className="text-purple-700 font-bold">(으)로</span>
+                </div>
+                <div className="text-xs text-gray-600 mt-1 text-center">
+                  로/으로 → (으)로
                 </div>
               </div>
               <div className="bg-purple-100 p-3 rounded-lg border border-purple-400">
@@ -453,7 +485,7 @@ export default function NormalizeEndingsPage() {
                 </div>
                 <div className="text-xs text-gray-600 mt-1 text-center">
                   설명합니다 → 설명한다<br/>
-                  필요합니다 → 필요한다
+                  무엇을 합니다 → 무엇을 한다
                 </div>
               </div>
               <div className="bg-green-100 p-3 rounded-lg border-2 border-green-400">

@@ -51,18 +51,49 @@ const tables: TableInfo[] = [
   }
 ];
 
+const statusOptions = [
+  { value: 'all', label: '전체' },
+  { value: '검수 전', label: '검수 전' },
+  { value: '1차검수', label: '1차검수' },
+  { value: '2차검수', label: '2차검수' },
+  { value: '3차검수', label: '3차검수' },
+  { value: '4차검수', label: '4차검수' },
+  { value: '검수완료', label: '검수완료' },
+  { value: '승인완료', label: '승인완료' }
+];
+
 export default function DownloadPage() {
   const [activeTab, setActiveTab] = useState('content_sets');
   const [downloading, setDownloading] = useState<{ [key: string]: boolean }>({});
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['all']);
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
+  const handleStatusChange = (status: string) => {
+    if (status === 'all') {
+      setSelectedStatuses(['all']);
+    } else {
+      const newStatuses = selectedStatuses.filter(s => s !== 'all');
+      if (newStatuses.includes(status)) {
+        const filtered = newStatuses.filter(s => s !== status);
+        setSelectedStatuses(filtered.length === 0 ? ['all'] : filtered);
+      } else {
+        setSelectedStatuses([...newStatuses, status]);
+      }
+    }
+  };
+
   const handleDownload = async (tableName: string) => {
     setDownloading(prev => ({ ...prev, [tableName]: true }));
-    
+
     try {
-      const response = await fetch(`/api/download-csv?table=${tableName}`);
-      
+      // status 파라미터 구성
+      const statusParam = selectedStatuses.includes('all')
+        ? 'all'
+        : selectedStatuses.join(',');
+
+      const response = await fetch(`/api/download-csv?table=${tableName}&status=${encodeURIComponent(statusParam)}`);
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Download failed');
@@ -72,7 +103,7 @@ export default function DownloadPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      
+
       const contentDisposition = response.headers.get('content-disposition');
       let filename = `${tableName}.csv`;
       if (contentDisposition) {
@@ -81,14 +112,14 @@ export default function DownloadPage() {
           filename = filenameMatch[1];
         }
       }
-      
+
       link.download = filename;
       document.body.appendChild(link);
       link.click();
-      
+
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
+
     } catch (error) {
       console.error('Download error:', error);
       alert(error instanceof Error ? error.message : 'Download failed');
@@ -162,6 +193,61 @@ export default function DownloadPage() {
                     </div>
                   </div>
 
+                  {/* Status Filter Section */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-5">
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                        <h4 className="text-md font-semibold text-purple-900">
+                          검수 상태별 필터링
+                        </h4>
+                      </div>
+
+                      <p className="text-sm text-purple-700">
+                        다운로드할 데이터의 검수 상태를 선택하세요. 여러 개 선택 가능합니다.
+                      </p>
+
+                      <div className="flex flex-wrap gap-2">
+                        {statusOptions.map((option) => {
+                          const isSelected = selectedStatuses.includes(option.value);
+                          const isAll = option.value === 'all';
+
+                          return (
+                            <button
+                              key={option.value}
+                              onClick={() => handleStatusChange(option.value)}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                isSelected
+                                  ? isAll
+                                    ? 'bg-purple-600 text-white shadow-md'
+                                    : 'bg-indigo-600 text-white shadow-md'
+                                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {isSelected && !isAll && (
+                                <span className="mr-1">✓</span>
+                              )}
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="bg-white rounded-md p-3 border border-purple-100">
+                        <p className="text-xs text-gray-600">
+                          <span className="font-semibold">선택된 상태:</span>{' '}
+                          {selectedStatuses.includes('all')
+                            ? '전체'
+                            : selectedStatuses.length > 0
+                            ? selectedStatuses.join(', ')
+                            : '없음 (전체로 자동 설정됩니다)'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Download Section */}
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
                     <div className="text-center space-y-4">
@@ -172,7 +258,18 @@ export default function DownloadPage() {
                         <p className="text-sm text-gray-600 mt-1">
                           <code className="bg-gray-200 px-2 py-1 rounded text-xs">
                             {activeTable.key}
-                          </code> 테이블의 모든 데이터를 원본 형태로 다운로드합니다.
+                          </code> 테이블의{' '}
+                          {selectedStatuses.includes('all') ? (
+                            <span className="font-semibold">모든 데이터</span>
+                          ) : (
+                            <>
+                              <span className="font-semibold text-indigo-600">
+                                {selectedStatuses.join(', ')}
+                              </span>{' '}
+                              상태의 데이터
+                            </>
+                          )}
+                          를 원본 형태로 다운로드합니다.
                         </p>
                       </div>
 

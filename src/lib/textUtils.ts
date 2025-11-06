@@ -10,7 +10,7 @@
  * 변환 규칙:
  * - 용어 통일: "핵심 주제" → "중심 내용", "말함" → "함", "까닭" → "이유", "지문에서" → "이 글에서"
  * - 문장 형태: "고르세요." → "무엇인가요?", "고르시오." → "무엇인가요?"
- * - 텍스트 표현: "예:" → "예를 들어", "라 한다" → "라고 한다"
+ * - 텍스트 표현: "예:" → "예를 들어", "라 한다" → "라고 한다", "이라 한다" → "이라고 한다", "라고/이라고" → "(이)라고", "나/이나" → "(이)나", "로/으로" → "(으)로"
  * - 의문형 존댓말: "~가?" → "~가요?", "~까?" → "~까요?"
  * - "~합니다" → "~한다" (예: 설명합니다 → 설명한다, 필요합니다 → 필요한다)
  * - "~습니다" → "~다" (예: 했습니다 → 했다, 갔습니다 → 갔다)
@@ -30,6 +30,10 @@
  * normalizeEndingSentence("고르시오.") // "무엇인가요?"
  * normalizeEndingSentence("예: 사과, 바나나") // "예를 들어 사과, 바나나"
  * normalizeEndingSentence("라 한다") // "라고 한다"
+ * normalizeEndingSentence("이라 한다") // "이라고 한다"
+ * normalizeEndingSentence("이것을 라고/이라고 부른다") // "이것을 (이)라고 부른다"
+ * normalizeEndingSentence("사과나/이나 바나나") // "사과(이)나 바나나"
+ * normalizeEndingSentence("칼로/으로 자른다") // "칼(으)로 자른다"
  * normalizeEndingSentence("무엇인가?") // "무엇인가요?"
  * normalizeEndingSentence("알을까?") // "알을까요?"
  * normalizeEndingSentence("이것은 도구입니다.") // "이것은 도구이다."
@@ -65,6 +69,14 @@ export function normalizeEndingSentence(text: string | null | undefined): string
   normalized = normalized.replace(/예:/g, '예를 들어');
   //     "라 한다" → "라고 한다" (인용 표현)
   normalized = normalized.replace(/라 한다/g, '라고 한다');
+  //     "이라 한다" → "이라고 한다" (인용 표현)
+  normalized = normalized.replace(/이라 한다/g, '이라고 한다');
+  //     "라고/이라고" → "(이)라고" (인용 표현 통일)
+  normalized = normalized.replace(/라고\/이라고/g, '(이)라고');
+  //     "나/이나" → "(이)나" (선택 표현 통일)
+  normalized = normalized.replace(/나\/이나/g, '(이)나');
+  //     "로/으로" → "(으)로" (조사 표현 통일)
+  normalized = normalized.replace(/로\/으로/g, '(으)로');
 
   // -0.5. 의문형 반말 → 존댓말 변환
   //      "~가?" → "~가요?"
@@ -80,7 +92,8 @@ export function normalizeEndingSentence(text: string | null | undefined): string
 
   // 1. "~합니다" → "~한다" (일반 규칙)
   //    예: 설명합니다 → 설명한다, 공부합니다 → 공부한다, 필요합니다 → 필요한다, 의미합니다 → 의미한다
-  normalized = normalized.replace(/([가-힣])합니다/g, '$1한다');
+  //    단독 "합니다" → "한다" (예: 무엇을 합니다 → 무엇을 한다)
+  normalized = normalized.replace(/합니다/g, '한다');
 
   // 2. "~였습니다" → "~였다"
   //    예: 그것이었습니다 → 그것이었다
@@ -241,6 +254,22 @@ export function normalizeWithRules(text: string | null | undefined): {
     appliedRules.push({ id: 'text-quote', label: '라 한다→라고 한다', category: '텍스트표현', color: 'bg-purple-100 text-purple-700' });
     normalized = normalized.replace(/라 한다/g, '라고 한다');
   }
+  if (normalized.includes('이라 한다')) {
+    appliedRules.push({ id: 'text-quote-i', label: '이라 한다→이라고 한다', category: '텍스트표현', color: 'bg-purple-100 text-purple-700' });
+    normalized = normalized.replace(/이라 한다/g, '이라고 한다');
+  }
+  if (normalized.includes('라고/이라고')) {
+    appliedRules.push({ id: 'text-unify-lago', label: '라고/이라고→(이)라고', category: '텍스트표현', color: 'bg-purple-100 text-purple-700' });
+    normalized = normalized.replace(/라고\/이라고/g, '(이)라고');
+  }
+  if (normalized.includes('나/이나')) {
+    appliedRules.push({ id: 'text-unify-na', label: '나/이나→(이)나', category: '텍스트표현', color: 'bg-purple-100 text-purple-700' });
+    normalized = normalized.replace(/나\/이나/g, '(이)나');
+  }
+  if (normalized.includes('로/으로')) {
+    appliedRules.push({ id: 'text-unify-ro', label: '로/으로→(으)로', category: '텍스트표현', color: 'bg-purple-100 text-purple-700' });
+    normalized = normalized.replace(/로\/으로/g, '(으)로');
+  }
 
   // -0.5. 의문형 존댓말
   if (/([가-힣])가\?/.test(normalized)) {
@@ -263,9 +292,9 @@ export function normalizeWithRules(text: string | null | undefined): {
   }
 
   // 1. 일반 규칙
-  if (/([가-힣])합니다/.test(normalized)) {
-    appliedRules.push({ id: 'general-hapnida', label: '~합니다→~한다', category: '일반규칙', color: 'bg-green-100 text-green-700' });
-    normalized = normalized.replace(/([가-힣])합니다/g, '$1한다');
+  if (/합니다/.test(normalized)) {
+    appliedRules.push({ id: 'general-hapnida', label: '합니다→한다', category: '일반규칙', color: 'bg-green-100 text-green-700' });
+    normalized = normalized.replace(/합니다/g, '한다');
   }
   if (/([가-힣])였습니다/.test(normalized)) {
     appliedRules.push({ id: 'general-yeot', label: '~였습니다→~였다', category: '일반규칙', color: 'bg-green-100 text-green-700' });

@@ -35,6 +35,7 @@ function convertToCSV(data: any[], tableName: string): string {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const table = searchParams.get('table');
+  const statusParam = searchParams.get('status');
 
   if (!table) {
     return NextResponse.json({ error: 'Table parameter is required' }, { status: 400 });
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
 
   const validTables = [
     'content_sets',
-    'passages', 
+    'passages',
     'vocabulary_terms',
     'vocabulary_questions',
     'paragraph_questions',
@@ -54,15 +55,48 @@ export async function GET(request: Request) {
   }
 
   try {
+    // status 파라미터가 있는 경우, 필터링할 content_set_id 목록 조회
+    let filteredContentSetIds: string[] | null = null;
+
+    if (statusParam && statusParam !== 'all') {
+      const statuses = statusParam.split(',').map(s => s.trim());
+
+      const { data: contentSets, error: contentSetError } = await supabase
+        .from('content_sets')
+        .select('id')
+        .in('status', statuses);
+
+      if (contentSetError) {
+        console.error('Error fetching content_sets by status:', contentSetError);
+        return NextResponse.json({ error: 'Failed to fetch filtered content sets' }, { status: 500 });
+      }
+
+      filteredContentSetIds = contentSets?.map(cs => cs.id) || [];
+
+      // 필터링된 세트가 없으면 빈 결과 반환
+      if (filteredContentSetIds.length === 0) {
+        return NextResponse.json({ error: 'No data found with the specified status' }, { status: 404 });
+      }
+
+      console.log(`Filtered to ${filteredContentSetIds.length} content sets with status: ${statuses.join(', ')}`);
+    }
+
     // 먼저 총 데이터 개수 확인
-    const { count, error: countError } = await supabase
-      .from(table)
-      .select('*', { count: 'exact', head: true });
+    let countQuery = supabase.from(table).select('*', { count: 'exact', head: true });
+
+    // content_sets 테이블이 아닌 경우, content_set_id로 필터링
+    if (filteredContentSetIds !== null && table !== 'content_sets') {
+      countQuery = countQuery.in('content_set_id', filteredContentSetIds);
+    } else if (filteredContentSetIds !== null && table === 'content_sets') {
+      countQuery = countQuery.in('id', filteredContentSetIds);
+    }
+
+    const { count, error: countError } = await countQuery;
 
     if (countError) {
       console.error(`Error counting ${table}:`, countError);
     } else {
-      console.log(`Total ${table} count: ${count}`);
+      console.log(`Total ${table} count (filtered): ${count}`);
     }
 
     // 모든 데이터를 가져오기 위해 페이지네이션 사용
@@ -73,6 +107,15 @@ export async function GET(request: Request) {
 
     while (hasMore) {
       let query = supabase.from(table).select('*').range(from, from + limit - 1);
+
+      // status 필터링 적용
+      if (filteredContentSetIds !== null) {
+        if (table === 'content_sets') {
+          query = query.in('id', filteredContentSetIds);
+        } else {
+          query = query.in('content_set_id', filteredContentSetIds);
+        }
+      }
 
       // Order by created_at or id to ensure consistent ordering
       if (table === 'content_sets') {
