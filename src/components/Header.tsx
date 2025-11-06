@@ -60,6 +60,13 @@ export default function Header() {
       icon: '🖼️',
       description: '학습 콘텐츠 이미지 등록 및 관리',
       allowedRoles: ['admin'] // admin만 접근 가능
+    },
+    {
+      name: '진단평가 관리',
+      href: '/assessment',
+      icon: '📊',
+      description: '어휘 문제 기반 진단평가 생성',
+      allowedRoles: ['admin'] // admin만 접근 가능
     }
   ];
 
@@ -127,7 +134,7 @@ export default function Header() {
   };
 
   const isSystemMenuActive = () => {
-    return pathname.startsWith('/prompts') || pathname.startsWith('/curriculum-admin') || pathname.startsWith('/image-admin');
+    return pathname.startsWith('/prompts') || pathname.startsWith('/curriculum-admin') || pathname.startsWith('/image-admin') || pathname.startsWith('/assessment');
   };
 
   const isDbMenuActive = () => {
@@ -379,6 +386,14 @@ export default function Header() {
                   <Link href="/image-admin" className="hover:text-gray-900">시스템 설정</Link>
                   <span className="mx-2">/</span>
                   <span className="text-gray-400">이미지 데이터 관리</span>
+                </>
+              )}
+              {pathname.startsWith('/assessment') && (
+                <>
+                  <span className="mx-2">/</span>
+                  <Link href="/assessment" className="hover:text-gray-900">시스템 설정</Link>
+                  <span className="mx-2">/</span>
+                  <span className="text-gray-400">진단평가 관리</span>
                 </>
               )}
               {pathname.startsWith('/edit') && (

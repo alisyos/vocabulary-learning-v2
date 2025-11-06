@@ -989,11 +989,14 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                         <div className="flex justify-between items-center">
                                           <h4 className="font-semibold">기본문제 {index + 1} - {question.term}</h4>
                                           <div className="flex gap-2">
-                                            <span className="text-sm text-gray-500">
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                                               {question.detailed_question_type || '5지선다 객관식'}
                                             </span>
                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                               기본문제
+                                            </span>
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                              ID: {question.id}
                                             </span>
                                           </div>
                                         </div>
@@ -1158,11 +1161,14 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                         <div className="flex justify-between items-center">
                                           <h4 className="font-semibold">보완문제 {index + 1} - {question.term}</h4>
                                           <div className="flex gap-2">
-                                            <span className="text-sm text-gray-500">
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                                               {question.detailed_question_type || '5지선다 객관식'}
                                             </span>
                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                                               보완문제
+                                            </span>
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                              ID: {question.id}
                                             </span>
                                           </div>
                                         </div>

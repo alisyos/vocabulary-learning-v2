@@ -3192,6 +3192,9 @@ ${allParagraphs}`;
                                       {question.difficulty === '보완' || question.question_type === '보완' ? '보완문제' : '일반문제'}
                                     </span>
                                   )}
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    ID: {question.id}
+                                  </span>
                                 </div>
                                 <button
                                   onClick={(e) => {
