@@ -12,6 +12,7 @@ interface DataSet {
   subject: string;
   area: string;
   session_number?: string | null; // 차시 번호 필드 추가
+  grade_number?: string | null; // 과목 넘버 필드 추가
   total_passages: number;
   total_vocabulary_terms: number;
   total_vocabulary_questions: number;
@@ -474,7 +475,7 @@ export default function ContentSetReviewPage() {
                             ? 'bg-blue-100 text-blue-800'
                             : 'bg-gray-100 text-gray-500'
                         }`}>
-                          {item.session_number || '-'}
+                          {item.session_number ? `${item.session_number}${item.grade_number ? ` (${item.grade_number})` : ''}` : '-'}
                         </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">

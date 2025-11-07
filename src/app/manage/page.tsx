@@ -13,6 +13,7 @@ interface DataSet {
   subject: string;
   area: string;
   session_number?: string | null; // 차시 번호
+  grade_number?: string | null; // 과목 넘버
   total_passages: number;
   total_vocabulary_terms: number;
   total_vocabulary_questions: number;
@@ -668,10 +669,13 @@ export default function ManagePage() {
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = url;
+          const gradePrefix = result.data.contentSet.grade_number
+            ? `${result.data.contentSet.grade_number}_`
+            : '';
           const sessionPrefix = result.data.contentSet.session_number
             ? `${result.data.contentSet.session_number}차시_`
             : '';
-          link.download = `${sessionPrefix}${setId}.html`;
+          link.download = `${gradePrefix}${sessionPrefix}${setId}.html`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);

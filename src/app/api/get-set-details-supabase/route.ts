@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
         mainTopic: contentSetDetails.main_topic,
         subTopic: contentSetDetails.sub_topic,
         keywords: contentSetDetails.keywords,
+        session_number: contentSetDetails.session_number, // 차시 번호
+        grade_number: contentSetDetails.grade_number, // 과목 넘버
         maintopic: contentSetDetails.main_topic, // 소문자 버전
         subtopic: contentSetDetails.sub_topic,   // 소문자 버전
         keyword: contentSetDetails.keywords,     // 단수 버전

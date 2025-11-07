@@ -20,6 +20,7 @@ interface SetDetails {
   sub_topic?: string; // 소주제
   keywords?: string; // 키워드
   session_number?: string | null; // 차시 번호
+  grade_number?: string | null; // 과목 넘버
   passage_length?: string; // DB 필드명 - 지문 길이
   text_type?: string; // DB 필드명 - 지문 유형
   introduction_question?: string; // 도입 질문
@@ -1114,7 +1115,7 @@ ${allParagraphs}`;
     <div class="header">
       <p class="set-id">콘텐츠 세트 ID: ${String(contentSet.setId || contentSet.id || 'N/A')}</p>
       <h1 style="font-size: 2em;">
-        ${contentSet.session_number ? `<span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 9999px; font-size: 0.7em; font-weight: 500; background-color: #dbeafe; color: #1e40af; margin-right: 12px;">${contentSet.session_number}차시</span>` : ''}${contentSet.passageTitle || '제목 없음'}
+        ${contentSet.session_number ? `<span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 9999px; font-size: 0.7em; font-weight: 500; background-color: #dbeafe; color: #1e40af; margin-right: 12px;">${contentSet.session_number}차시${contentSet.grade_number ? ` (${contentSet.grade_number})` : ''}</span>` : ''}${contentSet.passageTitle || '제목 없음'}
       </h1>
     </div>
     
@@ -1897,8 +1898,9 @@ ${allParagraphs}`;
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
+    const gradePrefix = contentSet.grade_number ? `${contentSet.grade_number}_` : '';
     const sessionPrefix = contentSet.session_number ? `${contentSet.session_number}차시_` : '';
-    link.download = `${sessionPrefix}${String(contentSet.setId || contentSet.id || 'content')}.html`;
+    link.download = `${gradePrefix}${sessionPrefix}${String(contentSet.setId || contentSet.id || 'content')}.html`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2428,9 +2430,18 @@ ${allParagraphs}`;
               </button>
               <div className="h-4 w-px bg-gray-300"></div>
               <h1 className="text-xl font-bold text-gray-900 flex items-center">
+                {(() => {
+                  console.log('🔍 Badge Debug:', {
+                    session_number: data?.data?.contentSet?.session_number,
+                    grade_number: data?.data?.contentSet?.grade_number,
+                    hasGradeNumber: !!data?.data?.contentSet?.grade_number
+                  });
+                  return null;
+                })()}
                 {data?.data?.contentSet?.session_number && (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 mr-3">
                     {data.data.contentSet.session_number}차시
+                    {data.data.contentSet.grade_number && ` (${data.data.contentSet.grade_number})`}
                   </span>
                 )}
                 {data?.data?.contentSet?.passageTitle || '제목 없음'}

@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
               subTopic: setDetails.sub_topic,
               keywords: setDetails.keywords,
               session_number: setDetails.session_number, // 차시 번호 필드 추가
+              grade_number: setDetails.grade_number, // 과목 넘버 필드 추가
               passage_length: setDetails.passage_length, // DB 필드명 그대로
               passageLength: setDetails.passage_length, // camelCase 별칭
               text_type: setDetails.text_type, // DB 필드명 그대로
@@ -253,6 +254,7 @@ export async function GET(request: NextRequest) {
       mainTopic: item.main_topic,
       subTopic: item.sub_topic,
       session_number: item.session_number, // 차시 번호 필드 추가
+      grade_number: item.grade_number, // 과목 넘버 필드 추가
       passageTitle: item.title,
       passageLength: item.passage_length, // DB 필드를 camelCase로 매핑
       textType: item.text_type, // DB 필드를 camelCase로 매핑

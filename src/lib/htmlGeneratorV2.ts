@@ -57,6 +57,7 @@ export interface ContentSet {
   title?: string;
   passageTitle?: string;
   session_number?: string | null;
+  grade_number?: string | null;
   subject?: string;
   grade?: string;
   area?: string;
@@ -599,7 +600,7 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
     <div class="header">
       <p class="set-id">콘텐츠 세트 ID: ${String(contentSet.setId || contentSet.id || 'N/A')}</p>
       <h1 style="font-size: 2em;">
-        ${contentSet.session_number ? `<span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 9999px; font-size: 0.7em; font-weight: 500; background-color: #dbeafe; color: #1e40af; margin-right: 12px;">${contentSet.session_number}차시</span>` : ''}${contentSet.passageTitle || contentSet.title || '제목 없음'}
+        ${contentSet.session_number ? `<span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 9999px; font-size: 0.7em; font-weight: 500; background-color: #dbeafe; color: #1e40af; margin-right: 12px;">${contentSet.session_number}차시${contentSet.grade_number ? ` (${contentSet.grade_number})` : ''}</span>` : ''}${contentSet.passageTitle || contentSet.title || '제목 없음'}
       </h1>
     </div>
 

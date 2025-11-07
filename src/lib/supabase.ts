@@ -162,6 +162,7 @@ export const db = {
       subject,
       area,
       session_number,
+      grade_number,
       main_topic,
       sub_topic,
       keywords,

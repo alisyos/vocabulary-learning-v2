@@ -12,16 +12,33 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔄 grade_number 일괄 업데이트 시작 (dryRun: ${dryRun})`);
 
-    // 1. content_sets에서 session_number가 있는 레코드 조회
-    const { data: contentSets, error: contentSetsError } = await supabase
-      .from('content_sets')
-      .select('id, session_number, grade_number, subject, grade, area, main_topic, sub_topic')
-      .not('session_number', 'is', null);
+    // 1. content_sets에서 session_number가 있는 레코드 조회 (페이지네이션)
+    let allContentSets: any[] = [];
+    let currentPage = 0;
+    const pageSize = 1000;
+    let hasMoreData = true;
 
-    if (contentSetsError) {
-      throw contentSetsError;
+    while (hasMoreData) {
+      const { data: pageData, error: fetchError } = await supabase
+        .from('content_sets')
+        .select('id, session_number, grade_number, subject, grade, area, main_topic, sub_topic')
+        .not('session_number', 'is', null)
+        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+
+      if (fetchError) throw fetchError;
+
+      if (pageData && pageData.length > 0) {
+        allContentSets.push(...pageData);
+        console.log(`📄 페이지 ${currentPage + 1}: ${pageData.length}개 조회 (누적: ${allContentSets.length}개)`);
+
+        if (pageData.length < pageSize) hasMoreData = false;
+      } else {
+        hasMoreData = false;
+      }
+      currentPage++;
     }
 
+    const contentSets = allContentSets;
     console.log(`📊 차시번호가 있는 콘텐츠 세트: ${contentSets?.length || 0}개`);
 
     // 빈 문자열 제거 필터링
@@ -41,16 +58,32 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. curriculum_data에서 모든 데이터 조회 (session_number와 grade_number 포함)
-    const { data: curriculumData, error: curriculumError } = await supabase
-      .from('curriculum_data')
-      .select('session_number, grade_number, subject, grade, area, main_topic, sub_topic')
-      .not('session_number', 'is', null);
+    // 2. curriculum_data에서 모든 데이터 조회 (페이지네이션)
+    let allCurriculumData: any[] = [];
+    currentPage = 0;
+    hasMoreData = true;
 
-    if (curriculumError) {
-      throw curriculumError;
+    while (hasMoreData) {
+      const { data: pageData, error: fetchError } = await supabase
+        .from('curriculum_data')
+        .select('session_number, grade_number, subject, grade, area, main_topic, sub_topic')
+        .not('session_number', 'is', null)
+        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+
+      if (fetchError) throw fetchError;
+
+      if (pageData && pageData.length > 0) {
+        allCurriculumData.push(...pageData);
+        console.log(`📄 curriculum_data 페이지 ${currentPage + 1}: ${pageData.length}개 조회 (누적: ${allCurriculumData.length}개)`);
+
+        if (pageData.length < pageSize) hasMoreData = false;
+      } else {
+        hasMoreData = false;
+      }
+      currentPage++;
     }
 
+    const curriculumData = allCurriculumData;
     console.log(`📚 curriculum_data 레코드: ${curriculumData?.length || 0}개`);
 
     // 빈 문자열 제거 필터링

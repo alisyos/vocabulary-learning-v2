@@ -545,7 +545,15 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
             <div className="flex justify-between items-start">
               <div className="flex-1 mr-4">
-                <h2 className="text-2xl font-bold">콘텐츠 세트 수정</h2>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  {data?.contentSet?.session_number && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-base font-medium bg-white/20 text-white">
+                      {data.contentSet.session_number}차시
+                      {data.contentSet.grade_number && ` (${data.contentSet.grade_number})`}
+                    </span>
+                  )}
+                  콘텐츠 세트 수정
+                </h2>
                 {data && (
                   <div className="text-sm opacity-90 mt-1">
                     <p className="break-words">
