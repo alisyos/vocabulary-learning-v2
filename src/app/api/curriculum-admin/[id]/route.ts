@@ -25,6 +25,7 @@ export async function PUT(
     const updateData = {
       subject: body.subject,
       grade: body.grade,
+      grade_number: body.grade_number || '',
       area: body.area,
       session_number: body.session_number || '',
       main_topic: body.main_topic,

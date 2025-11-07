@@ -35,6 +35,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
       length: '2개의 지문 생성. 지문당 300자 내외 - 총 600자' as PassageLengthType,
       subject: '사회' as SubjectType,
       grade: '',
+      grade_number: '',
       area: '',
       session_number: '',
       maintopic: '',
@@ -44,7 +45,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
       keywords_for_questions: '',
       textType: '기행문' as TextType,
     };
-    
+
     if (initialData && initialData.division) {
       return { ...defaultData, ...initialData };
     }
@@ -89,6 +90,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
         length: '2개의 지문 생성. 지문당 300자 내외 - 총 600자' as PassageLengthType,
         subject: '사회' as SubjectType,
         grade: '',
+        grade_number: '',
         area: '',
         maintopic: '',
         subtopic: '',
@@ -517,6 +519,7 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
       length: lengthMapping[division],
       subject: data.subject as SubjectType,
       grade: data.grade,
+      grade_number: data.grade_number || '', // 과목 넘버 포함
       area: data.area as AreaType,
       session_number: data.session_number || sessionNumber, // 차시 번호 포함
       maintopic: data.main_topic,

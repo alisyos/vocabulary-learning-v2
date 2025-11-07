@@ -29,6 +29,7 @@ const DEFAULT_INPUT: PassageInput = {
   length: '2개의 지문 생성. 지문당 300자 내외 - 총 600자',
   subject: '사회',
   grade: '',
+  grade_number: null,
   area: '',
   maintopic: '',
   subtopic: '',
@@ -71,6 +72,7 @@ function convertDBToWorkflowData(dbData: any): WorkflowData {
     length: contentSet.passage_length || '2개의 지문 생성. 지문당 300자 내외 - 총 600자',
     subject: contentSet.subject || '사회',
     grade: contentSet.grade || '',
+    grade_number: contentSet.grade_number || null, // 과목 넘버 추가
     area: contentSet.area || '',
     session_number: contentSet.session_number || null, // 차시 번호 추가
     maintopic: contentSet.main_topic || '',

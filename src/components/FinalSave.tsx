@@ -669,6 +669,7 @@ export default function FinalSave({
             <h4 className="font-medium text-gray-800 mb-3">기본 정보</h4>
             <div className="space-y-2 text-sm">
               <p><strong>차시 번호:</strong> {input.session_number || '없음'}</p>
+              <p><strong>과목 넘버:</strong> {input.grade_number || '없음'}</p>
               <p><strong>구분:</strong> {input.division}</p>
               <p><strong>과목:</strong> {input.subject}</p>
               <p><strong>학년:</strong> {input.grade}</p>

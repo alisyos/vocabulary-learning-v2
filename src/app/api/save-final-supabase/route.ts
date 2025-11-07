@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
       user_id: data.userId || 'anonymous', // 실제 로그인 사용자 정보 사용
       division: input.division, // 구분
       grade: input.grade || '3학년', // 실제 학년 (input.grade가 없으면 기본값)
+      grade_number: input.grade_number && String(input.grade_number).trim() !== '' ? String(input.grade_number).trim() : null, // 과목 넘버
       subject: input.subject,
       area: input.area,
       session_number: input.session_number && String(input.session_number).trim() !== '' ? String(input.session_number).trim() : null, // 차시 번호
