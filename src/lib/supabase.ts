@@ -154,51 +154,75 @@ export const db = {
   },
 
   async getContentSets(filters: { grade?: string; subject?: string; area?: string; status?: string; user_id?: string } = {}) {
-    let query = supabase.from('content_sets').select(`
-      id,
-      user_id,
-      division,
-      grade,
-      subject,
-      area,
-      session_number,
-      grade_number,
-      main_topic,
-      sub_topic,
-      keywords,
-      title,
-      total_passages,
-      total_vocabulary_terms,
-      total_vocabulary_questions,
-      total_paragraph_questions,
-      total_comprehensive_questions,
-      status,
-      created_at,
-      updated_at
-    `)
+    // 페이지네이션을 통해 모든 데이터를 가져오기
+    const pageSize = 1000; // Supabase 기본 제한
+    let allData: ContentSet[] = [];
+    let currentPage = 0;
+    let hasMoreData = true;
 
-    if (filters.grade) query = query.eq('grade', filters.grade)
-    if (filters.subject) query = query.eq('subject', filters.subject)
-    if (filters.area) query = query.eq('area', filters.area)
-    if (filters.user_id) query = query.eq('user_id', filters.user_id)
+    while (hasMoreData) {
+      let query = supabase.from('content_sets').select(`
+        id,
+        user_id,
+        division,
+        grade,
+        subject,
+        area,
+        session_number,
+        grade_number,
+        main_topic,
+        sub_topic,
+        keywords,
+        title,
+        total_passages,
+        total_vocabulary_terms,
+        total_vocabulary_questions,
+        total_paragraph_questions,
+        total_comprehensive_questions,
+        status,
+        created_at,
+        updated_at
+      `)
 
-    // status 필터 처리 - 콤마로 구분된 복수 상태 지원
-    if (filters.status) {
-      if (filters.status.includes(',')) {
-        // 복수 상태 (예: "검수완료,승인완료")
-        const statuses = filters.status.split(',').map(s => s.trim());
-        query = query.in('status', statuses);
+      if (filters.grade) query = query.eq('grade', filters.grade)
+      if (filters.subject) query = query.eq('subject', filters.subject)
+      if (filters.area) query = query.eq('area', filters.area)
+      if (filters.user_id) query = query.eq('user_id', filters.user_id)
+
+      // status 필터 처리 - 콤마로 구분된 복수 상태 지원
+      if (filters.status) {
+        if (filters.status.includes(',')) {
+          // 복수 상태 (예: "검수완료,승인완료")
+          const statuses = filters.status.split(',').map(s => s.trim());
+          query = query.in('status', statuses);
+        } else {
+          // 단일 상태
+          query = query.eq('status', filters.status);
+        }
+      }
+
+      query = query.order('created_at', { ascending: false })
+        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1)
+
+      const { data, error } = await query
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        allData.push(...data);
+
+        // 마지막 페이지인지 확인
+        if (data.length < pageSize) {
+          hasMoreData = false;
+        } else {
+          currentPage++;
+        }
       } else {
-        // 단일 상태
-        query = query.eq('status', filters.status);
+        hasMoreData = false;
       }
     }
 
-    query = query.order('created_at', { ascending: false })
-
-    const { data, error } = await query
-    if (error) throw error
-    return data as ContentSet[]
+    console.log(`✅ 총 ${allData.length}개의 콘텐츠 세트를 가져왔습니다.`);
+    return allData as ContentSet[]
   },
 
   async getContentSetById(id: string) {

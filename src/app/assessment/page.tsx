@@ -26,6 +26,14 @@ interface QuestionData {
   };
 }
 
+interface StatsData {
+  totalQuestions: number;
+  byGrade: Record<string, number>;
+  byArea: Record<string, number>;
+  bySubject: Record<string, number>;
+  byDivision: Record<string, number>;
+}
+
 export default function AssessmentPage() {
   const [subject, setSubject] = useState<'사회' | '과학'>('사회');
   const [division, setDivision] = useState<'초등학교' | '중학교'>('초등학교');
@@ -33,10 +41,46 @@ export default function AssessmentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<QuestionData[] | null>(null);
+  const [stats, setStats] = useState<StatsData | null>(null);
 
-  // 과목이나 과정이 변경되면 미리보기 초기화
+  // 입력된 문제 ID들의 통계 계산
+  const calculateStats = (questions: QuestionData[]) => {
+    const byGrade: Record<string, number> = {};
+    const byArea: Record<string, number> = {};
+    const bySubject: Record<string, number> = {};
+    const byDivision: Record<string, number> = {};
+
+    questions.forEach((q) => {
+      // 학년별
+      const grade = q.content_set.grade || '미분류';
+      byGrade[grade] = (byGrade[grade] || 0) + 1;
+
+      // 영역별
+      const area = q.content_set.area || '미분류';
+      byArea[area] = (byArea[area] || 0) + 1;
+
+      // 과목별
+      const subjectValue = q.content_set.subject || '미분류';
+      bySubject[subjectValue] = (bySubject[subjectValue] || 0) + 1;
+
+      // 과정별
+      const divisionValue = q.content_set.division || '미분류';
+      byDivision[divisionValue] = (byDivision[divisionValue] || 0) + 1;
+    });
+
+    return {
+      totalQuestions: questions.length,
+      byGrade,
+      byArea,
+      bySubject,
+      byDivision
+    };
+  };
+
+  // 과목이나 과정이 변경되면 미리보기와 통계 초기화
   useEffect(() => {
     setPreviewData(null);
+    setStats(null);
     setError(null);
   }, [subject, division]);
 
@@ -48,15 +92,15 @@ export default function AssessmentPage() {
       return null;
     }
 
-    const idArray = trimmed.split(',').map(id => id.trim()).filter(id => id.length > 0);
+    const idArray = trimmed.split(/[\n,]/).map(id => id.trim()).filter(id => id.length > 0);
 
     if (idArray.length === 0) {
       setError('유효한 문제 ID를 입력해주세요.');
       return null;
     }
 
-    if (idArray.length > 30) {
-      setError('최대 30개까지만 입력 가능합니다.');
+    if (idArray.length > 100) {
+      setError('최대 100개까지만 입력 가능합니다.');
       return null;
     }
 
@@ -67,6 +111,7 @@ export default function AssessmentPage() {
   const handlePreview = async () => {
     setError(null);
     setPreviewData(null);
+    setStats(null);
 
     const idArray = validateQuestionIds(questionIds);
     if (!idArray) return;
@@ -95,6 +140,11 @@ export default function AssessmentPage() {
 
       if (result.success) {
         setPreviewData(result.data);
+
+        // 입력된 문제 ID들의 통계 계산
+        const statsData = calculateStats(result.data);
+        setStats(statsData);
+        console.log('입력된 문제 통계:', statsData);
 
         // 경고 메시지가 있으면 표시
         if (result.warning) {
@@ -176,6 +226,107 @@ export default function AssessmentPage() {
                 어휘 문제 테이블에서 특정 문제들을 선택하여 진단평가용 HTML 파일을 생성합니다.
               </p>
             </div>
+
+            {/* 통계 섹션 - 미리보기 버튼을 누른 후에만 표시 */}
+            {stats && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900">📊 입력한 문제 통계</h2>
+                  <div className="text-sm text-gray-500">
+                    {subject} · {division}
+                  </div>
+                </div>
+
+                {/* 전체 통계 */}
+                <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-blue-600 mb-1">
+                      {stats.totalQuestions.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-blue-800">입력한 어휘 문제 수</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* 학년별 통계 */}
+                  <div>
+                    <h3 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
+                      <span className="mr-2">🎓</span>
+                      학년별 분포
+                    </h3>
+                    <div className="space-y-2">
+                      {Object.entries(stats.byGrade)
+                        .sort(([a], [b]) => {
+                          // 학년 정렬: 초3, 초4, 초5, 초6, 중1, 중2, 중3
+                          const gradeOrder = ['초3', '초4', '초5', '초6', '중1', '중2', '중3'];
+                          return gradeOrder.indexOf(a) - gradeOrder.indexOf(b);
+                        })
+                        .map(([grade, count]) => (
+                          <div
+                            key={grade}
+                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                          >
+                            <span className="text-sm font-medium text-gray-700">{grade}</span>
+                            <div className="flex items-center space-x-3">
+                              <div className="w-32 bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-blue-500 h-2 rounded-full transition-all"
+                                  style={{
+                                    width: `${(count / stats.totalQuestions) * 100}%`
+                                  }}
+                                ></div>
+                              </div>
+                              <span className="text-sm font-bold text-gray-900 min-w-[60px] text-right">
+                                {count.toLocaleString()}개
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                    {Object.keys(stats.byGrade).length === 0 && (
+                      <p className="text-sm text-gray-500 text-center py-4">데이터가 없습니다.</p>
+                    )}
+                  </div>
+
+                  {/* 영역별 통계 */}
+                  <div>
+                    <h3 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
+                      <span className="mr-2">📚</span>
+                      영역별 분포
+                    </h3>
+                    <div className="space-y-2">
+                      {Object.entries(stats.byArea)
+                        .sort(([, a], [, b]) => b - a) // 개수순 정렬
+                        .map(([area, count]) => (
+                          <div
+                            key={area}
+                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                          >
+                            <span className="text-sm font-medium text-gray-700">{area}</span>
+                            <div className="flex items-center space-x-3">
+                              <div className="w-32 bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-green-500 h-2 rounded-full transition-all"
+                                  style={{
+                                    width: `${(count / stats.totalQuestions) * 100}%`
+                                  }}
+                                ></div>
+                              </div>
+                              <span className="text-sm font-bold text-gray-900 min-w-[60px] text-right">
+                                {count.toLocaleString()}개
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                    {Object.keys(stats.byArea).length === 0 && (
+                      <p className="text-sm text-gray-500 text-center py-4">데이터가 없습니다.</p>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            )}
 
             {/* 오류/경고 메시지 */}
             {error && (
@@ -275,14 +426,14 @@ export default function AssessmentPage() {
                 {/* 문제 ID 입력 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    어휘 문제 ID 입력 (최대 30개)
+                    어휘 문제 ID 입력 (최대 100개)
                   </label>
                   <textarea
                     value={questionIds}
                     onChange={(e) => setQuestionIds(e.target.value)}
-                    rows={4}
+                    rows={10}
                     className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
-                    placeholder="문제 ID를 쉼표로 구분하여 입력하세요.&#10;예: abc123, def456, ghi789"
+                    placeholder="문제 ID를 한 줄에 하나씩 입력하세요. (쉼표로 구분도 가능)&#10;예:&#10;abc123&#10;def456&#10;ghi789"
                   />
                   <p className="mt-2 text-sm text-gray-500">
                     문제 ID는 vocabulary_questions 테이블의 id 컬럼 값입니다.

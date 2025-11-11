@@ -22,6 +22,33 @@ interface QuestionData {
   };
 }
 
+interface StatsData {
+  totalQuestions: number;
+  byGrade: Record<string, number>;
+  byArea: Record<string, number>;
+}
+
+function calculateStats(questions: QuestionData[]): StatsData {
+  const byGrade: Record<string, number> = {};
+  const byArea: Record<string, number> = {};
+
+  questions.forEach((q) => {
+    // 학년별
+    const grade = q.content_set.grade || '미분류';
+    byGrade[grade] = (byGrade[grade] || 0) + 1;
+
+    // 영역별
+    const area = q.content_set.area || '미분류';
+    byArea[area] = (byArea[area] || 0) + 1;
+  });
+
+  return {
+    totalQuestions: questions.length,
+    byGrade,
+    byArea
+  };
+}
+
 function generateHTML(
   questions: QuestionData[],
   subject: string,
@@ -32,6 +59,9 @@ function generateHTML(
     month: 'long',
     day: 'numeric',
   });
+
+  // 통계 계산
+  const stats = calculateStats(questions);
 
   const questionsHTML = questions
     .map((question, index) => {
@@ -101,6 +131,45 @@ function generateHTML(
       `;
     })
     .join('');
+
+  // 학년별 통계 HTML 생성
+  const gradeOrder = ['초3', '초4', '초5', '초6', '중1', '중2', '중3'];
+  const sortedGrades = Object.entries(stats.byGrade)
+    .sort(([a], [b]) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
+
+  const gradeStatsHTML = sortedGrades.map(([grade, count]) => {
+    const percentage = ((count / stats.totalQuestions) * 100).toFixed(1);
+    return `
+      <tr>
+        <td class="stats-label">${grade}</td>
+        <td class="stats-bar-cell">
+          <div class="stats-bar-container">
+            <div class="stats-bar" style="width: ${percentage}%"></div>
+          </div>
+        </td>
+        <td class="stats-count">${count}개 (${percentage}%)</td>
+      </tr>
+    `;
+  }).join('');
+
+  // 영역별 통계 HTML 생성
+  const sortedAreas = Object.entries(stats.byArea)
+    .sort(([, a], [, b]) => b - a);
+
+  const areaStatsHTML = sortedAreas.map(([area, count]) => {
+    const percentage = ((count / stats.totalQuestions) * 100).toFixed(1);
+    return `
+      <tr>
+        <td class="stats-label">${area}</td>
+        <td class="stats-bar-cell">
+          <div class="stats-bar-container">
+            <div class="stats-bar stats-bar-green" style="width: ${percentage}%"></div>
+          </div>
+        </td>
+        <td class="stats-count">${count}개 (${percentage}%)</td>
+      </tr>
+    `;
+  }).join('');
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -311,6 +380,98 @@ function generateHTML(
       line-height: 1.6;
     }
 
+    .statistics-section {
+      background-color: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 25px;
+      margin-bottom: 30px;
+    }
+
+    .statistics-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #1f2937;
+      margin-bottom: 20px;
+      text-align: center;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #d1d5db;
+    }
+
+    .statistics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    .stats-box {
+      background-color: white;
+      padding: 20px;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .stats-box-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #374151;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .stats-table tr {
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .stats-table tr:last-child {
+      border-bottom: none;
+    }
+
+    .stats-label {
+      font-weight: 500;
+      color: #4b5563;
+      padding: 10px 0;
+      width: 80px;
+    }
+
+    .stats-bar-cell {
+      padding: 10px 15px;
+    }
+
+    .stats-bar-container {
+      background-color: #e5e7eb;
+      height: 20px;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .stats-bar {
+      height: 100%;
+      background: linear-gradient(to right, #3b82f6, #2563eb);
+      border-radius: 10px;
+      transition: width 0.3s ease;
+    }
+
+    .stats-bar-green {
+      background: linear-gradient(to right, #10b981, #059669);
+    }
+
+    .stats-count {
+      text-align: right;
+      font-weight: 600;
+      color: #1f2937;
+      padding: 10px 0;
+      white-space: nowrap;
+      min-width: 120px;
+    }
+
     .footer {
       margin-top: 40px;
       padding-top: 20px;
@@ -334,6 +495,16 @@ function generateHTML(
       .question-container {
         page-break-inside: avoid;
       }
+
+      .statistics-section {
+        page-break-inside: avoid;
+        background-color: white;
+        border: 1px solid #d1d5db;
+      }
+
+      .stats-box {
+        page-break-inside: avoid;
+      }
     }
   </style>
 </head>
@@ -353,6 +524,24 @@ function generateHTML(
         </div>
         <div class="summary-item">
           <strong>문제 수:</strong>${questions.length}개
+        </div>
+      </div>
+    </div>
+
+    <div class="statistics-section">
+      <div class="statistics-title">📊 문제 통계</div>
+      <div class="statistics-grid">
+        <div class="stats-box">
+          <div class="stats-box-title">🎓 학년별 분포</div>
+          <table class="stats-table">
+            ${gradeStatsHTML}
+          </table>
+        </div>
+        <div class="stats-box">
+          <div class="stats-box-title">📚 영역별 분포</div>
+          <table class="stats-table">
+            ${areaStatsHTML}
+          </table>
         </div>
       </div>
     </div>

@@ -48,16 +48,40 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
 
   const updateVocabQuestion = (questionId: string, field: string, value: any) => {
     console.log(`🔧 어휘 문제 수정: ID=${questionId}, field=${field}, value=`, value);
-    setEditableVocabQuestions(prev => prev.map(question =>
-      question.id === questionId ? { ...question, [field]: value } : question
-    ));
+    setEditableVocabQuestions(prev => prev.map(question => {
+      if (question.id === questionId) {
+        const updatedQuestion = { ...question, [field]: value };
+
+        // options 배열 업데이트 시 option_N 필드도 동기화
+        if (field === 'options' && Array.isArray(value)) {
+          value.forEach((opt, idx) => {
+            updatedQuestion[`option_${idx + 1}`] = opt;
+          });
+        }
+
+        return updatedQuestion;
+      }
+      return question;
+    }));
   };
 
   const updateParagraphQuestion = (questionId: string, field: string, value: any) => {
     console.log(`🔧 문단 문제 수정: ID=${questionId}, field=${field}, value=`, value);
-    setEditableParagraphQuestions(prev => prev.map(question =>
-      question.id === questionId ? { ...question, [field]: value } : question
-    ));
+    setEditableParagraphQuestions(prev => prev.map(question => {
+      if (question.id === questionId) {
+        const updatedQuestion = { ...question, [field]: value };
+
+        // options 배열 업데이트 시 option_N 필드도 동기화
+        if (field === 'options' && Array.isArray(value)) {
+          value.forEach((opt, idx) => {
+            updatedQuestion[`option_${idx + 1}`] = opt;
+          });
+        }
+
+        return updatedQuestion;
+      }
+      return question;
+    }));
   };
 
   const updateComprehensiveQuestion = (questionId: string, field: string, value: any) => {
@@ -68,8 +92,12 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
         if (question.id === questionId) {
           const updatedQuestion = { ...question, [field]: value };
 
-          // options 필드 업데이트 시 디버깅 로그
-          if (field === 'options') {
+          // options 배열 업데이트 시 option_N 필드도 동기화
+          if (field === 'options' && Array.isArray(value)) {
+            value.forEach((opt, idx) => {
+              updatedQuestion[`option_${idx + 1}`] = opt;
+            });
+
             console.log('📝 종합 문제 options 배열 업데이트:', {
               questionId,
               oldOptions: question.options,
@@ -1072,10 +1100,41 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                         type="text"
                                                         value={optionValue}
                                                         onChange={(e) => {
-                                                          // options 배열 우선 업데이트
-                                                          const newOptions = question.options ? [...question.options] : Array(5).fill('');
-                                                          newOptions[num - 1] = e.target.value;
-                                                          updateVocabQuestion(questionId, 'options', newOptions);
+                                                          const newValue = e.target.value;
+
+                                                          // 기존 options 배열 또는 option_1~5 필드에서 가져오기
+                                                          const currentOptions = question.options
+                                                            ? [...question.options]
+                                                            : [
+                                                                question.option_1 || '',
+                                                                question.option_2 || '',
+                                                                question.option_3 || '',
+                                                                question.option_4 || '',
+                                                                question.option_5 || ''
+                                                              ];
+
+                                                          // 이전 보기 값 저장 (정답 업데이트 확인용)
+                                                          const oldOptionValue = currentOptions[num - 1];
+
+                                                          // 새 보기 값 설정
+                                                          currentOptions[num - 1] = newValue;
+
+                                                          // options 배열 업데이트
+                                                          updateVocabQuestion(questionId, 'options', currentOptions);
+
+                                                          // 정답 보기를 수정한 경우, 정답도 자동 업데이트
+                                                          const currentAnswer = question.correctAnswer || question.correct_answer || '';
+
+                                                          // 객관식 문제인 경우: 정답이 번호(1~5)인지 확인
+                                                          if (currentAnswer === String(num)) {
+                                                            // 정답 번호를 수정한 경우, 정답 텍스트를 새 보기 값으로 업데이트
+                                                            updateVocabQuestion(questionId, 'correctAnswer', String(num));
+                                                          }
+                                                          // 정답이 이전 보기 텍스트와 일치하는 경우
+                                                          else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
+                                                            // 정답을 새 보기 값으로 업데이트
+                                                            updateVocabQuestion(questionId, 'correctAnswer', newValue);
+                                                          }
                                                         }}
                                                         className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                         placeholder={`보기 ${num}`}
@@ -1244,10 +1303,41 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                         type="text"
                                                         value={optionValue}
                                                         onChange={(e) => {
-                                                          // options 배열 우선 업데이트
-                                                          const newOptions = question.options ? [...question.options] : Array(5).fill('');
-                                                          newOptions[num - 1] = e.target.value;
-                                                          updateVocabQuestion(questionId, 'options', newOptions);
+                                                          const newValue = e.target.value;
+
+                                                          // 기존 options 배열 또는 option_1~5 필드에서 가져오기
+                                                          const currentOptions = question.options
+                                                            ? [...question.options]
+                                                            : [
+                                                                question.option_1 || '',
+                                                                question.option_2 || '',
+                                                                question.option_3 || '',
+                                                                question.option_4 || '',
+                                                                question.option_5 || ''
+                                                              ];
+
+                                                          // 이전 보기 값 저장 (정답 업데이트 확인용)
+                                                          const oldOptionValue = currentOptions[num - 1];
+
+                                                          // 새 보기 값 설정
+                                                          currentOptions[num - 1] = newValue;
+
+                                                          // options 배열 업데이트
+                                                          updateVocabQuestion(questionId, 'options', currentOptions);
+
+                                                          // 정답 보기를 수정한 경우, 정답도 자동 업데이트
+                                                          const currentAnswer = question.correctAnswer || question.correct_answer || '';
+
+                                                          // 객관식 문제인 경우: 정답이 번호(1~5)인지 확인
+                                                          if (currentAnswer === String(num)) {
+                                                            // 정답 번호를 수정한 경우, 정답 텍스트를 새 보기 값으로 업데이트
+                                                            updateVocabQuestion(questionId, 'correctAnswer', String(num));
+                                                          }
+                                                          // 정답이 이전 보기 텍스트와 일치하는 경우
+                                                          else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
+                                                            // 정답을 새 보기 값으로 업데이트
+                                                            updateVocabQuestion(questionId, 'correctAnswer', newValue);
+                                                          }
                                                         }}
                                                         className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                         placeholder={`보기 ${num}`}
@@ -1501,12 +1591,26 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                   type="text"
                                                   value={optionValue || ''}
                                                   onChange={(e) => {
-                                                    // options 배열 우선 업데이트
-                                                    const newOptions = question.options ? [...question.options] : Array(5).fill('');
-                                                    newOptions[num - 1] = e.target.value;
-                                                    updateParagraphQuestion(questionId, 'options', newOptions);
+                                                    const newValue = e.target.value;
+
+                                                    // 기존 options 배열 또는 option_1~5 필드에서 가져오기
+                                                    const currentOptions = question.options
+                                                      ? [...question.options]
+                                                      : [
+                                                          question.option_1 || '',
+                                                          question.option_2 || '',
+                                                          question.option_3 || '',
+                                                          question.option_4 || '',
+                                                          question.option_5 || ''
+                                                        ];
+
+                                                    // 새 보기 값 설정
+                                                    currentOptions[num - 1] = newValue;
+
+                                                    // options 배열 업데이트
+                                                    updateParagraphQuestion(questionId, 'options', currentOptions);
                                                     // 호환성을 위한 개별 필드도 함께 업데이트
-                                                    updateParagraphQuestion(questionId, optionKey, e.target.value);
+                                                    updateParagraphQuestion(questionId, optionKey, newValue);
                                                   }}
                                                   className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                 />
@@ -1634,12 +1738,47 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                     type="text"
                                                     value={optionValue || ''}
                                                     onChange={(e) => {
-                                                      // options 배열 우선 업데이트
-                                                      const newOptions = question.options ? [...question.options] : Array(5).fill('');
-                                                      newOptions[num - 1] = e.target.value;
-                                                      updateComprehensiveQuestion(questionId, 'options', newOptions);
+                                                      const newValue = e.target.value;
+
+                                                      // 기존 options 배열 또는 option_1~5 필드에서 가져오기
+                                                      const currentOptions = question.options
+                                                        ? [...question.options]
+                                                        : [
+                                                            question.option_1 || '',
+                                                            question.option_2 || '',
+                                                            question.option_3 || '',
+                                                            question.option_4 || '',
+                                                            question.option_5 || ''
+                                                          ];
+
+                                                      // 이전 보기 값 저장 (정답 업데이트 확인용)
+                                                      const oldOptionValue = currentOptions[num - 1];
+
+                                                      // 새 보기 값 설정
+                                                      currentOptions[num - 1] = newValue;
+
+                                                      // options 배열 업데이트
+                                                      updateComprehensiveQuestion(questionId, 'options', currentOptions);
                                                       // 호환성을 위한 개별 필드도 함께 업데이트
-                                                      updateComprehensiveQuestion(questionId, optionKey, e.target.value);
+                                                      updateComprehensiveQuestion(questionId, optionKey, newValue);
+
+                                                      // 정답 보기를 수정한 경우, 정답도 자동 업데이트
+                                                      const currentAnswer = question.correct_answer || question.answer || question.correctAnswer || '';
+
+                                                      // 객관식 문제인 경우: 정답이 번호(1~5)인지 확인
+                                                      if (currentAnswer === String(num)) {
+                                                        // 정답 번호를 수정한 경우, 정답 텍스트를 새 보기 값으로 유지
+                                                        updateComprehensiveQuestion(questionId, 'correct_answer', String(num));
+                                                        updateComprehensiveQuestion(questionId, 'answer', String(num));
+                                                        updateComprehensiveQuestion(questionId, 'correctAnswer', String(num));
+                                                      }
+                                                      // 정답이 이전 보기 텍스트와 일치하는 경우
+                                                      else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
+                                                        // 정답을 새 보기 값으로 업데이트
+                                                        updateComprehensiveQuestion(questionId, 'correct_answer', newValue);
+                                                        updateComprehensiveQuestion(questionId, 'answer', newValue);
+                                                        updateComprehensiveQuestion(questionId, 'correctAnswer', newValue);
+                                                      }
                                                     }}
                                                     className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                     placeholder={`보기 ${num} 내용을 입력하세요`}
@@ -1746,12 +1885,47 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                                                     type="text"
                                                     value={optionValue || ''}
                                                     onChange={(e) => {
-                                                      // options 배열 우선 업데이트
-                                                      const newOptions = question.options ? [...question.options] : Array(5).fill('');
-                                                      newOptions[num - 1] = e.target.value;
-                                                      updateComprehensiveQuestion(questionId, 'options', newOptions);
+                                                      const newValue = e.target.value;
+
+                                                      // 기존 options 배열 또는 option_1~5 필드에서 가져오기
+                                                      const currentOptions = question.options
+                                                        ? [...question.options]
+                                                        : [
+                                                            question.option_1 || '',
+                                                            question.option_2 || '',
+                                                            question.option_3 || '',
+                                                            question.option_4 || '',
+                                                            question.option_5 || ''
+                                                          ];
+
+                                                      // 이전 보기 값 저장 (정답 업데이트 확인용)
+                                                      const oldOptionValue = currentOptions[num - 1];
+
+                                                      // 새 보기 값 설정
+                                                      currentOptions[num - 1] = newValue;
+
+                                                      // options 배열 업데이트
+                                                      updateComprehensiveQuestion(questionId, 'options', currentOptions);
                                                       // 호환성을 위한 개별 필드도 함께 업데이트
-                                                      updateComprehensiveQuestion(questionId, optionKey, e.target.value);
+                                                      updateComprehensiveQuestion(questionId, optionKey, newValue);
+
+                                                      // 정답 보기를 수정한 경우, 정답도 자동 업데이트
+                                                      const currentAnswer = question.correct_answer || question.answer || question.correctAnswer || '';
+
+                                                      // 객관식 문제인 경우: 정답이 번호(1~5)인지 확인
+                                                      if (currentAnswer === String(num)) {
+                                                        // 정답 번호를 수정한 경우, 정답 텍스트를 새 보기 값으로 유지
+                                                        updateComprehensiveQuestion(questionId, 'correct_answer', String(num));
+                                                        updateComprehensiveQuestion(questionId, 'answer', String(num));
+                                                        updateComprehensiveQuestion(questionId, 'correctAnswer', String(num));
+                                                      }
+                                                      // 정답이 이전 보기 텍스트와 일치하는 경우
+                                                      else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
+                                                        // 정답을 새 보기 값으로 업데이트
+                                                        updateComprehensiveQuestion(questionId, 'correct_answer', newValue);
+                                                        updateComprehensiveQuestion(questionId, 'answer', newValue);
+                                                        updateComprehensiveQuestion(questionId, 'correctAnswer', newValue);
+                                                      }
                                                     }}
                                                     className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                                                     placeholder={`보기 ${num} 내용을 입력하세요`}

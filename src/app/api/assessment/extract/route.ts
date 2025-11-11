@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (questionIds.length > 30) {
+    if (questionIds.length > 100) {
       return NextResponse.json(
-        { success: false, error: '최대 30개까지만 조회 가능합니다.' },
+        { success: false, error: '최대 100개까지만 조회 가능합니다.' },
         { status: 400 }
       );
     }
