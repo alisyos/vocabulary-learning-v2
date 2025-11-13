@@ -262,6 +262,104 @@ export default function PassageReview({
     return isTermInParagraphs(term, passage.paragraphs);
   };
 
+  // 중복 용어 체크 함수 (2개 지문 형식 전용)
+  const getDuplicateTerms = (): Set<string> => {
+    if (!isDualPassageFormat || !localPassage.passages || localPassage.passages.length < 2) {
+      return new Set();
+    }
+
+    const duplicates = new Set<string>();
+    const firstPassageTerms = new Map<string, number>(); // term -> count
+    const secondPassageTerms = new Map<string, number>(); // term -> count
+
+    // 첫 번째 지문의 용어 수집 및 내부 중복 체크
+    localPassage.passages[0].footnote.forEach(footnote => {
+      const parsed = parseFootnoteToVocabularyTerm(footnote);
+      const normalizedTerm = parsed.term.trim().toLowerCase();
+      const count = firstPassageTerms.get(normalizedTerm) || 0;
+      firstPassageTerms.set(normalizedTerm, count + 1);
+
+      // 첫 번째 지문 내부에서 중복이 발견되면 추가
+      if (count >= 1) {
+        duplicates.add(normalizedTerm);
+      }
+    });
+
+    // 두 번째 지문의 용어 수집 및 내부 중복 + 지문 간 중복 체크
+    localPassage.passages[1].footnote.forEach(footnote => {
+      const parsed = parseFootnoteToVocabularyTerm(footnote);
+      const normalizedTerm = parsed.term.trim().toLowerCase();
+      const count = secondPassageTerms.get(normalizedTerm) || 0;
+      secondPassageTerms.set(normalizedTerm, count + 1);
+
+      // 두 번째 지문 내부에서 중복이 발견되면 추가
+      if (count >= 1) {
+        duplicates.add(normalizedTerm);
+      }
+
+      // 첫 번째 지문과의 중복 체크
+      if (firstPassageTerms.has(normalizedTerm)) {
+        duplicates.add(normalizedTerm);
+      }
+    });
+
+    return duplicates;
+  };
+
+  // 특정 용어가 중복인지 확인하는 함수
+  const isDuplicateTerm = (term: string): boolean => {
+    if (!isDualPassageFormat) return false;
+    const duplicateTerms = getDuplicateTerms();
+    const normalizedTerm = term.trim().toLowerCase();
+    return duplicateTerms.has(normalizedTerm);
+  };
+
+  // 중복 유형을 확인하는 함수 (같은 지문 내 중복인지, 다른 지문과 중복인지)
+  const getDuplicateType = (term: string, currentPassageIndex: number): {
+    hasSamePassageDuplicate: boolean;
+    hasOtherPassageDuplicate: boolean;
+  } => {
+    if (!isDualPassageFormat || !localPassage.passages) {
+      return { hasSamePassageDuplicate: false, hasOtherPassageDuplicate: false };
+    }
+
+    const normalizedTerm = term.trim().toLowerCase();
+
+    // 현재 지문 내 중복 체크
+    let samePassageCount = 0;
+    localPassage.passages[currentPassageIndex].footnote.forEach(footnote => {
+      const parsed = parseFootnoteToVocabularyTerm(footnote);
+      if (parsed.term.trim().toLowerCase() === normalizedTerm) {
+        samePassageCount++;
+      }
+    });
+
+    // 다른 지문과의 중복 체크
+    const otherPassageIndex = currentPassageIndex === 0 ? 1 : 0;
+    let otherPassageHasTerm = false;
+    localPassage.passages[otherPassageIndex].footnote.forEach(footnote => {
+      const parsed = parseFootnoteToVocabularyTerm(footnote);
+      if (parsed.term.trim().toLowerCase() === normalizedTerm) {
+        otherPassageHasTerm = true;
+      }
+    });
+
+    return {
+      hasSamePassageDuplicate: samePassageCount > 1,
+      hasOtherPassageDuplicate: otherPassageHasTerm
+    };
+  };
+
+  // 예시 문장에 용어가 포함되어 있는지 확인하는 함수
+  const isTermInExampleSentence = (term: string, exampleSentence: string): boolean => {
+    if (!exampleSentence || !exampleSentence.trim()) {
+      return true; // 예시 문장이 없으면 체크하지 않음
+    }
+    const normalizedTerm = term.trim().toLowerCase();
+    const normalizedExample = exampleSentence.trim().toLowerCase();
+    return normalizedExample.includes(normalizedTerm);
+  };
+
   // === 어휘 재생성 기능 ===
   // 용어 선택 핸들러
   const handleSelectTerm = (termKey: string, checked: boolean) => {
@@ -736,6 +834,28 @@ export default function PassageReview({
                         </span>
                       ) : null;
                     })()}
+                    {(() => {
+                      const duplicateCount = passage.footnote.filter((footnote) => {
+                        const parsed = parseFootnoteToVocabularyTerm(footnote);
+                        return isDuplicateTerm(parsed.term);
+                      }).length;
+                      return duplicateCount > 0 ? (
+                        <span className="ml-2 text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
+                          🔴 {duplicateCount}개 중복됨
+                        </span>
+                      ) : null;
+                    })()}
+                    {(() => {
+                      const exampleMissingCount = passage.footnote.filter((footnote) => {
+                        const parsed = parseFootnoteToVocabularyTerm(footnote);
+                        return !isTermInExampleSentence(parsed.term, parsed.example_sentence);
+                      }).length;
+                      return exampleMissingCount > 0 ? (
+                        <span className="ml-2 text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
+                          ⚡ {exampleMissingCount}개 예시 문장에 용어 없음
+                        </span>
+                      ) : null;
+                    })()}
                   </label>
                   <div className="flex gap-2">
                     <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer bg-gray-50 px-3 py-1 rounded-md hover:bg-gray-100 transition-colors">
@@ -781,13 +901,20 @@ export default function PassageReview({
                     const globalIndex = passageIndex === 0 ? footnoteIndex + 1 : footnoteIndex + 11;
                     const termKey = `${passageIndex}-${footnoteIndex}`;
                     const isTermMissing = !isTermInPassageParagraphs(parsed.term, passageIndex);
+                    const isTermDuplicate = isDuplicateTerm(parsed.term);
+                    const duplicateType = getDuplicateType(parsed.term, passageIndex);
+                    const isExampleMissing = !isTermInExampleSentence(parsed.term, parsed.example_sentence);
 
                     return (
                       <div
                         key={footnoteIndex}
                         className={`border rounded-lg p-3 ${
-                          isTermMissing
+                          isTermDuplicate
+                            ? 'bg-red-50 border-red-300'
+                            : isTermMissing
                             ? 'bg-orange-50 border-orange-300'
+                            : isExampleMissing
+                            ? 'bg-yellow-50 border-yellow-300'
                             : 'bg-white border-gray-200'
                         }`}
                       >
@@ -802,10 +929,32 @@ export default function PassageReview({
                             {globalIndex}.
                           </span>
                           <div className="flex-1 space-y-2">
-                            {isTermMissing && (
+                            {isTermDuplicate && (
+                              <div className="flex flex-col gap-1">
+                                {duplicateType.hasSamePassageDuplicate && (
+                                  <div className="flex items-center gap-2 text-red-700 text-sm font-medium bg-red-100 px-2 py-1 rounded">
+                                    <span>🔴</span>
+                                    <span>이 용어는 이 지문 내에서 중복됩니다</span>
+                                  </div>
+                                )}
+                                {duplicateType.hasOtherPassageDuplicate && (
+                                  <div className="flex items-center gap-2 text-red-700 text-sm font-medium bg-red-100 px-2 py-1 rounded">
+                                    <span>🔴</span>
+                                    <span>이 용어는 {passageIndex === 0 ? '두 번째' : '첫 번째'} 지문과 중복됩니다</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {isTermMissing && !isTermDuplicate && (
                               <div className="flex items-center gap-2 text-orange-700 text-sm font-medium bg-orange-100 px-2 py-1 rounded">
                                 <span>⚠️</span>
                                 <span>이 용어가 지문 본문에 포함되어 있지 않습니다</span>
+                              </div>
+                            )}
+                            {isExampleMissing && !isTermDuplicate && !isTermMissing && (
+                              <div className="flex items-center gap-2 text-yellow-700 text-sm font-medium bg-yellow-100 px-2 py-1 rounded">
+                                <span>⚡</span>
+                                <span>예시 문장에 용어가 포함되어 있지 않습니다</span>
                               </div>
                             )}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -818,7 +967,11 @@ export default function PassageReview({
                                   value={parsed.term}
                                   onChange={(e) => handlePassageVocabularyFieldChange(passageIndex, footnoteIndex, 'term', e.target.value)}
                                   className={`w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm ${
-                                    isTermMissing ? 'border-orange-400' : 'border-gray-300'
+                                    isTermDuplicate
+                                      ? 'border-red-400'
+                                      : isTermMissing
+                                      ? 'border-orange-400'
+                                      : 'border-gray-300'
                                   }`}
                                   placeholder="용어 입력"
                                 />
@@ -893,17 +1046,34 @@ export default function PassageReview({
                           const parsed = parseFootnoteToVocabularyTerm(footnote);
                           const globalIndex = passageIndex === 0 ? footnoteIndex + 1 : footnoteIndex + 11;
                           const isTermMissing = !isTermInPassageParagraphs(parsed.term, passageIndex);
+                          const isTermDuplicate = isDuplicateTerm(parsed.term);
+                          const duplicateType = getDuplicateType(parsed.term, passageIndex);
+                          const isExampleMissing = !isTermInExampleSentence(parsed.term, parsed.example_sentence);
                           return (
                             <div
                               key={footnoteIndex}
                               className={`flex items-start gap-2 p-2 rounded border ${
-                                isTermMissing
+                                isTermDuplicate
+                                  ? 'bg-red-50 border-red-300'
+                                  : isTermMissing
                                   ? 'bg-orange-50 border-orange-300'
+                                  : isExampleMissing
+                                  ? 'bg-yellow-50 border-yellow-300'
                                   : 'bg-white border-gray-100'
                               }`}
                             >
-                              <span className={`font-medium ${isTermMissing ? 'text-orange-600' : 'text-blue-600'}`}>
-                                {isTermMissing && '⚠️ '}
+                              <span className={`font-medium ${
+                                isTermDuplicate
+                                  ? 'text-red-600'
+                                  : isTermMissing
+                                  ? 'text-orange-600'
+                                  : isExampleMissing
+                                  ? 'text-yellow-700'
+                                  : 'text-blue-600'
+                              }`}>
+                                {isTermDuplicate && '🔴 '}
+                                {isTermMissing && !isTermDuplicate && '⚠️ '}
+                                {isExampleMissing && !isTermDuplicate && !isTermMissing && '⚡ '}
                                 {globalIndex}.
                               </span>
                               <div className="flex-1">
@@ -912,9 +1082,24 @@ export default function PassageReview({
                                 {parsed.example_sentence && (
                                   <span className="text-gray-500 italic"> (예: {parsed.example_sentence})</span>
                                 )}
-                                {isTermMissing && (
+                                {isTermDuplicate && (
+                                  <div className="text-red-700 text-xs mt-1 space-y-0.5">
+                                    {duplicateType.hasSamePassageDuplicate && (
+                                      <div>이 지문 내에서 중복됨</div>
+                                    )}
+                                    {duplicateType.hasOtherPassageDuplicate && (
+                                      <div>{passageIndex === 0 ? '두 번째' : '첫 번째'} 지문과 중복됨</div>
+                                    )}
+                                  </div>
+                                )}
+                                {isTermMissing && !isTermDuplicate && (
                                   <div className="text-orange-700 text-xs mt-1">
                                     본문에 포함되지 않음
+                                  </div>
+                                )}
+                                {isExampleMissing && !isTermDuplicate && !isTermMissing && (
+                                  <div className="text-yellow-700 text-xs mt-1">
+                                    예시 문장에 용어 없음
                                   </div>
                                 )}
                               </div>
@@ -1002,6 +1187,17 @@ export default function PassageReview({
                     </span>
                   ) : null;
                 })()}
+                {(() => {
+                  const exampleMissingCount = localPassage.footnote.filter((footnote) => {
+                    const parsed = parseFootnoteToVocabularyTerm(footnote);
+                    return !isTermInExampleSentence(parsed.term, parsed.example_sentence);
+                  }).length;
+                  return exampleMissingCount > 0 ? (
+                    <span className="ml-2 text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
+                      ⚡ {exampleMissingCount}개 예시 문장에 용어 없음
+                    </span>
+                  ) : null;
+                })()}
               </label>
               <div className="flex gap-2">
                 <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer bg-gray-50 px-3 py-1 rounded-md hover:bg-gray-100 transition-colors">
@@ -1036,6 +1232,7 @@ export default function PassageReview({
                 const parsed = parseFootnoteToVocabularyTerm(footnote);
                 const termKey = `single-${index}`;
                 const isTermMissing = !isTermInParagraphs(parsed.term, localPassage.paragraphs);
+                const isExampleMissing = !isTermInExampleSentence(parsed.term, parsed.example_sentence);
 
                 return (
                   <div
@@ -1043,6 +1240,8 @@ export default function PassageReview({
                     className={`border rounded-lg p-3 ${
                       isTermMissing
                         ? 'bg-orange-50 border-orange-300'
+                        : isExampleMissing
+                        ? 'bg-yellow-50 border-yellow-300'
                         : 'bg-white border-gray-200'
                     }`}
                   >
@@ -1061,6 +1260,12 @@ export default function PassageReview({
                           <div className="flex items-center gap-2 text-orange-700 text-sm font-medium bg-orange-100 px-2 py-1 rounded">
                             <span>⚠️</span>
                             <span>이 용어가 지문 본문에 포함되어 있지 않습니다</span>
+                          </div>
+                        )}
+                        {isExampleMissing && !isTermMissing && (
+                          <div className="flex items-center gap-2 text-yellow-700 text-sm font-medium bg-yellow-100 px-2 py-1 rounded">
+                            <span>⚡</span>
+                            <span>예시 문장에 용어가 포함되어 있지 않습니다</span>
                           </div>
                         )}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -1136,17 +1341,27 @@ export default function PassageReview({
                     {localPassage.footnote.map((footnote, index) => {
                       const parsed = parseFootnoteToVocabularyTerm(footnote);
                       const isTermMissing = !isTermInParagraphs(parsed.term, localPassage.paragraphs);
+                      const isExampleMissing = !isTermInExampleSentence(parsed.term, parsed.example_sentence);
                       return (
                         <div
                           key={index}
                           className={`flex items-start gap-2 p-2 rounded border ${
                             isTermMissing
                               ? 'bg-orange-50 border-orange-300'
+                              : isExampleMissing
+                              ? 'bg-yellow-50 border-yellow-300'
                               : 'bg-white border-gray-100'
                           }`}
                         >
-                          <span className={`font-medium ${isTermMissing ? 'text-orange-600' : 'text-blue-600'}`}>
+                          <span className={`font-medium ${
+                            isTermMissing
+                              ? 'text-orange-600'
+                              : isExampleMissing
+                              ? 'text-yellow-700'
+                              : 'text-blue-600'
+                          }`}>
                             {isTermMissing && '⚠️ '}
+                            {isExampleMissing && !isTermMissing && '⚡ '}
                             {index + 1}.
                           </span>
                           <div className="flex-1">
@@ -1158,6 +1373,11 @@ export default function PassageReview({
                             {isTermMissing && (
                               <div className="text-orange-700 text-xs mt-1">
                                 본문에 포함되지 않음
+                              </div>
+                            )}
+                            {isExampleMissing && !isTermMissing && (
+                              <div className="text-yellow-700 text-xs mt-1">
+                                예시 문장에 용어 없음
                               </div>
                             )}
                           </div>
