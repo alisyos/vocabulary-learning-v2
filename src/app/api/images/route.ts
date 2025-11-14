@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getImageDataList } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,28 +15,55 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '30', 10);
 
-    const filters: {
-      session_number?: string;
-      is_visible?: boolean;
-    } = {};
+    // Supabase 쿼리 구성
+    let query = supabase.from('image_data').select('*', { count: 'exact' });
 
-    if (sessionNumber) {
-      filters.session_number = sessionNumber;
-    }
-
+    // 상태 필터링
     if (visibleOnly) {
-      filters.is_visible = true;
+      query = query.eq('is_visible', true);
     } else if (hiddenOnly) {
-      filters.is_visible = false;
+      query = query.eq('is_visible', false);
     }
 
-    const images = await getImageDataList(Object.keys(filters).length > 0 ? filters : undefined);
+    // 정렬
+    query = query.order('created_at', { ascending: false });
 
-    // 페이지네이션 적용
-    const total = images.length;
+    const { data: allImages, error, count: totalCount } = await query;
+
+    if (error) {
+      console.error('Supabase 쿼리 오류:', error);
+      throw error;
+    }
+
+    // 차시 필터링 (JavaScript에서 정수 비교)
+    let filteredImages = allImages || [];
+    if (sessionNumber) {
+      const rangeMatch = sessionNumber.match(/^(\d+)-(\d+)$/);
+      if (rangeMatch) {
+        // 범위: "1-50" → 1부터 50까지
+        const start = parseInt(rangeMatch[1], 10);
+        const end = parseInt(rangeMatch[2], 10);
+        filteredImages = filteredImages.filter(img => {
+          const sessionNum = parseInt(img.session_number, 10);
+          return !isNaN(sessionNum) && sessionNum >= start && sessionNum <= end;
+        });
+      } else {
+        // 단일 값: "10" → 10만
+        const singleValue = parseInt(sessionNumber, 10);
+        if (!isNaN(singleValue)) {
+          filteredImages = filteredImages.filter(img => {
+            const sessionNum = parseInt(img.session_number, 10);
+            return sessionNum === singleValue;
+          });
+        }
+      }
+    }
+
+    // 페이지네이션 (필터링 후)
+    const total = filteredImages.length;
     const totalPages = Math.ceil(total / limit);
     const offset = (page - 1) * limit;
-    const paginatedImages = images.slice(offset, offset + limit);
+    const paginatedImages = filteredImages.slice(offset, offset + limit);
 
     return NextResponse.json({
       success: true,

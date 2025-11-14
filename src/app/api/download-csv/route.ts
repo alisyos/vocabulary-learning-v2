@@ -36,6 +36,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const table = searchParams.get('table');
   const statusParam = searchParams.get('status');
+  const sessionRangeParam = searchParams.get('sessionRange');
+  const sessionNumberParam = searchParams.get('sessionNumber'); // 이미지 테이블용 차시 필터
+  const visibilityParam = searchParams.get('visibility'); // 이미지 테이블용 상태 필터
 
   if (!table) {
     return NextResponse.json({ error: 'Table parameter is required' }, { status: 400 });
@@ -47,7 +50,8 @@ export async function GET(request: Request) {
     'vocabulary_terms',
     'vocabulary_questions',
     'paragraph_questions',
-    'comprehensive_questions'
+    'comprehensive_questions',
+    'image_data'
   ];
 
   if (!validTables.includes(table)) {
@@ -55,19 +59,108 @@ export async function GET(request: Request) {
   }
 
   try {
-    // status 파라미터가 있는 경우, 필터링할 content_set_id 목록 조회
+    // image_data 테이블은 별도 처리
+    if (table === 'image_data') {
+      let query = supabase.from('image_data').select('*');
+
+      // 차시 필터링
+      if (sessionNumberParam) {
+        query = query.eq('session_number', sessionNumberParam);
+      }
+
+      // 상태 필터링 (is_visible)
+      if (visibilityParam === 'visible') {
+        query = query.eq('is_visible', true);
+      } else if (visibilityParam === 'hidden') {
+        query = query.eq('is_visible', false);
+      }
+
+      // 정렬
+      query = query.order('created_at', { ascending: false });
+
+      const { data: imageData, error: imageError } = await query;
+
+      if (imageError) {
+        console.error('Error fetching image_data:', imageError);
+        return NextResponse.json({ error: 'Failed to fetch image data' }, { status: 500 });
+      }
+
+      if (!imageData || imageData.length === 0) {
+        return NextResponse.json({ error: 'No image data found with the specified filters' }, { status: 404 });
+      }
+
+      console.log(`Successfully collected ${imageData.length} rows from image_data`);
+
+      const csvContent = convertToCSV(imageData, 'image_data');
+      const bomPrefix = '\uFEFF';
+      const csvWithBOM = bomPrefix + csvContent;
+
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+
+      // 파일명에 차시 번호 포함
+      let filename = 'image_data';
+      if (sessionNumberParam) {
+        filename += `_session_${sessionNumberParam}`;
+      }
+      if (visibilityParam && visibilityParam !== 'all') {
+        filename += `_${visibilityParam}`;
+      }
+      filename += `_${timestamp}.csv`;
+
+      return new NextResponse(csvWithBOM, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-cache'
+        },
+      });
+    }
+
+    // status 및 session_number 파라미터로 필터링할 content_set_id 목록 조회
     let filteredContentSetIds: string[] | null = null;
 
-    if (statusParam && statusParam !== 'all') {
-      const statuses = statusParam.split(',').map(s => s.trim());
+    // 파라미터가 있는 경우 필터링 로직 실행
+    if ((statusParam && statusParam !== 'all') || sessionRangeParam) {
+      let query = supabase.from('content_sets').select('id');
 
-      const { data: contentSets, error: contentSetError } = await supabase
-        .from('content_sets')
-        .select('id')
-        .in('status', statuses);
+      // status 필터링
+      if (statusParam && statusParam !== 'all') {
+        const statuses = statusParam.split(',').map(s => s.trim());
+        query = query.in('status', statuses);
+      }
+
+      // session_number 범위 필터링
+      if (sessionRangeParam) {
+        const rangeMatch = sessionRangeParam.match(/^(\d+)-(\d+)$/);
+        if (!rangeMatch) {
+          return NextResponse.json(
+            { error: 'Invalid session range format. Use "start-end" format (e.g., "1-100")' },
+            { status: 400 }
+          );
+        }
+
+        const startSession = parseInt(rangeMatch[1], 10);
+        const endSession = parseInt(rangeMatch[2], 10);
+
+        if (startSession > endSession) {
+          return NextResponse.json(
+            { error: 'Start session number cannot be greater than end session number' },
+            { status: 400 }
+          );
+        }
+
+        // session_number는 문자열로 저장되어 있으므로, 범위 내 모든 숫자를 문자열 배열로 변환
+        const sessionNumbers = [];
+        for (let i = startSession; i <= endSession; i++) {
+          sessionNumbers.push(i.toString());
+        }
+        query = query.in('session_number', sessionNumbers);
+      }
+
+      const { data: contentSets, error: contentSetError } = await query;
 
       if (contentSetError) {
-        console.error('Error fetching content_sets by status:', contentSetError);
+        console.error('Error fetching content_sets with filters:', contentSetError);
         return NextResponse.json({ error: 'Failed to fetch filtered content sets' }, { status: 500 });
       }
 
@@ -75,10 +168,13 @@ export async function GET(request: Request) {
 
       // 필터링된 세트가 없으면 빈 결과 반환
       if (filteredContentSetIds.length === 0) {
-        return NextResponse.json({ error: 'No data found with the specified status' }, { status: 404 });
+        return NextResponse.json({ error: 'No data found with the specified filters' }, { status: 404 });
       }
 
-      console.log(`Filtered to ${filteredContentSetIds.length} content sets with status: ${statuses.join(', ')}`);
+      console.log(`Filtered to ${filteredContentSetIds.length} content sets with filters:`, {
+        status: statusParam,
+        sessionRange: sessionRangeParam
+      });
     }
 
     // 먼저 총 데이터 개수 확인

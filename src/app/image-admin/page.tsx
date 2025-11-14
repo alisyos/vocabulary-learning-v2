@@ -13,6 +13,8 @@ export default function ImageAdminPage() {
   const [sessionNumberFilter, setSessionNumberFilter] = useState('');
   const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'visible' | 'hidden'>('all');
   const [editingImage, setEditingImage] = useState<ImageData | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [showDownloadSection, setShowDownloadSection] = useState(false); // 다운로드 섹션 표시 여부
 
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
@@ -326,6 +328,60 @@ export default function ImageAdminPage() {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
+  // 이미지 ZIP 다운로드 핸들러
+  const handleDownloadImages = async () => {
+    setDownloading(true);
+
+    try {
+      // URL 파라미터 구성
+      const params = new URLSearchParams();
+
+      // 차시 필터
+      if (sessionNumberFilter && sessionNumberFilter.trim() !== '') {
+        params.append('sessionNumber', sessionNumberFilter.trim());
+      }
+
+      // 상태 필터
+      if (visibilityFilter !== 'all') {
+        params.append('visibility', visibilityFilter);
+      }
+
+      const response = await fetch(`/api/download-images?${params.toString()}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = 'images.zip';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]*)"?/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error('Download error:', error);
+      alert(error instanceof Error ? error.message : 'Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <RoleAuthGuard allowedRoles={['admin']}>
       <div className="min-h-screen bg-gray-50">
@@ -532,8 +588,8 @@ export default function ImageAdminPage() {
                   type="text"
                   value={sessionNumberFilter}
                   onChange={(e) => setSessionNumberFilter(e.target.value)}
-                  placeholder="예: 1-1"
-                  className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 w-32"
+                  placeholder="예: 1-50 (범위) 또는 10 (단일)"
+                  className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 w-48"
                 />
               </div>
 
@@ -572,6 +628,103 @@ export default function ImageAdminPage() {
               </span>
             )}
           </div>
+        </div>
+
+        {/* 이미지 ZIP 다운로드 섹션 */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">📦 이미지 일괄 다운로드</h2>
+            <button
+              onClick={() => setShowDownloadSection(!showDownloadSection)}
+              className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium text-gray-700"
+            >
+              <span>{showDownloadSection ? '접기' : '펼치기'}</span>
+              <svg
+                className={`w-4 h-4 transition-transform ${showDownloadSection ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+
+          {showDownloadSection && (
+            <>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-start">
+              <svg className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-blue-900 mb-1">다운로드 정보</h3>
+                <ul className="text-xs text-blue-800 space-y-1">
+                  <li>• 현재 적용된 필터(차시, 상태)에 따라 이미지 파일들이 다운로드됩니다.</li>
+                  <li>• <strong>차시 범위</strong>: "1-50" (1차시~50차시) 또는 "10" (10차시만)</li>
+                  <li>• <strong>각 이미지 파일명에 차시 번호가 자동으로 포함됩니다.</strong> (예: 15_image.png)</li>
+                  <li>• 모든 이미지는 ZIP 파일로 압축되어 다운로드됩니다.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <div className="text-center space-y-4">
+              <div>
+                <h4 className="text-lg font-medium text-gray-900">
+                  이미지 파일 ZIP 다운로드
+                </h4>
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-gray-600">
+                    필터링된 이미지 파일들을 ZIP으로 압축하여 다운로드합니다.
+                  </p>
+                  {(sessionNumberFilter || visibilityFilter !== 'all') && (
+                    <div className="inline-flex items-center space-x-2 mt-2 px-3 py-1.5 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <svg className="h-4 w-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                      </svg>
+                      <span className="text-xs font-medium text-yellow-800">
+                        필터 적용됨:
+                        {sessionNumberFilter && <span className="ml-1">차시 "{sessionNumberFilter}"</span>}
+                        {sessionNumberFilter && visibilityFilter !== 'all' && <span className="mx-1">•</span>}
+                        {visibilityFilter !== 'all' && <span>상태 "{visibilityFilter === 'visible' ? '표시만' : '숨김만'}"</span>}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={handleDownloadImages}
+                disabled={downloading}
+                className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white ${
+                  downloading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+                }`}
+              >
+                {downloading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    다운로드 중...
+                  </>
+                ) : (
+                  <>
+                    <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    ZIP 다운로드
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+            </>
+          )}
         </div>
 
         {/* 이미지 목록 */}

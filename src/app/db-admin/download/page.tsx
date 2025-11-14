@@ -66,6 +66,8 @@ export default function DownloadPage() {
   const [activeTab, setActiveTab] = useState('content_sets');
   const [downloading, setDownloading] = useState<{ [key: string]: boolean }>({});
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['all']);
+  const [sessionRange, setSessionRange] = useState<string>(''); // 차시 범위 (예: "1-100")
+  const [sessionRangeError, setSessionRangeError] = useState<string>('');
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
@@ -83,7 +85,52 @@ export default function DownloadPage() {
     }
   };
 
+  // 차시 범위 검증 함수
+  const validateSessionRange = (range: string): { valid: boolean; error?: string; start?: number; end?: number } => {
+    if (!range || range.trim() === '') {
+      return { valid: true }; // 빈 값은 유효 (전체 선택)
+    }
+
+    const trimmed = range.trim();
+    const match = trimmed.match(/^(\d+)-(\d+)$/);
+
+    if (!match) {
+      return { valid: false, error: '형식이 올바르지 않습니다. "1-100" 형식으로 입력하세요.' };
+    }
+
+    const start = parseInt(match[1], 10);
+    const end = parseInt(match[2], 10);
+
+    if (start < 1 || end < 1) {
+      return { valid: false, error: '차시 번호는 1 이상이어야 합니다.' };
+    }
+
+    if (start > end) {
+      return { valid: false, error: '시작 차시가 끝 차시보다 클 수 없습니다.' };
+    }
+
+    return { valid: true, start, end };
+  };
+
+  // 차시 범위 입력 변경 핸들러
+  const handleSessionRangeChange = (value: string) => {
+    setSessionRange(value);
+    const validation = validateSessionRange(value);
+    if (!validation.valid) {
+      setSessionRangeError(validation.error || '');
+    } else {
+      setSessionRangeError('');
+    }
+  };
+
   const handleDownload = async (tableName: string) => {
+    // 차시 범위 검증
+    const rangeValidation = validateSessionRange(sessionRange);
+    if (!rangeValidation.valid) {
+      alert(rangeValidation.error || '차시 범위 입력이 올바르지 않습니다.');
+      return;
+    }
+
     setDownloading(prev => ({ ...prev, [tableName]: true }));
 
     try {
@@ -92,7 +139,18 @@ export default function DownloadPage() {
         ? 'all'
         : selectedStatuses.join(',');
 
-      const response = await fetch(`/api/download-csv?table=${tableName}&status=${encodeURIComponent(statusParam)}`);
+      // URL 파라미터 구성
+      const params = new URLSearchParams({
+        table: tableName,
+        status: statusParam
+      });
+
+      // 차시 범위가 있으면 추가
+      if (sessionRange && sessionRange.trim() !== '') {
+        params.append('sessionRange', sessionRange.trim());
+      }
+
+      const response = await fetch(`/api/download-csv?${params.toString()}`);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -243,6 +301,54 @@ export default function DownloadPage() {
                             : selectedStatuses.length > 0
                             ? selectedStatuses.join(', ')
                             : '없음 (전체로 자동 설정됩니다)'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Session Number Range Filter Section */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-5">
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                        </svg>
+                        <h4 className="text-md font-semibold text-green-900">
+                          차시 범위 필터링
+                        </h4>
+                      </div>
+
+                      <p className="text-sm text-green-700">
+                        특정 차시 범위의 데이터만 다운로드하려면 아래 형식으로 입력하세요.
+                      </p>
+
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={sessionRange}
+                          onChange={(e) => handleSessionRangeChange(e.target.value)}
+                          placeholder="예: 1-100"
+                          className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                            sessionRangeError
+                              ? 'border-red-300 focus:ring-red-500'
+                              : 'border-gray-300 focus:ring-green-500'
+                          }`}
+                        />
+                        {sessionRangeError && (
+                          <p className="text-xs text-red-600 flex items-center space-x-1">
+                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            <span>{sessionRangeError}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="bg-white rounded-md p-3 border border-green-100">
+                        <p className="text-xs text-gray-600">
+                          <span className="font-semibold">입력 형식:</span> "시작-끝" (예: 1-100, 10-50)
+                          <br />
+                          <span className="font-semibold">비워두면:</span> 모든 차시 포함
                         </p>
                       </div>
                     </div>
