@@ -18,6 +18,11 @@ interface PassageReviewProps {
     main_topic: string;
     sub_topic: string;
     keywords: string;
+    division?: string;
+    length?: string;
+    textType?: string;
+    grade_number?: string;
+    session_number?: string;
   };
 }
 
@@ -39,6 +44,9 @@ export default function PassageReview({
   const [showRegenerateModal, setShowRegenerateModal] = useState(false);
   const [regeneratedTerms, setRegeneratedTerms] = useState<any[]>([]);
   const [regenerating, setRegenerating] = useState(false);
+
+  // 중간 저장 관련 상태
+  const [saving, setSaving] = useState(false);
 
   // 2개 지문 형식인지 확인
   const isDualPassageFormat = localPassage.passages && localPassage.passages.length > 0;
@@ -688,15 +696,72 @@ export default function PassageReview({
     setSelectedTermIndices(new Set());
   };
 
+  // 중간 저장 핸들러
+  const handleIntermediateSave = async () => {
+    if (!contextInfo) {
+      alert('콘텐츠 정보가 없습니다.');
+      return;
+    }
+
+    const confirmed = confirm('현재까지 작성한 지문을 중간 저장하시겠습니까?\n\n중간 저장 시 상태가 "1차검수"로 저장됩니다.');
+    if (!confirmed) return;
+
+    setSaving(true);
+    try {
+      const response = await fetch('/api/save-intermediate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: {
+            division: contextInfo.division || '',
+            grade: contextInfo.grade || '',
+            grade_number: contextInfo.grade_number || null,
+            subject: contextInfo.subject || '',
+            area: contextInfo.area || '',
+            session_number: contextInfo.session_number || null,
+            maintopic: contextInfo.main_topic || '',
+            subtopic: contextInfo.sub_topic || '',
+            keyword: contextInfo.keywords || '',
+            length: contextInfo.length || '',
+            textType: contextInfo.textType || ''
+          },
+          editablePassage: localPassage
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`중간 저장이 완료되었습니다!\n\n저장된 ID: ${result.data.contentSetId}\n상태: 1차검수`);
+      } else {
+        alert(`중간 저장 실패: ${result.message || '알 수 없는 오류'}`);
+      }
+    } catch (error) {
+      console.error('중간 저장 오류:', error);
+      alert('중간 저장 중 오류가 발생했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-4">
           <h2 className="text-xl font-bold text-gray-800">2단계: 지문 검토 및 수정</h2>
           <button
+            onClick={handleIntermediateSave}
+            disabled={saving || loading || (isDualPassageFormat ?
+              !localPassage.passages?.every(p => p.title.trim()) :
+              !localPassage.title.trim())}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+          >
+            {saving ? '저장 중...' : '💾 중간 저장'}
+          </button>
+          <button
             onClick={onNext}
-            disabled={loading || (isDualPassageFormat ? 
-              !localPassage.passages?.every(p => p.title.trim()) : 
+            disabled={loading || (isDualPassageFormat ?
+              !localPassage.passages?.every(p => p.title.trim()) :
               !localPassage.title.trim())}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
           >

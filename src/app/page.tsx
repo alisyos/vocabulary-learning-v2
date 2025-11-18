@@ -490,7 +490,12 @@ export default function Home() {
                     area: input.area || '',
                     main_topic: input.maintopic || '',
                     sub_topic: input.subtopic || '',
-                    keywords: input.keyword || ''
+                    keywords: input.keyword || '',
+                    division: input.division || '',
+                    length: input.length || '',
+                    textType: input.textType || '',
+                    grade_number: input.grade_number || undefined,
+                    session_number: input.session_number || undefined
                   }}
                 />
               )}
