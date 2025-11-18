@@ -112,6 +112,13 @@ export default function Header() {
       icon: '✅',
       description: '검수완료 및 승인완료 콘텐츠 확인',
       allowedRoles: ['admin', 'reviewer'] // admin과 reviewer 접근 가능
+    },
+    {
+      name: '최종 검수',
+      href: '/db-admin/final-review',
+      icon: '🔍',
+      description: '데이터 품질 검수 및 자동 수정',
+      allowedRoles: ['admin'] // admin만 접근 가능
     }
   ];
 

@@ -38,7 +38,9 @@
       "Bash(python3:*)",
       "Read(//tmp/**)",
       "Bash(netstat:*)",
-      "Bash(ss:*)"
+      "Bash(ss:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(npx ts-node:*)"
     ],
     "deny": []
   }
