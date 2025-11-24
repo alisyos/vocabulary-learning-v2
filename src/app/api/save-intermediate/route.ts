@@ -7,6 +7,23 @@ import type {
   VocabularyTerm
 } from '../../../types';
 
+// Helper function to infer division from grade
+function inferDivisionFromGrade(grade: string): string {
+  const gradeNum = grade.replace(/[^0-9]/g, '');
+  const numGrade = parseInt(gradeNum, 10);
+
+  if (numGrade >= 3 && numGrade <= 4) {
+    return '초등학교 중학년(3-4학년)';
+  } else if (numGrade >= 5 && numGrade <= 6) {
+    return '초등학교 고학년(5-6학년)';
+  } else if (numGrade >= 1 && numGrade <= 3 && (grade.includes('중') || grade.includes('7') || grade.includes('8') || grade.includes('9'))) {
+    return '중학생(1-3학년)';
+  }
+
+  // Default fallback
+  return '초등학교 중학년(3-4학년)';
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('🚀 save-intermediate API 시작');
@@ -90,17 +107,62 @@ export async function POST(request: NextRequest) {
       passageTitle
     });
 
+    // 🔍 curriculum_data에서 main_topic과 sub_topic이 일치하는 레코드 찾기
+    const mainTopic = input.maintopic || input.mainTopic || '';
+    const subTopic = input.subtopic || input.subTopic || '';
+    let curriculumMatch = null;
+
+    if (mainTopic && subTopic) {
+      console.log('🔍 curriculum_data에서 매칭 레코드 조회 중...', { mainTopic, subTopic });
+
+      try {
+        const curriculumData = await db.getCurriculumData({
+          subject: input.subject,
+          area: input.area
+        });
+
+        curriculumMatch = curriculumData.find(
+          (item: any) => item.main_topic === mainTopic && item.sub_topic === subTopic
+        );
+
+        if (curriculumMatch) {
+          console.log('✅ curriculum_data에서 매칭 레코드 발견:', {
+            grade: curriculumMatch.grade,
+            grade_number: curriculumMatch.grade_number,
+            session_number: curriculumMatch.session_number
+          });
+        } else {
+          console.log('⚠️ curriculum_data에서 매칭 레코드를 찾지 못함');
+        }
+      } catch (error) {
+        console.error('❌ curriculum_data 조회 실패:', error);
+      }
+    }
+
+    // curriculum_data에서 가져온 값 또는 input 값 사용, 또는 추론
+    const grade = curriculumMatch?.grade || input.grade || '3학년';
+    const gradeNumber = curriculumMatch?.grade_number || input.grade_number || null;
+    const sessionNumber = curriculumMatch?.session_number || input.session_number || null;
+    const division = input.division || inferDivisionFromGrade(grade);
+
+    console.log('📌 최종 사용할 값:', {
+      division,
+      grade,
+      gradeNumber,
+      sessionNumber
+    });
+
     // Transform input data to ContentSet format (중간 저장용 - 1차검수 상태)
     const contentSetData: Omit<ContentSet, 'id' | 'created_at' | 'updated_at'> = {
       user_id: data.userId || 'anonymous',
-      division: input.division,
-      grade: input.grade || '3학년',
-      grade_number: input.grade_number && String(input.grade_number).trim() !== '' ? String(input.grade_number).trim() : null,
+      division: division,
+      grade: grade,
+      grade_number: gradeNumber && String(gradeNumber).trim() !== '' ? String(gradeNumber).trim() : null,
       subject: input.subject,
       area: input.area,
-      session_number: input.session_number && String(input.session_number).trim() !== '' ? String(input.session_number).trim() : null,
-      main_topic: input.maintopic || input.mainTopic || '',
-      sub_topic: input.subtopic || input.subTopic || '',
+      session_number: sessionNumber && String(sessionNumber).trim() !== '' ? String(sessionNumber).trim() : null,
+      main_topic: mainTopic,
+      sub_topic: subTopic,
       keywords: input.keyword || input.keywords || '',
       title: passageTitle,
       total_passages: actualParagraphCount,

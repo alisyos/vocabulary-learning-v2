@@ -6,14 +6,57 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// 5글자 이하의 작은따옴표로 감싸진 단어만 제거하는 함수
-function removeShortQuotesFromExplanation(text: string): string {
-  if (!text) return text;
+// 정답이 선택지 중 하나와 일치하는지 확인하는 함수
+function checkAnswerMatch(question: any): { isMatch: boolean; reason: string } {
+  const correctAnswer = question.correct_answer?.trim();
 
-  // 모든 종류의 작은따옴표로 감싸진 1~5글자 단어만 따옴표 제거
-  // U+0027 ('), U+2018 ('), U+2019 ('), U+201A (‚), U+201B (‛) 모두 처리
-  // {1,5}는 1글자부터 5글자까지만 매칭
-  return text.replace(/[\u0027\u2018\u2019\u201A\u201B]([^\u0027\u2018\u2019\u201A\u201B]{1,5})[\u0027\u2018\u2019\u201A\u201B]/g, '$1');
+  // 정답이 비어있는 경우
+  if (!correctAnswer) {
+    return {
+      isMatch: false,
+      reason: '정답(correct_answer)이 비어있습니다.'
+    };
+  }
+
+  // question_format이 'short_answer'인 경우 선택지 검증 제외
+  if (question.question_format === 'short_answer') {
+    return {
+      isMatch: true,
+      reason: '주관식 문제는 선택지 일치 검증 제외'
+    };
+  }
+
+  // 선택지 수집
+  const options = [
+    question.option_1?.trim(),
+    question.option_2?.trim(),
+    question.option_3?.trim(),
+    question.option_4?.trim(),
+    question.option_5?.trim()
+  ].filter(opt => opt); // 빈 값 제외
+
+  // 선택지가 없는 경우
+  if (options.length === 0) {
+    return {
+      isMatch: false,
+      reason: '선택지가 없습니다.'
+    };
+  }
+
+  // 정답이 선택지 중 하나와 일치하는지 확인
+  const isMatch = options.some(opt => opt === correctAnswer);
+
+  if (!isMatch) {
+    return {
+      isMatch: false,
+      reason: `정답 '${correctAnswer}'이 선택지 중 어느 것과도 일치하지 않습니다. (선택지 개수: ${options.length}개)`
+    };
+  }
+
+  return {
+    isMatch: true,
+    reason: '정답이 선택지와 일치합니다.'
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -26,7 +69,7 @@ export async function POST(request: NextRequest) {
     const pageSize = 1000;
     let hasMoreData = true;
 
-    console.log(`📊 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
+    console.log(`📊 종합문제 정답-선택지 일치 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
 
     while (hasMoreData) {
       let query = supabase
@@ -76,13 +119,15 @@ export async function POST(request: NextRequest) {
         success: true,
         dryRun,
         message: `검수 대상이 없습니다. (상태: ${statuses.join(', ')})`,
-        samples: []
+        samples: [],
+        mismatchCount: 0,
+        totalChecked: 0
       });
     }
 
-    console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 어휘문제 조회 시작`);
+    console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 종합문제 조회 시작`);
 
-    // 2. vocabulary_questions 테이블에서 해당 content_set_id의 모든 레코드 조회 (페이지네이션 적용)
+    // 2. comprehensive_questions 테이블에서 해당 content_set_id의 모든 레코드 조회 (페이지네이션 적용)
     // contentSetIds를 청크로 나누어 조회 (in 절 제한 고려)
     const chunkSize = 100;
     let allQuestions: any[] = [];
@@ -96,7 +141,7 @@ export async function POST(request: NextRequest) {
 
       while (hasMore) {
         const { data, error } = await supabase
-          .from('vocabulary_questions')
+          .from('comprehensive_questions')
           .select('*')
           .in('content_set_id', chunk)
           .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
@@ -115,99 +160,60 @@ export async function POST(request: NextRequest) {
       console.log(`  청크 ${Math.floor(i / chunkSize) + 1}/${Math.ceil(contentSetIds.length / chunkSize)}: ${allQuestions.length}개 누적`);
     }
 
-    console.log(`📄 총 ${allQuestions.length}개 어휘문제 조회 완료`);
+    console.log(`📄 총 ${allQuestions.length}개 종합문제 조회 완료`);
 
     if (allQuestions.length === 0) {
       return NextResponse.json({
         success: true,
         dryRun,
-        message: '검수 대상 어휘문제가 없습니다.',
-        samples: []
+        message: '검수 대상 종합문제가 없습니다.',
+        samples: [],
+        mismatchCount: 0,
+        totalChecked: 0
       });
     }
 
-    // 3. 각 문제의 explanation 필드 검사 및 변환
-    const updates: any[] = [];
+    // 3. 각 문제의 정답-선택지 일치 검사
+    const mismatches: any[] = [];
 
     for (const question of allQuestions) {
-      const original = question.explanation;
+      const { isMatch, reason } = checkAnswerMatch(question);
 
-      if (!original) continue;
-
-      const converted = removeShortQuotesFromExplanation(original);
-
-      if (original !== converted) {
-        updates.push({
+      if (!isMatch) {
+        mismatches.push({
           id: question.id,
           content_set_id: question.content_set_id,
-          original,
-          converted,
-          needsUpdate: true
+          question_number: question.question_number,
+          question_type: question.question_type,
+          question_format: question.question_format,
+          question_text: question.question?.substring(0, 100) || '', // 문제 텍스트 일부
+          correct_answer: question.correct_answer,
+          options: [
+            question.option_1,
+            question.option_2,
+            question.option_3,
+            question.option_4,
+            question.option_5
+          ].filter(opt => opt),
+          reason
         });
       }
     }
 
-    console.log(`✅ ${updates.length}개의 해설에서 따옴표 발견`);
+    console.log(`⚠️ ${mismatches.length}개의 정답-선택지 불일치 발견 (전체 ${allQuestions.length}개 중)`);
 
-    // 4. 드라이런 모드
-    if (dryRun) {
-      return NextResponse.json({
-        success: true,
-        dryRun: true,
-        message: `드라이런 모드: ${updates.length}개의 해설이 수정됩니다.`,
-        totalRecords: allQuestions.length,
-        affectedRecords: updates.length,
-        samples: updates.slice(0, 15)
-      });
-    }
-
-    // 5. 실제 업데이트 (배치 처리)
-    let successCount = 0;
-    let errorCount = 0;
-    const batchSize = 100;
-
-    console.log(`🔄 ${updates.length}개 어휘문제 해설 업데이트 시작`);
-
-    for (let i = 0; i < updates.length; i += batchSize) {
-      const batch = updates.slice(i, i + batchSize);
-
-      const batchPromises = batch.map(async (update) => {
-        try {
-          const { error } = await supabase
-            .from('vocabulary_questions')
-            .update({ explanation: update.converted })
-            .eq('id', update.id);
-
-          return error ? { success: false } : { success: true };
-        } catch (err) {
-          console.error(`Error updating question ${update.id}:`, err);
-          return { success: false };
-        }
-      });
-
-      const batchResults = await Promise.all(batchPromises);
-      successCount += batchResults.filter(r => r.success).length;
-      errorCount += batchResults.filter(r => !r.success).length;
-
-      // API 부하 방지를 위한 대기
-      if (i + batchSize < updates.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-
-    console.log(`✅ 완료 - 성공: ${successCount}, 실패: ${errorCount}`);
-
+    // 4. 결과 반환 (이 API는 보고만 하고 수정하지 않음)
     return NextResponse.json({
       success: true,
-      dryRun: false,
-      message: `어휘문제 해설 따옴표 검수 완료: ${successCount}개 성공, ${errorCount}개 실패`,
-      successCount,
-      errorCount,
-      totalProcessed: updates.length
+      dryRun: true, // 항상 드라이런 모드 (수정 기능 없음)
+      message: `정답-선택지 일치 검수 완료: ${mismatches.length}개 불일치 발견 (전체 ${allQuestions.length}개 중)`,
+      totalChecked: allQuestions.length,
+      mismatchCount: mismatches.length,
+      samples: mismatches.slice(0, 30) // 샘플 30개 제공
     });
 
   } catch (error) {
-    console.error('어휘문제 해설 따옴표 검수 오류:', error);
+    console.error('종합문제 정답-선택지 일치 검수 오류:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : '알 수 없는 오류'

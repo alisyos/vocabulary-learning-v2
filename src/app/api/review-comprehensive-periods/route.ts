@@ -6,14 +6,19 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// 5글자 이하의 작은따옴표로 감싸진 단어만 제거하는 함수
-function removeShortQuotesFromExplanation(text: string): string {
-  if (!text) return text;
+// '~다'로 끝나는데 마침표가 없는 경우 마침표 추가하는 함수
+function addPeriodIfNeeded(text: string): string {
+  if (!text || typeof text !== 'string') return text;
 
-  // 모든 종류의 작은따옴표로 감싸진 1~5글자 단어만 따옴표 제거
-  // U+0027 ('), U+2018 ('), U+2019 ('), U+201A (‚), U+201B (‛) 모두 처리
-  // {1,5}는 1글자부터 5글자까지만 매칭
-  return text.replace(/[\u0027\u2018\u2019\u201A\u201B]([^\u0027\u2018\u2019\u201A\u201B]{1,5})[\u0027\u2018\u2019\u201A\u201B]/g, '$1');
+  const trimmed = text.trim();
+
+  // '~다'로 끝나는 경우만 처리
+  if (trimmed.endsWith('다') && !trimmed.endsWith('다.')) {
+    return trimmed + '.';
+  }
+
+  // '다'로 끝나지 않는 경우 원본 그대로 반환 (trim 하지 않음)
+  return text;
 }
 
 export async function POST(request: NextRequest) {
@@ -26,7 +31,7 @@ export async function POST(request: NextRequest) {
     const pageSize = 1000;
     let hasMoreData = true;
 
-    console.log(`📊 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
+    console.log(`📊 종합문제 마침표 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
 
     while (hasMoreData) {
       let query = supabase
@@ -80,9 +85,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 어휘문제 조회 시작`);
+    console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 종합문제 조회 시작`);
 
-    // 2. vocabulary_questions 테이블에서 해당 content_set_id의 모든 레코드 조회 (페이지네이션 적용)
+    // 2. comprehensive_questions 테이블에서 해당 content_set_id의 모든 레코드 조회 (페이지네이션 적용)
     // contentSetIds를 청크로 나누어 조회 (in 절 제한 고려)
     const chunkSize = 100;
     let allQuestions: any[] = [];
@@ -96,7 +101,7 @@ export async function POST(request: NextRequest) {
 
       while (hasMore) {
         const { data, error } = await supabase
-          .from('vocabulary_questions')
+          .from('comprehensive_questions')
           .select('*')
           .in('content_set_id', chunk)
           .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
@@ -115,49 +120,65 @@ export async function POST(request: NextRequest) {
       console.log(`  청크 ${Math.floor(i / chunkSize) + 1}/${Math.ceil(contentSetIds.length / chunkSize)}: ${allQuestions.length}개 누적`);
     }
 
-    console.log(`📄 총 ${allQuestions.length}개 어휘문제 조회 완료`);
+    console.log(`📄 총 ${allQuestions.length}개 종합문제 조회 완료`);
 
     if (allQuestions.length === 0) {
       return NextResponse.json({
         success: true,
         dryRun,
-        message: '검수 대상 어휘문제가 없습니다.',
+        message: '검수 대상 종합문제가 없습니다.',
         samples: []
       });
     }
 
-    // 3. 각 문제의 explanation 필드 검사 및 변환
+    // 3. 각 문제의 선택지와 정답에서 마침표 검사 및 추가
     const updates: any[] = [];
 
     for (const question of allQuestions) {
-      const original = question.explanation;
+      const fieldsToCheck = ['option_1', 'option_2', 'option_3', 'option_4', 'option_5', 'correct_answer'];
+      let needsUpdate = false;
+      const changedFields: any = {};
 
-      if (!original) continue;
+      for (const field of fieldsToCheck) {
+        const original = question[field];
+        if (!original) continue;
 
-      const converted = removeShortQuotesFromExplanation(original);
+        const converted = addPeriodIfNeeded(original);
 
-      if (original !== converted) {
+        if (original !== converted) {
+          changedFields[field] = {
+            original,
+            converted
+          };
+          needsUpdate = true;
+        }
+      }
+
+      if (needsUpdate) {
         updates.push({
           id: question.id,
           content_set_id: question.content_set_id,
-          original,
-          converted,
-          needsUpdate: true
+          question_number: question.question_number,
+          question_type: question.question_type,
+          changedFields,
+          updateData: Object.fromEntries(
+            Object.entries(changedFields).map(([field, value]: [string, any]) => [field, value.converted])
+          )
         });
       }
     }
 
-    console.log(`✅ ${updates.length}개의 해설에서 따옴표 발견`);
+    console.log(`✅ ${updates.length}개의 문제에서 마침표 누락 발견`);
 
     // 4. 드라이런 모드
     if (dryRun) {
       return NextResponse.json({
         success: true,
         dryRun: true,
-        message: `드라이런 모드: ${updates.length}개의 해설이 수정됩니다.`,
+        message: `드라이런 모드: ${updates.length}개의 문제가 수정됩니다.`,
         totalRecords: allQuestions.length,
         affectedRecords: updates.length,
-        samples: updates.slice(0, 15)
+        samples: updates.slice(0, 20)
       });
     }
 
@@ -166,7 +187,7 @@ export async function POST(request: NextRequest) {
     let errorCount = 0;
     const batchSize = 100;
 
-    console.log(`🔄 ${updates.length}개 어휘문제 해설 업데이트 시작`);
+    console.log(`🔄 ${updates.length}개 종합문제 업데이트 시작`);
 
     for (let i = 0; i < updates.length; i += batchSize) {
       const batch = updates.slice(i, i + batchSize);
@@ -174,8 +195,8 @@ export async function POST(request: NextRequest) {
       const batchPromises = batch.map(async (update) => {
         try {
           const { error } = await supabase
-            .from('vocabulary_questions')
-            .update({ explanation: update.converted })
+            .from('comprehensive_questions')
+            .update(update.updateData)
             .eq('id', update.id);
 
           return error ? { success: false } : { success: true };
@@ -200,14 +221,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       dryRun: false,
-      message: `어휘문제 해설 따옴표 검수 완료: ${successCount}개 성공, ${errorCount}개 실패`,
+      message: `종합문제 마침표 검수 완료: ${successCount}개 성공, ${errorCount}개 실패`,
       successCount,
       errorCount,
       totalProcessed: updates.length
     });
 
   } catch (error) {
-    console.error('어휘문제 해설 따옴표 검수 오류:', error);
+    console.error('종합문제 마침표 검수 오류:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : '알 수 없는 오류'

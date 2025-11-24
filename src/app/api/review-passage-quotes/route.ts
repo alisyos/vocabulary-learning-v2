@@ -10,9 +10,10 @@ const supabase = createClient(
 function removeQuotesFromText(text: string): string {
   if (!text) return text;
 
-  // '단어' 패턴을 찾아서 단어만 남김 (작은따옴표 제거)
+  // 모든 종류의 작은따옴표 패턴을 찾아서 단어만 남김
+  // U+0027 ('), U+2018 ('), U+2019 ('), U+201A (‚), U+201B (‛) 모두 처리
   // 길이 제한 없이 모든 따옴표 처리
-  return text.replace(/'([^']+)'/g, '$1');
+  return text.replace(/[\u0027\u2018\u2019\u201A\u201B]([^\u0027\u2018\u2019\u201A\u201B]+)[\u0027\u2018\u2019\u201A\u201B]/g, '$1');
 }
 
 export async function POST(request: NextRequest) {
