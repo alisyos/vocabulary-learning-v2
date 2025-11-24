@@ -6,13 +6,34 @@ import type {
   Passage,
   VocabularyTerm,
   VocabularyQuestion,
-  ComprehensiveQuestionDB
+  ComprehensiveQuestionDB,
+  User
 } from '../../../types';
 
 export async function POST(request: NextRequest) {
   try {
     console.log('🚀 save-final-supabase API 시작');
-    
+
+    // 🔐 세션에서 사용자 정보 가져오기
+    let currentUserId = 'anonymous';
+    try {
+      const sessionCookie = request.cookies.get('session');
+      if (sessionCookie) {
+        const user: User = JSON.parse(sessionCookie.value);
+        if (user && user.userId) {
+          currentUserId = user.userId;
+          console.log('✅ 로그인 사용자:', currentUserId, '(', user.name, ')');
+        } else {
+          console.log('⚠️ 세션 쿠키는 있지만 userId가 없음');
+        }
+      } else {
+        console.log('⚠️ 세션 쿠키가 없음 - anonymous로 저장됨');
+      }
+    } catch (sessionError) {
+      console.error('❌ 세션 읽기 오류:', sessionError);
+      console.log('⚠️ 세션 오류로 인해 anonymous로 저장됨');
+    }
+
     const data = await request.json();
     console.log('📥 받은 데이터:', JSON.stringify(data, null, 2));
     
@@ -100,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     // Transform input data to ContentSet format
     const contentSetData: Omit<ContentSet, 'id' | 'created_at' | 'updated_at'> = {
-      user_id: data.userId || 'anonymous', // 실제 로그인 사용자 정보 사용
+      user_id: currentUserId, // 🔐 세션에서 가져온 사용자 ID 사용
       division: input.division, // 구분
       grade: input.grade || '3학년', // 실제 학년 (input.grade가 없으면 기본값)
       grade_number: input.grade_number && String(input.grade_number).trim() !== '' ? String(input.grade_number).trim() : null, // 과목 넘버

@@ -4,7 +4,8 @@ import { parseFootnoteToVocabularyTerm } from '../../../lib/vocabularyParser';
 import type {
   ContentSet,
   Passage,
-  VocabularyTerm
+  VocabularyTerm,
+  User
 } from '../../../types';
 
 // Helper function to infer division from grade
@@ -27,6 +28,26 @@ function inferDivisionFromGrade(grade: string): string {
 export async function POST(request: NextRequest) {
   try {
     console.log('🚀 save-intermediate API 시작');
+
+    // 🔐 세션에서 사용자 정보 가져오기
+    let currentUserId = 'anonymous';
+    try {
+      const sessionCookie = request.cookies.get('session');
+      if (sessionCookie) {
+        const user: User = JSON.parse(sessionCookie.value);
+        if (user && user.userId) {
+          currentUserId = user.userId;
+          console.log('✅ 로그인 사용자:', currentUserId, '(', user.name, ')');
+        } else {
+          console.log('⚠️ 세션 쿠키는 있지만 userId가 없음');
+        }
+      } else {
+        console.log('⚠️ 세션 쿠키가 없음 - anonymous로 저장됨');
+      }
+    } catch (sessionError) {
+      console.error('❌ 세션 읽기 오류:', sessionError);
+      console.log('⚠️ 세션 오류로 인해 anonymous로 저장됨');
+    }
 
     const data = await request.json();
     console.log('📥 받은 데이터:', JSON.stringify(data, null, 2));
@@ -154,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     // Transform input data to ContentSet format (중간 저장용 - 1차검수 상태)
     const contentSetData: Omit<ContentSet, 'id' | 'created_at' | 'updated_at'> = {
-      user_id: data.userId || 'anonymous',
+      user_id: currentUserId, // 🔐 세션에서 가져온 사용자 ID 사용
       division: division,
       grade: grade,
       grade_number: gradeNumber && String(gradeNumber).trim() !== '' ? String(gradeNumber).trim() : null,
