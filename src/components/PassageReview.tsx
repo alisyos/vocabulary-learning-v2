@@ -48,6 +48,23 @@ export default function PassageReview({
   // 중간 저장 관련 상태
   const [saving, setSaving] = useState(false);
 
+  // session_number 관련 상태
+  const [sessionNumber, setSessionNumber] = useState<string>(contextInfo?.session_number || '');
+  const [curriculumDataMatch, setCurriculumDataMatch] = useState<any>(null);
+  const [loadingCurriculum, setLoadingCurriculum] = useState(false);
+  const [sessionNumberError, setSessionNumberError] = useState<string>('');
+
+  // Grade별 passage_length와 text_type 매핑
+  const GRADE_VALUES_MAP: Record<string, { division: string; passage_length: string; text_type: string }> = {
+    '중1': { division: '중학생(1-3학년)', passage_length: '2개의 지문 생성. 지문당 500자 내외 - 총 1,000자', text_type: '설명문' },
+    '중2': { division: '중학생(1-3학년)', passage_length: '2개의 지문 생성. 지문당 500자 내외 - 총 1,000자', text_type: '설명문' },
+    '중3': { division: '중학생(1-3학년)', passage_length: '2개의 지문 생성. 지문당 500자 내외 - 총 1,000자', text_type: '설명문' },
+    '초3': { division: '초등학교 중학년(3-4학년)', passage_length: '2개의 지문 생성. 지문당 300자 내외 - 총 600자', text_type: '기행문' },
+    '초4': { division: '초등학교 중학년(3-4학년)', passage_length: '2개의 지문 생성. 지문당 300자 내외 - 총 600자', text_type: '기행문' },
+    '초5': { division: '초등학교 고학년(5-6학년)', passage_length: '2개의 지문 생성. 지문당 400자 내외 - 총 800자', text_type: '논설문' },
+    '초6': { division: '초등학교 고학년(5-6학년)', passage_length: '2개의 지문 생성. 지문당 400자 내외 - 총 800자', text_type: '논설문' }
+  };
+
   // 2개 지문 형식인지 확인
   const isDualPassageFormat = localPassage.passages && localPassage.passages.length > 0;
   
@@ -56,6 +73,99 @@ export default function PassageReview({
     console.log('🔄 PassageReview - editablePassage prop 변경됨:', editablePassage);
     setLocalPassage(editablePassage);
   }, [editablePassage]);
+
+  // session_number 변경 시 curriculum_data 조회
+  useEffect(() => {
+    const fetchCurriculumData = async () => {
+      if (!sessionNumber || sessionNumber.trim() === '') {
+        setCurriculumDataMatch(null);
+        setSessionNumberError('');
+        return;
+      }
+
+      setLoadingCurriculum(true);
+      setSessionNumberError('');
+
+      try {
+        // GET 메서드로 curriculum_data 조회
+        const response = await fetch('/api/get-curriculum-structure');
+
+        console.log('📡 API 응답 상태:', response.status, response.statusText);
+        console.log('📡 응답 헤더:', {
+          contentType: response.headers.get('content-type'),
+          dataSource: response.headers.get('X-Data-Source'),
+          recordsCount: response.headers.get('X-Records-Count')
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        // 응답 텍스트를 먼저 받아서 확인
+        const responseText = await response.text();
+        console.log('📄 응답 텍스트 길이:', responseText.length);
+        console.log('📄 응답 텍스트 미리보기:', responseText.substring(0, 200));
+
+        // JSON 파싱 시도
+        let curriculumData;
+        try {
+          curriculumData = JSON.parse(responseText);
+          console.log('✅ JSON 파싱 성공, 데이터 개수:', Array.isArray(curriculumData) ? curriculumData.length : 'not array');
+        } catch (parseError) {
+          console.error('❌ JSON 파싱 실패:', parseError);
+          console.error('응답 전체 텍스트:', responseText);
+          throw new Error('응답을 JSON으로 파싱할 수 없습니다.');
+        }
+
+        // curriculum_data는 배열로 반환됨
+        if (Array.isArray(curriculumData)) {
+          console.log('🔍 curriculum_data 샘플 (첫 3개):', curriculumData.slice(0, 3));
+
+          // session_number로 매칭되는 데이터 찾기
+          const match = curriculumData.find((item: any) =>
+            String(item.session_number) === String(sessionNumber)
+          );
+
+          if (match) {
+            console.log('✅ 매칭 성공:', match);
+
+            // 학년 기반으로 passage_length와 text_type 추가
+            const gradeValues = GRADE_VALUES_MAP[match.grade];
+            const enrichedMatch = {
+              ...match,
+              division: gradeValues?.division || match.division,
+              passage_length: gradeValues?.passage_length || match.passage_length,
+              text_type: gradeValues?.text_type || match.text_type
+            };
+
+            console.log('📝 학년 기반 값 추가:', enrichedMatch);
+            setCurriculumDataMatch(enrichedMatch);
+            setSessionNumberError('');
+          } else {
+            console.log('❌ 매칭 실패 - session_number를 찾을 수 없음');
+            // 디버깅: 모든 session_number 출력
+            const allSessionNumbers = curriculumData.map((item: any) => item.session_number).filter(Boolean);
+            console.log('사용 가능한 session_number 목록 (첫 20개):', allSessionNumbers.slice(0, 20));
+
+            setCurriculumDataMatch(null);
+            setSessionNumberError(`session_number "${sessionNumber}"에 해당하는 교육과정 데이터를 찾을 수 없습니다.`);
+          }
+        } else {
+          console.error('❌ 응답이 배열이 아닙니다:', typeof curriculumData);
+          setCurriculumDataMatch(null);
+          setSessionNumberError('교육과정 데이터를 불러오는데 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('curriculum_data 조회 오류:', error);
+        setCurriculumDataMatch(null);
+        setSessionNumberError('교육과정 데이터 조회 중 오류가 발생했습니다.');
+      } finally {
+        setLoadingCurriculum(false);
+      }
+    };
+
+    fetchCurriculumData();
+  }, [sessionNumber]);
   
   // 디버깅 로그
   console.log('🔍 PassageReview - editablePassage:', editablePassage);
@@ -703,7 +813,28 @@ export default function PassageReview({
       return;
     }
 
-    const confirmed = confirm('현재까지 작성한 지문을 중간 저장하시겠습니까?\n\n중간 저장 시 상태가 "1차검수"로 저장됩니다.');
+    // session_number 필수 검증
+    if (!sessionNumber || sessionNumber.trim() === '') {
+      alert('session_number를 입력해주세요.\n\nsession_number는 필수 항목입니다.');
+      return;
+    }
+
+    // curriculum_data 매칭 여부 확인
+    if (!curriculumDataMatch) {
+      alert(`session_number "${sessionNumber}"에 해당하는 교육과정 데이터를 찾을 수 없습니다.\n\n올바른 session_number를 입력해주세요.`);
+      return;
+    }
+
+    const confirmed = confirm(
+      `현재까지 작성한 지문을 중간 저장하시겠습니까?\n\n` +
+      `Session Number: ${sessionNumber}\n` +
+      `학년: ${curriculumDataMatch.grade}\n` +
+      `과목: ${curriculumDataMatch.subject}\n` +
+      `영역: ${curriculumDataMatch.area}\n` +
+      `대주제: ${curriculumDataMatch.main_topic}\n` +
+      `소주제: ${curriculumDataMatch.sub_topic}\n\n` +
+      `중간 저장 시 상태가 "1차검수"로 저장됩니다.`
+    );
     if (!confirmed) return;
 
     setSaving(true);
@@ -718,7 +849,7 @@ export default function PassageReview({
             grade_number: contextInfo.grade_number || null,
             subject: contextInfo.subject || '',
             area: contextInfo.area || '',
-            session_number: contextInfo.session_number || null,
+            session_number: sessionNumber, // 사용자가 입력/확인한 session_number 사용
             maintopic: contextInfo.main_topic || '',
             subtopic: contextInfo.sub_topic || '',
             keyword: contextInfo.keywords || '',
@@ -751,7 +882,7 @@ export default function PassageReview({
           <h2 className="text-xl font-bold text-gray-800">2단계: 지문 검토 및 수정</h2>
           <button
             onClick={handleIntermediateSave}
-            disabled={saving || loading || (isDualPassageFormat ?
+            disabled={saving || loading || !sessionNumber || !curriculumDataMatch || (isDualPassageFormat ?
               !localPassage.passages?.every(p => p.title.trim()) :
               !localPassage.title.trim())}
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
@@ -782,6 +913,91 @@ export default function PassageReview({
           <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
             {isDualPassageFormat ? '2개 지문 검토' : '검토 및 수정'}
           </span>
+        </div>
+      </div>
+
+      {/* Session Number 입력 및 교육과정 데이터 확인 섹션 */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg">
+        <div className="space-y-3">
+          <div className="flex items-start gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-purple-900 mb-2">
+                Session Number (필수) *
+              </label>
+              <input
+                type="text"
+                value={sessionNumber}
+                onChange={(e) => setSessionNumber(e.target.value)}
+                placeholder="Session Number를 입력하세요 (예: 513)"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                  sessionNumberError ? 'border-red-400 bg-red-50' : 'border-purple-300 bg-white'
+                }`}
+              />
+              {loadingCurriculum && (
+                <p className="mt-1 text-sm text-purple-600">🔍 교육과정 데이터 조회 중...</p>
+              )}
+              {sessionNumberError && (
+                <p className="mt-1 text-sm text-red-600">❌ {sessionNumberError}</p>
+              )}
+              {!sessionNumber && (
+                <p className="mt-1 text-sm text-orange-600">⚠️ session_number를 입력하지 않으면 중간 저장할 수 없습니다.</p>
+              )}
+            </div>
+          </div>
+
+          {/* curriculum_data 매칭 결과 표시 */}
+          {curriculumDataMatch && (
+            <div className="bg-white p-4 rounded-lg border border-green-300">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-green-600 font-semibold">✅ 교육과정 데이터 매칭 성공</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <span className="text-gray-600 font-medium">Session Number:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.session_number}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600 font-medium">학년:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.grade}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600 font-medium">구분:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.division}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600 font-medium">과목:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.subject}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600 font-medium">영역:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.area}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600 font-medium">Grade Number:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.grade_number}</span>
+                </div>
+                <div className="col-span-2 md:col-span-3">
+                  <span className="text-gray-600 font-medium">대주제:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.main_topic}</span>
+                </div>
+                <div className="col-span-2 md:col-span-3">
+                  <span className="text-gray-600 font-medium">소주제:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.sub_topic}</span>
+                </div>
+                <div className="col-span-2 md:col-span-3">
+                  <span className="text-gray-600 font-medium">지문 길이:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.passage_length || '-'}</span>
+                </div>
+                <div className="col-span-2 md:col-span-3">
+                  <span className="text-gray-600 font-medium">지문 유형:</span>
+                  <span className="ml-2 text-gray-900">{curriculumDataMatch.text_type || '-'}</span>
+                </div>
+              </div>
+              <div className="mt-3 p-2 bg-green-50 rounded text-sm text-green-800">
+                💡 중간 저장 시 위 교육과정 데이터의 모든 필드 값이 자동으로 저장됩니다.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -40,7 +40,8 @@
       "Bash(netstat:*)",
       "Bash(ss:*)",
       "Bash(timeout 10 npm run dev:*)",
-      "Bash(npx ts-node:*)"
+      "Bash(npx ts-node:*)",
+      "Bash(timeout 30 npm run dev)"
     ],
     "deny": []
   }

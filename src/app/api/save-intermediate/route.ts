@@ -128,49 +128,76 @@ export async function POST(request: NextRequest) {
       passageTitle
     });
 
-    // 🔍 curriculum_data에서 main_topic과 sub_topic이 일치하는 레코드 찾기
+    // 🔍 session_number 필수 검증
+    const inputSessionNumber = input.session_number;
+
+    if (!inputSessionNumber) {
+      console.log('❌ session_number가 제공되지 않음');
+      return NextResponse.json({
+        success: false,
+        message: 'session_number는 필수 항목입니다. session_number를 선택하거나 입력해주세요.'
+      }, { status: 400 });
+    }
+
+    console.log('✅ session_number 확인:', inputSessionNumber);
+
+    // 🔍 curriculum_data에서 session_number로 레코드 찾기
     const mainTopic = input.maintopic || input.mainTopic || '';
     const subTopic = input.subtopic || input.subTopic || '';
     let curriculumMatch = null;
 
-    if (mainTopic && subTopic) {
-      console.log('🔍 curriculum_data에서 매칭 레코드 조회 중...', { mainTopic, subTopic });
+    try {
+      console.log('🔍 curriculum_data에서 session_number 기준 매칭 레코드 조회 중...', { session_number: inputSessionNumber });
 
-      try {
-        const curriculumData = await db.getCurriculumData({
-          subject: input.subject,
-          area: input.area
+      const curriculumData = await db.getCurriculumData({});
+
+      curriculumMatch = curriculumData.find(
+        (item: any) => String(item.session_number) === String(inputSessionNumber)
+      );
+
+      if (curriculumMatch) {
+        console.log('✅ curriculum_data에서 session_number 기준 매칭 레코드 발견:', {
+          session_number: curriculumMatch.session_number,
+          grade: curriculumMatch.grade,
+          main_topic: curriculumMatch.main_topic,
+          sub_topic: curriculumMatch.sub_topic,
+          grade_number: curriculumMatch.grade_number,
+          division: curriculumMatch.division,
+          passage_length: curriculumMatch.passage_length,
+          text_type: curriculumMatch.text_type
         });
-
-        curriculumMatch = curriculumData.find(
-          (item: any) => item.main_topic === mainTopic && item.sub_topic === subTopic
-        );
-
-        if (curriculumMatch) {
-          console.log('✅ curriculum_data에서 매칭 레코드 발견:', {
-            grade: curriculumMatch.grade,
-            grade_number: curriculumMatch.grade_number,
-            session_number: curriculumMatch.session_number
-          });
-        } else {
-          console.log('⚠️ curriculum_data에서 매칭 레코드를 찾지 못함');
-        }
-      } catch (error) {
-        console.error('❌ curriculum_data 조회 실패:', error);
+      } else {
+        console.log('⚠️ curriculum_data에서 session_number로 매칭 레코드를 찾지 못함');
+        return NextResponse.json({
+          success: false,
+          message: `session_number ${inputSessionNumber}에 해당하는 교육과정 데이터를 찾을 수 없습니다.`
+        }, { status: 400 });
       }
+    } catch (error) {
+      console.error('❌ curriculum_data 조회 실패:', error);
+      return NextResponse.json({
+        success: false,
+        message: 'curriculum_data 조회 중 오류가 발생했습니다.'
+      }, { status: 500 });
     }
 
-    // curriculum_data에서 가져온 값 또는 input 값 사용, 또는 추론
-    const grade = curriculumMatch?.grade || input.grade || '3학년';
-    const gradeNumber = curriculumMatch?.grade_number || input.grade_number || null;
-    const sessionNumber = curriculumMatch?.session_number || input.session_number || null;
-    const division = input.division || inferDivisionFromGrade(grade);
+    // curriculum_data에서 가져온 값 사용 (session_number 기준이므로 모두 curriculum_data 우선)
+    const grade = curriculumMatch.grade;
+    const gradeNumber = curriculumMatch.grade_number;
+    const sessionNumber = curriculumMatch.session_number;
+    const division = curriculumMatch.division || inferDivisionFromGrade(grade);
+    const passageLength = curriculumMatch.passage_length || input.length || null;
+    const textType = curriculumMatch.text_type || input.textType || null;
 
-    console.log('📌 최종 사용할 값:', {
+    console.log('📌 curriculum_data에서 가져온 최종 값:', {
+      session_number: sessionNumber,
       division,
       grade,
       gradeNumber,
-      sessionNumber
+      passage_length: passageLength,
+      text_type: textType,
+      main_topic: curriculumMatch.main_topic,
+      sub_topic: curriculumMatch.sub_topic
     });
 
     // Transform input data to ContentSet format (중간 저장용 - 1차검수 상태)
@@ -179,12 +206,12 @@ export async function POST(request: NextRequest) {
       division: division,
       grade: grade,
       grade_number: gradeNumber && String(gradeNumber).trim() !== '' ? String(gradeNumber).trim() : null,
-      subject: input.subject,
-      area: input.area,
+      subject: curriculumMatch.subject, // curriculum_data에서 가져옴
+      area: curriculumMatch.area, // curriculum_data에서 가져옴
       session_number: sessionNumber && String(sessionNumber).trim() !== '' ? String(sessionNumber).trim() : null,
-      main_topic: mainTopic,
-      sub_topic: subTopic,
-      keywords: input.keyword || input.keywords || '',
+      main_topic: curriculumMatch.main_topic, // curriculum_data에서 가져옴
+      sub_topic: curriculumMatch.sub_topic, // curriculum_data에서 가져옴
+      keywords: curriculumMatch.keywords || input.keyword || input.keywords || '',
       title: passageTitle,
       total_passages: actualParagraphCount,
       total_vocabulary_terms: totalFootnoteCount,
@@ -192,8 +219,8 @@ export async function POST(request: NextRequest) {
       total_paragraph_questions: 0, // 중간 저장 시 아직 생성 안됨
       total_comprehensive_questions: 0, // 중간 저장 시 아직 생성 안됨
       status: '1차검수', // 🔑 중간 저장 상태
-      passage_length: input.length || null,
-      text_type: input.textType || null,
+      passage_length: passageLength, // curriculum_data에서 가져옴
+      text_type: textType, // curriculum_data에서 가져옴
       introduction_question: editablePassage?.introduction_question || null
     };
 

@@ -234,8 +234,10 @@ export default function ManagePage() {
         (item.id || '').toLowerCase().includes(searchTerm) ||
         // 기존 검색 필드들
         (item.title || item.passageTitle || '').toLowerCase().includes(searchTerm) ||
-        (item.mainTopic || item.maintopic || '').toLowerCase().includes(searchTerm) ||
-        (item.subTopic || item.subtopic || '').toLowerCase().includes(searchTerm) ||
+        // 대주제 검색 (main_topic, mainTopic, maintopic 모두 지원)
+        (item.main_topic || item.mainTopic || item.maintopic || '').toLowerCase().includes(searchTerm) ||
+        // 소주제 검색 (sub_topic, subTopic, subtopic 모두 지원)
+        (item.sub_topic || item.subTopic || item.subtopic || '').toLowerCase().includes(searchTerm) ||
         (item.keywords || item.keyword || '').toLowerCase().includes(searchTerm)
       );
     }
