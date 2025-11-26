@@ -249,7 +249,7 @@ export default function FinalReviewPage() {
       setComprehensivePeriodsResult(data);
 
       if (!dryRun && data.success) {
-        alert(`✅ 종합문제 마침표 검수 완료!\n\n${data.successCount}개 수정됨`);
+        alert(`✅ 종합/문단 문제 마침표 검수 완료!\n\n${data.successCount}개 수정됨\n(종합문제: ${data.comprehensiveCount || 0}개, 문단문제: ${data.paragraphCount || 0}개)`);
       }
     } catch (error) {
       console.error('종합문제 마침표 검수 오류:', error);
@@ -754,15 +754,19 @@ export default function FinalReviewPage() {
           )}
         </div>
 
-        {/* 검수 항목 5: 종합문제 선택지/정답 마침표 검수 */}
+        {/* 검수 항목 5: 종합문제/문단문제 선택지 마침표 검수 */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-3">
-            📌 5. 종합문제 선택지/정답 마침표 검수
+            📌 5. 종합/문단 문제 선택지 마침표 검수
           </h2>
           <p className="text-gray-600 mb-4">
-            종합문제(comprehensive_questions) 테이블의 선택지(option_1~5)와 정답(correct_answer)에서 '~다'로 끝나는데 마침표가 없는 경우 마침표를 추가합니다.
+            종합문제(comprehensive_questions)와 문단문제(paragraph_questions) 테이블의 선택지에서 '~다'로 끝나는데 마침표가 없는 경우 마침표를 추가합니다.
             <br />
             <span className="text-sm text-gray-500">
+              • 종합문제: 선택지(option_1~5)와 정답(correct_answer)
+              <br />
+              • 문단문제: 선택지(option_1~5)만 처리
+              <br />
               예: '공급이 증가한다' → '공급이 증가한다.'
             </span>
           </p>
@@ -777,7 +781,7 @@ export default function FinalReviewPage() {
             </button>
             <button
               onClick={() => {
-                if (confirm('⚠️ 종합문제 선택지/정답에 마침표를 실제로 추가하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+                if (confirm('⚠️ 종합문제/문단문제 선택지에 마침표를 실제로 추가하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
                   handleComprehensivePeriodsReview(false);
                 }
               }}
@@ -796,6 +800,19 @@ export default function FinalReviewPage() {
               </h3>
               <p className="text-gray-700 mb-2">{comprehensivePeriodsResult.message}</p>
 
+              {/* 종합/문단 문제별 건수 표시 */}
+              {comprehensivePeriodsResult.dryRun && (comprehensivePeriodsResult as any).comprehensiveCount !== undefined && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-800">
+                    <strong>📊 상세 내역:</strong>
+                    <br />
+                    • 종합문제: <strong>{(comprehensivePeriodsResult as any).comprehensiveCount}개</strong>
+                    <br />
+                    • 문단문제: <strong>{(comprehensivePeriodsResult as any).paragraphCount}개</strong>
+                  </p>
+                </div>
+              )}
+
               {comprehensivePeriodsResult.dryRun && comprehensivePeriodsResult.samples && comprehensivePeriodsResult.samples.length > 0 && (
                 <div className="mt-3">
                   <p className="text-sm font-semibold text-gray-700 mb-2">
@@ -808,6 +825,13 @@ export default function FinalReviewPage() {
                           콘텐츠 세트: {sample.content_set_id}
                         </div>
                         <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            sample.tableName === 'comprehensive_questions'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-orange-100 text-orange-700'
+                          }`}>
+                            {sample.tableName === 'comprehensive_questions' ? '종합문제' : '문단문제'}
+                          </span>
                           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
                             문제 #{sample.question_number}
                           </span>
@@ -839,6 +863,12 @@ export default function FinalReviewPage() {
                     <div className="text-2xl font-bold text-green-700">
                       {comprehensivePeriodsResult.successCount || 0}
                     </div>
+                    {(comprehensivePeriodsResult as any).comprehensiveCount !== undefined && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        종합: {(comprehensivePeriodsResult as any).comprehensiveCount}개,
+                        문단: {(comprehensivePeriodsResult as any).paragraphCount}개
+                      </div>
+                    )}
                   </div>
                   <div className="bg-white p-3 rounded">
                     <div className="text-sm text-gray-600">실패</div>

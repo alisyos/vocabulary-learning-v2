@@ -65,6 +65,7 @@ const statusOptions = [
 export default function DownloadPage() {
   const [activeTab, setActiveTab] = useState('content_sets');
   const [downloading, setDownloading] = useState<{ [key: string]: boolean }>({});
+  const [downloadingKeywords, setDownloadingKeywords] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['all']);
   const [sessionRange, setSessionRange] = useState<string>(''); // 차시 범위 (예: "1-100")
   const [sessionRangeError, setSessionRangeError] = useState<string>('');
@@ -183,6 +184,68 @@ export default function DownloadPage() {
       alert(error instanceof Error ? error.message : 'Download failed');
     } finally {
       setDownloading(prev => ({ ...prev, [tableName]: false }));
+    }
+  };
+
+  const handleDownloadKeywords = async () => {
+    // 차시 범위 검증
+    const rangeValidation = validateSessionRange(sessionRange);
+    if (!rangeValidation.valid) {
+      alert(rangeValidation.error || '차시 범위 입력이 올바르지 않습니다.');
+      return;
+    }
+
+    setDownloadingKeywords(true);
+
+    try {
+      // status 파라미터 구성
+      const statusParam = selectedStatuses.includes('all')
+        ? 'all'
+        : selectedStatuses.join(',');
+
+      // URL 파라미터 구성
+      const params = new URLSearchParams({
+        status: statusParam
+      });
+
+      // 차시 범위가 있으면 추가
+      if (sessionRange && sessionRange.trim() !== '') {
+        params.append('sessionRange', sessionRange.trim());
+      }
+
+      const response = await fetch(`/api/download-keywords?${params.toString()}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = 'keywords.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]*)"?/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error('Download keywords error:', error);
+      alert(error instanceof Error ? error.message : 'Download failed');
+    } finally {
+      setDownloadingKeywords(false);
     }
   };
 
@@ -407,6 +470,60 @@ export default function DownloadPage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Keywords Download Section (vocabulary_terms only) */}
+                  {activeTab === 'vocabulary_terms' && (
+                    <div className="bg-teal-50 border border-teal-200 rounded-lg p-6">
+                      <div className="text-center space-y-4">
+                        <div>
+                          <h4 className="text-lg font-medium text-teal-900">
+                            📌 키워드 리스트 다운로드 (has_question_generated = TRUE)
+                          </h4>
+                          <p className="text-sm text-teal-700 mt-1">
+                            <code className="bg-teal-100 px-2 py-1 rounded text-xs">
+                              has_question_generated = TRUE
+                            </code>인 키워드들을 콘텐츠 세트별로 그룹화하여 다운로드합니다.
+                          </p>
+                          <p className="text-xs text-teal-600 mt-2">
+                            출력 형식: 콘텐츠세트 ID, 차시, 상태값, 키워드 리스트 (슬래시로 구분)
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={handleDownloadKeywords}
+                          disabled={downloadingKeywords}
+                          className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white ${
+                            downloadingKeywords
+                              ? 'bg-gray-400 cursor-not-allowed'
+                              : 'bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500'
+                          }`}
+                        >
+                          {downloadingKeywords ? (
+                            <>
+                              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              다운로드 중...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                              </svg>
+                              키워드 리스트 다운로드
+                            </>
+                          )}
+                        </button>
+
+                        <div className="bg-white rounded-md p-3 border border-teal-100 mt-2">
+                          <p className="text-xs text-gray-600">
+                            <span className="font-semibold">예시:</span> 0c1db626-75d1-4760-855f-9f97c0cf681c, 2, 승인완료, 방위/거리/축척/기호/장소/지도
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Usage Notes */}
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">

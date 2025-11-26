@@ -21,6 +21,81 @@ function addPeriodIfNeeded(text: string): string {
   return text;
 }
 
+// 문제 테이블에서 선택지 마침표 검수하는 공통 함수
+async function processQuestionTable(
+  tableName: string,
+  contentSetIds: string[],
+  fieldsToCheck: string[]
+): Promise<{ questions: any[], updates: any[] }> {
+  const chunkSize = 100;
+  let allQuestions: any[] = [];
+
+  for (let i = 0; i < contentSetIds.length; i += chunkSize) {
+    const chunk = contentSetIds.slice(i, i + chunkSize);
+
+    // 각 청크에 대해 페이지네이션
+    let pageNum = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .in('content_set_id', chunk)
+        .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        allQuestions.push(...data);
+        if (data.length < 1000) hasMore = false;
+      } else {
+        hasMore = false;
+      }
+      pageNum++;
+    }
+  }
+
+  // 각 문제의 선택지에서 마침표 검사 및 추가
+  const updates: any[] = [];
+
+  for (const question of allQuestions) {
+    let needsUpdate = false;
+    const changedFields: any = {};
+
+    for (const field of fieldsToCheck) {
+      const original = question[field];
+      if (!original) continue;
+
+      const converted = addPeriodIfNeeded(original);
+
+      if (original !== converted) {
+        changedFields[field] = {
+          original,
+          converted
+        };
+        needsUpdate = true;
+      }
+    }
+
+    if (needsUpdate) {
+      updates.push({
+        id: question.id,
+        content_set_id: question.content_set_id,
+        question_number: question.question_number,
+        question_type: question.question_type,
+        tableName,
+        changedFields,
+        updateData: Object.fromEntries(
+          Object.entries(changedFields).map(([field, value]: [string, any]) => [field, value.converted])
+        )
+      });
+    }
+  }
+
+  return { questions: allQuestions, updates };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { dryRun = true, statuses = [], sessionRange = null } = await request.json();
@@ -31,7 +106,7 @@ export async function POST(request: NextRequest) {
     const pageSize = 1000;
     let hasMoreData = true;
 
-    console.log(`📊 종합문제 마침표 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
+    console.log(`📊 종합/문단 문제 마침표 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
 
     while (hasMoreData) {
       let query = supabase
@@ -85,123 +160,68 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 종합문제 조회 시작`);
+    console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 종합/문단 문제 조회 시작`);
 
-    // 2. comprehensive_questions 테이블에서 해당 content_set_id의 모든 레코드 조회 (페이지네이션 적용)
-    // contentSetIds를 청크로 나누어 조회 (in 절 제한 고려)
-    const chunkSize = 100;
-    let allQuestions: any[] = [];
+    // 2. 종합문제(comprehensive_questions) 조회 및 검사
+    const comprehensiveFieldsToCheck = ['option_1', 'option_2', 'option_3', 'option_4', 'option_5', 'correct_answer'];
+    const { questions: comprehensiveQuestions, updates: comprehensiveUpdates } = await processQuestionTable(
+      'comprehensive_questions',
+      contentSetIds,
+      comprehensiveFieldsToCheck
+    );
 
-    for (let i = 0; i < contentSetIds.length; i += chunkSize) {
-      const chunk = contentSetIds.slice(i, i + chunkSize);
+    console.log(`📄 종합문제: 총 ${comprehensiveQuestions.length}개 조회, ${comprehensiveUpdates.length}개 마침표 누락 발견`);
 
-      // 각 청크에 대해 페이지네이션
-      let pageNum = 0;
-      let hasMore = true;
+    // 3. 문단문제(paragraph_questions) 조회 및 검사 (선택지만, correct_answer 제외)
+    const paragraphFieldsToCheck = ['option_1', 'option_2', 'option_3', 'option_4', 'option_5'];
+    const { questions: paragraphQuestions, updates: paragraphUpdates } = await processQuestionTable(
+      'paragraph_questions',
+      contentSetIds,
+      paragraphFieldsToCheck
+    );
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('comprehensive_questions')
-          .select('*')
-          .in('content_set_id', chunk)
-          .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
+    console.log(`📄 문단문제: 총 ${paragraphQuestions.length}개 조회, ${paragraphUpdates.length}개 마침표 누락 발견`);
 
-        if (error) throw error;
+    // 4. 전체 업데이트 목록 합치기
+    const allUpdates = [...comprehensiveUpdates, ...paragraphUpdates];
+    const totalQuestions = comprehensiveQuestions.length + paragraphQuestions.length;
 
-        if (data && data.length > 0) {
-          allQuestions.push(...data);
-          if (data.length < 1000) hasMore = false;
-        } else {
-          hasMore = false;
-        }
-        pageNum++;
-      }
+    console.log(`✅ 전체: ${allUpdates.length}개의 문제에서 마침표 누락 발견 (종합: ${comprehensiveUpdates.length}개, 문단: ${paragraphUpdates.length}개)`);
 
-      console.log(`  청크 ${Math.floor(i / chunkSize) + 1}/${Math.ceil(contentSetIds.length / chunkSize)}: ${allQuestions.length}개 누적`);
-    }
-
-    console.log(`📄 총 ${allQuestions.length}개 종합문제 조회 완료`);
-
-    if (allQuestions.length === 0) {
-      return NextResponse.json({
-        success: true,
-        dryRun,
-        message: '검수 대상 종합문제가 없습니다.',
-        samples: []
-      });
-    }
-
-    // 3. 각 문제의 선택지와 정답에서 마침표 검사 및 추가
-    const updates: any[] = [];
-
-    for (const question of allQuestions) {
-      const fieldsToCheck = ['option_1', 'option_2', 'option_3', 'option_4', 'option_5', 'correct_answer'];
-      let needsUpdate = false;
-      const changedFields: any = {};
-
-      for (const field of fieldsToCheck) {
-        const original = question[field];
-        if (!original) continue;
-
-        const converted = addPeriodIfNeeded(original);
-
-        if (original !== converted) {
-          changedFields[field] = {
-            original,
-            converted
-          };
-          needsUpdate = true;
-        }
-      }
-
-      if (needsUpdate) {
-        updates.push({
-          id: question.id,
-          content_set_id: question.content_set_id,
-          question_number: question.question_number,
-          question_type: question.question_type,
-          changedFields,
-          updateData: Object.fromEntries(
-            Object.entries(changedFields).map(([field, value]: [string, any]) => [field, value.converted])
-          )
-        });
-      }
-    }
-
-    console.log(`✅ ${updates.length}개의 문제에서 마침표 누락 발견`);
-
-    // 4. 드라이런 모드
+    // 5. 드라이런 모드
     if (dryRun) {
       return NextResponse.json({
         success: true,
         dryRun: true,
-        message: `드라이런 모드: ${updates.length}개의 문제가 수정됩니다.`,
-        totalRecords: allQuestions.length,
-        affectedRecords: updates.length,
-        samples: updates.slice(0, 20)
+        message: `드라이런 모드: ${allUpdates.length}개의 문제가 수정됩니다. (종합문제: ${comprehensiveUpdates.length}개, 문단문제: ${paragraphUpdates.length}개)`,
+        totalRecords: totalQuestions,
+        affectedRecords: allUpdates.length,
+        comprehensiveCount: comprehensiveUpdates.length,
+        paragraphCount: paragraphUpdates.length,
+        samples: allUpdates.slice(0, 20)
       });
     }
 
-    // 5. 실제 업데이트 (배치 처리)
+    // 6. 실제 업데이트 (배치 처리)
     let successCount = 0;
     let errorCount = 0;
     const batchSize = 100;
 
-    console.log(`🔄 ${updates.length}개 종합문제 업데이트 시작`);
+    console.log(`🔄 ${allUpdates.length}개 문제 업데이트 시작`);
 
-    for (let i = 0; i < updates.length; i += batchSize) {
-      const batch = updates.slice(i, i + batchSize);
+    for (let i = 0; i < allUpdates.length; i += batchSize) {
+      const batch = allUpdates.slice(i, i + batchSize);
 
       const batchPromises = batch.map(async (update) => {
         try {
           const { error } = await supabase
-            .from('comprehensive_questions')
+            .from(update.tableName)
             .update(update.updateData)
             .eq('id', update.id);
 
           return error ? { success: false } : { success: true };
         } catch (err) {
-          console.error(`Error updating question ${update.id}:`, err);
+          console.error(`Error updating question ${update.id} in ${update.tableName}:`, err);
           return { success: false };
         }
       });
@@ -211,7 +231,7 @@ export async function POST(request: NextRequest) {
       errorCount += batchResults.filter(r => !r.success).length;
 
       // API 부하 방지를 위한 대기
-      if (i + batchSize < updates.length) {
+      if (i + batchSize < allUpdates.length) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
@@ -221,14 +241,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       dryRun: false,
-      message: `종합문제 마침표 검수 완료: ${successCount}개 성공, ${errorCount}개 실패`,
+      message: `마침표 검수 완료: ${successCount}개 성공, ${errorCount}개 실패 (종합문제: ${comprehensiveUpdates.length}개, 문단문제: ${paragraphUpdates.length}개)`,
       successCount,
       errorCount,
-      totalProcessed: updates.length
+      comprehensiveCount: comprehensiveUpdates.length,
+      paragraphCount: paragraphUpdates.length,
+      totalProcessed: allUpdates.length
     });
 
   } catch (error) {
-    console.error('종합문제 마침표 검수 오류:', error);
+    console.error('종합/문단 문제 마침표 검수 오류:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : '알 수 없는 오류'
