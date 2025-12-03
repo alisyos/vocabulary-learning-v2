@@ -1072,12 +1072,23 @@ export default function ParagraphQuestions({
                       value={question.answer}
                       onChange={(e) => handleQuestionUpdate(question.id, 'answer', e.target.value)}
                       className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                      placeholder={question.type === '어절 순서 맞추기' 
-                        ? "올바른 순서로 배열된 문장을 입력하세요" 
+                      placeholder={question.type === '어절 순서 맞추기'
+                        ? "올바른 순서로 배열된 문장을 입력하세요"
                         : "정답을 입력하세요 (예: 장래희망)"
                       }
                     />
+                  ) : question.type === 'OX문제' ? (
+                    // OX문제는 O/X 선택
+                    <select
+                      value={question.answer}
+                      onChange={(e) => handleQuestionUpdate(question.id, 'answer', e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                    >
+                      <option value="O">O (맞음)</option>
+                      <option value="X">X (틀림)</option>
+                    </select>
                   ) : (
+                    // 일반 객관식 (빈칸 채우기, 객관식 일반형)
                     <select
                       value={question.answer}
                       onChange={(e) => handleQuestionUpdate(question.id, 'answer', e.target.value)}

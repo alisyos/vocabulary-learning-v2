@@ -452,7 +452,11 @@ export async function POST(request: NextRequest) {
           option_4: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기') ? null : String(safeQ.options[3] || '선택지 4'),
           option_5: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기' || !safeQ.options[4]) ? null : String(safeQ.options[4]),
           word_segments: safeQ.type === '어절 순서 맞추기' ? safeQ.wordSegments : null, // 어절 순서 맞추기용 배열
-          correct_answer: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기') ? String(safeQ.answer) : String(safeQ.answer).charAt(0), // 주관식은 전체 답안, 객관식은 번호만
+          correct_answer: (safeQ.type === '주관식 단답형' || safeQ.type === '어절 순서 맞추기')
+            ? String(safeQ.answer)
+            : safeQ.type === 'OX문제'
+              ? (String(safeQ.answer).toUpperCase() === 'O' || String(safeQ.answer) === '1' ? 'O' : 'X') // OX문제는 O 또는 X로 저장 (1->O, 2->X 변환 지원)
+              : String(safeQ.answer).charAt(0), // 일반 객관식은 번호만
           answer_initials: safeQ.type === '주관식 단답형' ? safeQ.answerInitials : null, // 주관식 단답형인 경우만 초성 힌트
           explanation: String(safeQ.explanation)
         };

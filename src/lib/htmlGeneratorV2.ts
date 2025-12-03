@@ -859,13 +859,20 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
         ${(() => {
           const difficultTerms = vocabularyTermsData.filter(term => term.has_question_generated !== true);
 
+          // passages 배열에서 id로 passage 정보를 찾는 헬퍼 함수
+          const findPassageById = (passageId: string) => {
+            return editablePassages.find(p => p.id === passageId);
+          };
+
           const termsByPassage: any = {};
           difficultTerms.forEach(term => {
             const passageKey = term.passage_id || 'unknown';
             if (!termsByPassage[passageKey]) {
+              // passage_id로 passages 배열에서 해당 지문을 찾아 passage_number와 title을 가져옴
+              const matchedPassage = term.passage_id ? findPassageById(term.passage_id) : null;
               termsByPassage[passageKey] = {
-                passageNumber: term.passage_number || 1,
-                passageTitle: term.passage_title || '지문',
+                passageNumber: matchedPassage?.passage_number || term.passage_number || 1,
+                passageTitle: matchedPassage?.title || term.passage_title || '지문',
                 terms: []
               };
             }

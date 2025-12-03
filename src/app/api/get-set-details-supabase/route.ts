@@ -137,6 +137,19 @@ export async function GET(request: NextRequest) {
           }
         }
         
+        // OX문제의 경우 정답이 '1' 또는 '2'로 저장된 기존 데이터를 'O' 또는 'X'로 변환
+        const isOXQuestion = q.question_type === 'OX문제';
+        let correctAnswer = q.correct_answer;
+        if (isOXQuestion) {
+          // '1' -> 'O', '2' -> 'X'로 변환 (기존 데이터 호환성)
+          if (correctAnswer === '1') {
+            correctAnswer = 'O';
+          } else if (correctAnswer === '2') {
+            correctAnswer = 'X';
+          }
+          // 이미 'O' 또는 'X'인 경우 그대로 유지
+        }
+
         return {
           id: q.id,
           questionId: q.id,
@@ -146,7 +159,7 @@ export async function GET(request: NextRequest) {
           paragraphText: q.paragraph_text,
           question: q.question_text,
           options: isWordOrderQuestion ? [] : [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(o => o && o.trim() !== ''),
-          correctAnswer: isWordOrderQuestion ? (q.option_1 || q.correct_answer) : q.correct_answer, // 어절 순서 맞추기는 정답 문장을 표시
+          correctAnswer: isWordOrderQuestion ? (q.option_1 || q.correct_answer) : correctAnswer, // 어절 순서 맞추기는 정답 문장을 표시, OX문제는 변환된 값 사용
           answerInitials: q.answer_initials,
           explanation: q.explanation,
           wordSegments: wordSegments, // 어절 순서 맞추기용 어절 배열
