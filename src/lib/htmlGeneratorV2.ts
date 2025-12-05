@@ -706,10 +706,17 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
           `;
         }
 
-        result += editablePassages.map((passage, passageIndex) => `
+        result += editablePassages.map((passage, passageIndex) => {
+          // 지문의 총 글자 수 계산 (띄어쓰기 포함)
+          const passageCharCount = passage.paragraphs
+            .filter(p => p && p.trim())
+            .join('')
+            .length;
+
+          return `
           <div class="passage-section" style="margin-bottom: ${passageIndex < editablePassages.length - 1 ? '50px' : '30px'};">
             ${editablePassages.length > 1 ?
-              `<h3 style="color: #2c3e50; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">지문 ${passageIndex + 1}</h3>` :
+              `<h3 style="color: #2c3e50; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">지문 ${passageIndex + 1} (${passageCharCount.toLocaleString()}자)</h3>` :
               `<h2 class="passage-title">${passage.title}</h2>`
             }
             ${passage.paragraphs
@@ -742,14 +749,25 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
                   }
                 });
 
+                // 줄바꿈을 <br> 태그로 변환
+                highlightedParagraph = highlightedParagraph.replace(/\n/g, '<br>');
+
                 return '<div class="paragraph">' + highlightedParagraph + '</div>';
               })
               .join('')}
           </div>
-        `).join('');
+        `;
+        }).join('');
 
         return result;
-      })() : `
+      })() : (() => {
+        // 단일 지문의 글자 수 계산 (띄어쓰기 포함)
+        const singlePassageCharCount = (editablePassage?.paragraphs || [])
+          .filter(p => p && p.trim())
+          .join('')
+          .length;
+
+        return `
         <div class="passage-section">
           ${editableIntroductionQuestion && editableIntroductionQuestion.trim() ? `
             <div style="background-color: #f0f9ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
@@ -766,6 +784,7 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
               </div>
             </div>
           ` : ''}
+          <h3 style="color: #2c3e50; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">지문 1 (${singlePassageCharCount.toLocaleString()}자)</h3>
           <h2 class="passage-title">${editablePassage?.title || ''}</h2>
           ${(editablePassage?.paragraphs || [])
             .map((paragraph, index) => {
@@ -798,11 +817,15 @@ export function generateHtmlV2(params: GenerateHtmlV2Params): string {
                 }
               });
 
+              // 줄바꿈을 <br> 태그로 변환
+              highlightedParagraph = highlightedParagraph.replace(/\n/g, '<br>');
+
               return '<div class="paragraph">' + highlightedParagraph + '</div>';
             })
             .join('')}
         </div>
-      `}
+      `;
+      })()}
     </div>
 
     <!-- 어휘 탭 -->

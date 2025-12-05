@@ -486,10 +486,10 @@ export default function FinalReviewPage() {
             📚 2. 어휘문제 해설 따옴표 검수
           </h2>
           <p className="text-gray-600 mb-4">
-            어휘문제(vocabulary_questions) 테이블의 해설(explanation)에서 5글자 이하 단어에 작은따옴표가 있는 경우 삭제합니다.
+            어휘문제(vocabulary_questions) 테이블의 해설(explanation)에서 인용이 아닌 작은따옴표를 삭제합니다.
             <br />
             <span className="text-sm text-gray-500">
-              예: '공급' → 공급 (5글자 이하만 처리, 문장 내 따옴표는 유지)
+              예: '공급' → 공급 (인용 패턴인 '~'와/라고/고/라는/는/처럼/이/가/을/를/에 는 유지)
             </span>
           </p>
 

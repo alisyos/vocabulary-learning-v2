@@ -1312,7 +1312,7 @@ export default function PassageReview({
                     </span>
                   </div>
                   {passage.paragraphs.map((paragraph, paragraphIndex) => (
-                    <p key={paragraphIndex} className="mb-3 text-gray-700 leading-relaxed">
+                    <p key={paragraphIndex} className="mb-3 text-gray-700 leading-relaxed whitespace-pre-wrap">
                       {paragraph}
                     </p>
                   ))}
@@ -1610,7 +1610,7 @@ export default function PassageReview({
             <div className="prose max-w-none">
               <h4 className="text-lg font-medium text-blue-700 mb-3">{localPassage.title}</h4>
               {localPassage.paragraphs.map((paragraph, index) => (
-                <p key={index} className="mb-3 text-gray-700 leading-relaxed">
+                <p key={index} className="mb-3 text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {paragraph}
                 </p>
               ))}

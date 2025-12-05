@@ -6,14 +6,40 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// 5글자 이하의 작은따옴표로 감싸진 단어만 제거하는 함수
-function removeShortQuotesFromExplanation(text: string): string {
+// 인용이 아닌 작은따옴표를 제거하는 함수
+// 인용 패턴: 닫는 따옴표 뒤에 '와', '라고', '고', '라는', '는', '처럼'이 오는 경우는 유지
+function removeNonQuotationQuotes(text: string): string {
   if (!text) return text;
 
-  // 모든 종류의 작은따옴표로 감싸진 1~5글자 단어만 따옴표 제거
-  // U+0027 ('), U+2018 ('), U+2019 ('), U+201A (‚), U+201B (‛) 모두 처리
-  // {1,5}는 1글자부터 5글자까지만 매칭
-  return text.replace(/[\u0027\u2018\u2019\u201A\u201B]([^\u0027\u2018\u2019\u201A\u201B]{1,5})[\u0027\u2018\u2019\u201A\u201B]/g, '$1');
+  // 모든 종류의 작은따옴표 문자 클래스
+  // U+0027 ('), U+2018 ('), U+2019 ('), U+201A (‚), U+201B (‛)
+  const quoteChars = '[\u0027\u2018\u2019\u201A\u201B]';
+
+  // 인용 패턴 (닫는 따옴표 뒤에 오는 조사들)
+  // '와', '라고', '고', '라는', '는', '처럼', '이', '가', '을', '를', '에' 뒤에 공백이나 다른 문자가 올 수 있음
+  const quotationSuffixes = ['와', '라고', '고', '라는', '는', '처럼', '이', '가', '을', '를', '에'];
+
+  // 정규식: 작은따옴표로 감싸진 내용 (1글자 이상)
+  const pattern = new RegExp(
+    `${quoteChars}([^${quoteChars.slice(1, -1)}]+)${quoteChars}`,
+    'g'
+  );
+
+  return text.replace(pattern, (match, content, offset) => {
+    // 닫는 따옴표 다음 문자 확인
+    const afterMatch = text.slice(offset + match.length);
+
+    // 인용 패턴인지 확인 (닫는 따옴표 바로 뒤에 인용 조사가 오는 경우)
+    const isQuotation = quotationSuffixes.some(suffix => afterMatch.startsWith(suffix));
+
+    if (isQuotation) {
+      // 인용인 경우 원본 유지
+      return match;
+    } else {
+      // 인용이 아닌 경우 따옴표 제거
+      return content;
+    }
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -134,7 +160,7 @@ export async function POST(request: NextRequest) {
 
       if (!original) continue;
 
-      const converted = removeShortQuotesFromExplanation(original);
+      const converted = removeNonQuotationQuotes(original);
 
       if (original !== converted) {
         updates.push({
