@@ -6,45 +6,26 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// 인용이 아닌 작은따옴표를 제거하는 함수
-// 인용 패턴: 닫는 따옴표 뒤에 '와', '라고', '고', '라는', '는', '처럼'이 오는 경우는 유지
-function removeNonQuotationQuotes(text: string): string {
+// 큰따옴표를 작은따옴표로 변환하는 함수
+// 모든 종류의 큰따옴표를 일반 작은따옴표(')로 변환
+function convertDoubleToSingleQuotes(text: string): string {
   if (!text) return text;
 
-  // 모든 종류의 작은따옴표 문자 클래스
-  // U+0027 ('), U+2018 ('), U+2019 ('), U+201A (‚), U+201B (‛)
-  const quoteChars = '[\u0027\u2018\u2019\u201A\u201B]';
+  // 다양한 큰따옴표 유형들
+  // U+0022 ("), U+201C ("), U+201D ("), U+201E („), U+201F (‟)
+  // 일반 작은따옴표(')로 변환
+  return text
+    .replace(/\u0022/g, "'")  // " -> '
+    .replace(/\u201C/g, "'")  // " -> '
+    .replace(/\u201D/g, "'")  // " -> '
+    .replace(/\u201E/g, "'")  // „ -> '
+    .replace(/\u201F/g, "'"); // ‟ -> '
+}
 
-  // 인용 패턴 (닫는 따옴표 뒤에 오는 조사들)
-  // '과', '와', '라고', '고', '라는', '는', '처럼', '이', '가', '을', '를', '에', ',', ' 그리고' 뒤에 공백이나 다른 문자가 올 수 있음
-  const quotationSuffixes = ['과', '와', '라고', '고', '라는', '는', '처럼', '이', '가', '을', '를', '에', ',', ' 그리고'];
-
-  // 정규식: 작은따옴표로 감싸진 내용 (1글자 이상)
-  const pattern = new RegExp(
-    `${quoteChars}([^${quoteChars.slice(1, -1)}]+)${quoteChars}`,
-    'g'
-  );
-
-  return text.replace(pattern, (match, content, offset) => {
-    // 5글자 이하는 무조건 따옴표 제거
-    if (content.length <= 5) {
-      return content;
-    }
-
-    // 닫는 따옴표 다음 문자 확인
-    const afterMatch = text.slice(offset + match.length);
-
-    // 인용 패턴인지 확인 (닫는 따옴표 바로 뒤에 인용 조사가 오는 경우)
-    const isQuotation = quotationSuffixes.some(suffix => afterMatch.startsWith(suffix));
-
-    if (isQuotation) {
-      // 인용인 경우 원본 유지
-      return match;
-    } else {
-      // 인용이 아닌 경우 따옴표 제거
-      return content;
-    }
-  });
+// 큰따옴표가 있는지 확인하는 함수
+function hasDoubleQuotes(text: string): boolean {
+  if (!text) return false;
+  return /[\u0022\u201C\u201D\u201E\u201F]/.test(text);
 }
 
 // 테이블별 질문 데이터를 조회하는 헬퍼 함수
@@ -92,7 +73,7 @@ export async function POST(request: NextRequest) {
     const pageSize = 1000;
     let hasMoreData = true;
 
-    console.log(`📊 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
+    console.log(`📊 해설 큰따옴표 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
 
     while (hasMoreData) {
       let query = supabase
@@ -173,7 +154,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 3. 각 문제의 explanation 필드 검사 및 변환
+    // 3. 각 문제의 explanation 필드에서 큰따옴표 검사 및 변환
     const vocabularyUpdates: any[] = [];
     const paragraphUpdates: any[] = [];
     const comprehensiveUpdates: any[] = [];
@@ -181,9 +162,9 @@ export async function POST(request: NextRequest) {
     // 어휘문제 검사
     for (const question of vocabularyQuestions) {
       const original = question.explanation;
-      if (!original) continue;
+      if (!original || !hasDoubleQuotes(original)) continue;
 
-      const converted = removeNonQuotationQuotes(original);
+      const converted = convertDoubleToSingleQuotes(original);
       if (original !== converted) {
         vocabularyUpdates.push({
           id: question.id,
@@ -197,15 +178,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 문단문제 검사 (question_type이 '어절 순서 맞추기'인 경우 제외)
+    // 문단문제 검사
     for (const question of paragraphQuestions) {
-      // '어절 순서 맞추기' 유형은 검수에서 제외
-      if (question.question_type === '어절 순서 맞추기') continue;
-
       const original = question.explanation;
-      if (!original) continue;
+      if (!original || !hasDoubleQuotes(original)) continue;
 
-      const converted = removeNonQuotationQuotes(original);
+      const converted = convertDoubleToSingleQuotes(original);
       if (original !== converted) {
         paragraphUpdates.push({
           id: question.id,
@@ -223,9 +201,9 @@ export async function POST(request: NextRequest) {
     // 종합문제 검사
     for (const question of comprehensiveQuestions) {
       const original = question.explanation;
-      if (!original) continue;
+      if (!original || !hasDoubleQuotes(original)) continue;
 
-      const converted = removeNonQuotationQuotes(original);
+      const converted = convertDoubleToSingleQuotes(original);
       if (original !== converted) {
         comprehensiveUpdates.push({
           id: question.id,
@@ -241,7 +219,7 @@ export async function POST(request: NextRequest) {
     }
 
     const totalUpdates = vocabularyUpdates.length + paragraphUpdates.length + comprehensiveUpdates.length;
-    console.log(`✅ 따옴표 발견 - 어휘: ${vocabularyUpdates.length}개, 문단: ${paragraphUpdates.length}개, 종합: ${comprehensiveUpdates.length}개 (총 ${totalUpdates}개)`);
+    console.log(`✅ 큰따옴표 발견 - 어휘: ${vocabularyUpdates.length}개, 문단: ${paragraphUpdates.length}개, 종합: ${comprehensiveUpdates.length}개 (총 ${totalUpdates}개)`);
 
     // 모든 업데이트를 합쳐서 샘플 준비
     const allUpdates = [...vocabularyUpdates, ...paragraphUpdates, ...comprehensiveUpdates];
@@ -251,7 +229,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         dryRun: true,
-        message: `드라이런 모드: ${totalUpdates}개의 해설이 수정됩니다. (어휘: ${vocabularyUpdates.length}개, 문단: ${paragraphUpdates.length}개, 종합: ${comprehensiveUpdates.length}개)`,
+        message: `드라이런 모드: ${totalUpdates}개의 해설에서 큰따옴표가 작은따옴표로 변환됩니다. (어휘: ${vocabularyUpdates.length}개, 문단: ${paragraphUpdates.length}개, 종합: ${comprehensiveUpdates.length}개)`,
         totalRecords: totalQuestions,
         affectedRecords: totalUpdates,
         vocabularyCount: vocabularyUpdates.length,
@@ -338,7 +316,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       dryRun: false,
-      message: `해설 따옴표 검수 완료: ${successCount}개 성공, ${errorCount}개 실패`,
+      message: `해설 큰따옴표 검수 완료: ${successCount}개 성공, ${errorCount}개 실패`,
       successCount,
       errorCount,
       vocabularyCount: vocabularySuccessCount,
@@ -348,7 +326,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('어휘문제 해설 따옴표 검수 오류:', error);
+    console.error('해설 큰따옴표 검수 오류:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : '알 수 없는 오류'

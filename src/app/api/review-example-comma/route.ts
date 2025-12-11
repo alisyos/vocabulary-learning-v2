@@ -1,0 +1,327 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// '예를 들어 '를 '예를 들어, '로 변환하는 함수
+// 이미 '예를 들어, '인 경우는 변환하지 않음
+function fixExampleComma(text: string): string {
+  if (!text) return text;
+
+  // '예를 들어 '로 시작하지만 '예를 들어, '가 아닌 경우만 변환
+  // 정규식: '예를 들어' 뒤에 쉼표가 없고 공백이 오는 경우
+  return text.replace(/예를 들어(?!,)\s+/g, '예를 들어, ');
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { dryRun = true, statuses = [], sessionRange = null } = await request.json();
+
+    // 1. 상태별 필터링하여 content_set_id 조회 (페이지네이션 적용)
+    let allSets: any[] = [];
+    let currentPage = 0;
+    const pageSize = 1000;
+    let hasMoreData = true;
+
+    console.log(`📊 '예를 들어' 쉼표 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
+
+    while (hasMoreData) {
+      let query = supabase
+        .from('content_sets')
+        .select('id, session_number, status')
+        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+
+      // 상태 필터링을 DB 레벨에서 수행
+      if (statuses && statuses.length > 0) {
+        query = query.in('status', statuses);
+      }
+
+      const { data: pageData, error: setsError } = await query;
+      if (setsError) throw setsError;
+
+      if (pageData && pageData.length > 0) {
+        allSets.push(...pageData);
+        console.log(`  페이지 ${currentPage + 1}: ${pageData.length}개 조회 (누적: ${allSets.length}개)`);
+        if (pageData.length < pageSize) hasMoreData = false;
+      } else {
+        hasMoreData = false;
+      }
+      currentPage++;
+    }
+
+    // 차시 범위 필터링 (JavaScript에서 수행)
+    let filteredSets = allSets;
+    if (sessionRange && sessionRange.start && sessionRange.end) {
+      filteredSets = filteredSets.filter(set => {
+        if (!set.session_number) return false;
+
+        // session_number가 숫자인 경우 파싱
+        const sessionNum = parseInt(set.session_number, 10);
+        if (!isNaN(sessionNum)) {
+          return sessionNum >= sessionRange.start && sessionNum <= sessionRange.end;
+        }
+
+        return false;
+      });
+      console.log(`  차시 필터링 후: ${filteredSets.length}개`);
+    }
+
+    const contentSetIds = filteredSets.map(s => s.id);
+
+    if (contentSetIds.length === 0) {
+      return NextResponse.json({
+        success: true,
+        dryRun,
+        message: `검수 대상이 없습니다. (상태: ${statuses.join(', ')})`,
+        samples: []
+      });
+    }
+
+    console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 문제 조회 시작`);
+
+    // 결과 저장 객체
+    const allUpdates: any[] = [];
+    let vocabularyCount = 0;
+    let paragraphCount = 0;
+    let comprehensiveCount = 0;
+
+    // 청크 크기 설정
+    const chunkSize = 100;
+
+    // 2. vocabulary_questions 테이블 검사
+    console.log('🔍 어휘문제(vocabulary_questions) 검사 중...');
+    for (let i = 0; i < contentSetIds.length; i += chunkSize) {
+      const chunk = contentSetIds.slice(i, i + chunkSize);
+      let pageNum = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('vocabulary_questions')
+          .select('id, content_set_id, question_number, explanation')
+          .in('content_set_id', chunk)
+          .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          for (const question of data) {
+            if (!question.explanation) continue;
+
+            // '예를 들어 '가 있지만 '예를 들어, '가 아닌 경우 찾기
+            if (question.explanation.match(/예를 들어(?!,)\s+/)) {
+              const original = question.explanation;
+              const converted = fixExampleComma(original);
+
+              if (original !== converted) {
+                allUpdates.push({
+                  id: question.id,
+                  content_set_id: question.content_set_id,
+                  question_number: question.question_number,
+                  tableName: 'vocabulary_questions',
+                  tableLabel: '어휘문제',
+                  original,
+                  converted
+                });
+                vocabularyCount++;
+              }
+            }
+          }
+          if (data.length < 1000) hasMore = false;
+        } else {
+          hasMore = false;
+        }
+        pageNum++;
+      }
+    }
+    console.log(`  어휘문제: ${vocabularyCount}개 발견`);
+
+    // 3. paragraph_questions 테이블 검사
+    console.log('🔍 문단문제(paragraph_questions) 검사 중...');
+    for (let i = 0; i < contentSetIds.length; i += chunkSize) {
+      const chunk = contentSetIds.slice(i, i + chunkSize);
+      let pageNum = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('paragraph_questions')
+          .select('id, content_set_id, question_number, explanation')
+          .in('content_set_id', chunk)
+          .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          for (const question of data) {
+            if (!question.explanation) continue;
+
+            if (question.explanation.match(/예를 들어(?!,)\s+/)) {
+              const original = question.explanation;
+              const converted = fixExampleComma(original);
+
+              if (original !== converted) {
+                allUpdates.push({
+                  id: question.id,
+                  content_set_id: question.content_set_id,
+                  question_number: question.question_number,
+                  tableName: 'paragraph_questions',
+                  tableLabel: '문단문제',
+                  original,
+                  converted
+                });
+                paragraphCount++;
+              }
+            }
+          }
+          if (data.length < 1000) hasMore = false;
+        } else {
+          hasMore = false;
+        }
+        pageNum++;
+      }
+    }
+    console.log(`  문단문제: ${paragraphCount}개 발견`);
+
+    // 4. comprehensive_questions 테이블 검사
+    console.log('🔍 종합문제(comprehensive_questions) 검사 중...');
+    for (let i = 0; i < contentSetIds.length; i += chunkSize) {
+      const chunk = contentSetIds.slice(i, i + chunkSize);
+      let pageNum = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('comprehensive_questions')
+          .select('id, content_set_id, question_number, question_type, explanation')
+          .in('content_set_id', chunk)
+          .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          for (const question of data) {
+            if (!question.explanation) continue;
+
+            if (question.explanation.match(/예를 들어(?!,)\s+/)) {
+              const original = question.explanation;
+              const converted = fixExampleComma(original);
+
+              if (original !== converted) {
+                allUpdates.push({
+                  id: question.id,
+                  content_set_id: question.content_set_id,
+                  question_number: question.question_number,
+                  question_type: question.question_type,
+                  tableName: 'comprehensive_questions',
+                  tableLabel: '종합문제',
+                  original,
+                  converted
+                });
+                comprehensiveCount++;
+              }
+            }
+          }
+          if (data.length < 1000) hasMore = false;
+        } else {
+          hasMore = false;
+        }
+        pageNum++;
+      }
+    }
+    console.log(`  종합문제: ${comprehensiveCount}개 발견`);
+
+    console.log(`✅ 총 ${allUpdates.length}개의 해설에서 '예를 들어' 쉼표 누락 발견`);
+
+    // 5. 드라이런 모드
+    if (dryRun) {
+      return NextResponse.json({
+        success: true,
+        dryRun: true,
+        message: `드라이런 모드: ${allUpdates.length}개의 해설이 수정됩니다.`,
+        totalRecords: allUpdates.length,
+        affectedRecords: allUpdates.length,
+        vocabularyCount,
+        paragraphCount,
+        comprehensiveCount,
+        samples: allUpdates.slice(0, 20)
+      });
+    }
+
+    // 6. 실제 업데이트 (테이블별 배치 처리)
+    let successCount = 0;
+    let errorCount = 0;
+    const batchSize = 100;
+
+    console.log(`🔄 ${allUpdates.length}개 해설 업데이트 시작`);
+
+    // 테이블별로 그룹화
+    const updatesByTable: Record<string, any[]> = {
+      vocabulary_questions: [],
+      paragraph_questions: [],
+      comprehensive_questions: []
+    };
+
+    for (const update of allUpdates) {
+      updatesByTable[update.tableName].push(update);
+    }
+
+    // 각 테이블별로 업데이트 수행
+    for (const [tableName, updates] of Object.entries(updatesByTable)) {
+      if (updates.length === 0) continue;
+
+      console.log(`  ${tableName}: ${updates.length}개 업데이트 중...`);
+
+      for (let i = 0; i < updates.length; i += batchSize) {
+        const batch = updates.slice(i, i + batchSize);
+
+        const batchPromises = batch.map(async (update) => {
+          try {
+            const { error } = await supabase
+              .from(tableName)
+              .update({ explanation: update.converted })
+              .eq('id', update.id);
+
+            return error ? { success: false } : { success: true };
+          } catch (err) {
+            console.error(`Error updating ${tableName} ${update.id}:`, err);
+            return { success: false };
+          }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        successCount += batchResults.filter(r => r.success).length;
+        errorCount += batchResults.filter(r => !r.success).length;
+
+        // API 부하 방지를 위한 대기
+        if (i + batchSize < updates.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    }
+
+    console.log(`✅ 완료 - 성공: ${successCount}, 실패: ${errorCount}`);
+
+    return NextResponse.json({
+      success: true,
+      dryRun: false,
+      message: `'예를 들어' 쉼표 검수 완료: ${successCount}개 성공, ${errorCount}개 실패`,
+      successCount,
+      errorCount,
+      vocabularyCount,
+      paragraphCount,
+      comprehensiveCount,
+      totalProcessed: allUpdates.length
+    });
+
+  } catch (error) {
+    console.error("'예를 들어' 쉼표 검수 오류:", error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    }, { status: 500 });
+  }
+}

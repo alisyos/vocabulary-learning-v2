@@ -98,6 +98,9 @@ export default function FinalReviewPage() {
   const [vocabularyMismatchResult, setVocabularyMismatchResult] = useState<ReviewResult | null>(null);
   const [comprehensivePeriodsResult, setComprehensivePeriodsResult] = useState<ReviewResult | null>(null);
   const [answerMatchResult, setAnswerMatchResult] = useState<ReviewResult | null>(null);
+  const [exampleCommaResult, setExampleCommaResult] = useState<ReviewResult | null>(null);
+  const [quotePeriodResult, setQuotePeriodResult] = useState<ReviewResult | null>(null);
+  const [doubleQuotesResult, setDoubleQuotesResult] = useState<ReviewResult | null>(null);
 
   // 1. 지문 따옴표 검수
   const handlePassageQuotesReview = async (dryRun: boolean) => {
@@ -153,10 +156,10 @@ export default function FinalReviewPage() {
       setExplanationQuotesResult(data);
 
       if (!dryRun && data.success) {
-        alert(`✅ 어휘문제 해설 따옴표 검수 완료!\n\n${data.successCount}개 수정됨`);
+        alert(`✅ 해설 따옴표 검수 완료!\n\n${data.successCount}개 수정됨\n(어휘문제: ${data.vocabularyCount || 0}개, 문단문제: ${data.paragraphCount || 0}개, 종합문제: ${data.comprehensiveCount || 0}개)`);
       }
     } catch (error) {
-      console.error('어휘문제 해설 따옴표 검수 오류:', error);
+      console.error('해설 따옴표 검수 오류:', error);
       alert('검수 중 오류가 발생했습니다.');
     } finally {
       setLoading(null);
@@ -281,6 +284,102 @@ export default function FinalReviewPage() {
       setAnswerMatchResult(data);
     } catch (error) {
       console.error('종합문제 정답-선택지 일치 검수 오류:', error);
+      alert('검수 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // 7. '예를 들어' 쉼표 검수
+  const handleExampleCommaReview = async (dryRun: boolean) => {
+    setLoading('example-comma');
+    setExampleCommaResult(null);
+
+    try {
+      const parsedRange = parseSessionRange(sessionRange);
+
+      const response = await fetch('/api/review-example-comma', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dryRun,
+          statuses: statusFilter,
+          sessionRange: parsedRange
+        })
+      });
+
+      const data = await response.json();
+      setExampleCommaResult(data);
+
+      if (!dryRun && data.success) {
+        alert(`✅ '예를 들어' 쉼표 검수 완료!\n\n${data.successCount}개 수정됨\n(어휘문제: ${data.vocabularyCount || 0}개, 문단문제: ${data.paragraphCount || 0}개, 종합문제: ${data.comprehensiveCount || 0}개)`);
+      }
+    } catch (error) {
+      console.error("'예를 들어' 쉼표 검수 오류:", error);
+      alert('검수 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // 8. 인용문 마침표 검수
+  const handleQuotePeriodReview = async (dryRun: boolean) => {
+    setLoading('quote-period');
+    setQuotePeriodResult(null);
+
+    try {
+      const parsedRange = parseSessionRange(sessionRange);
+
+      const response = await fetch('/api/review-quote-period', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dryRun,
+          statuses: statusFilter,
+          sessionRange: parsedRange
+        })
+      });
+
+      const data = await response.json();
+      setQuotePeriodResult(data);
+
+      if (!dryRun && data.success) {
+        alert(`✅ 인용문 마침표 검수 완료!\n\n${data.successCount}개 수정됨\n(문단문제: ${data.paragraphCount || 0}개, 종합문제: ${data.comprehensiveCount || 0}개)`);
+      }
+    } catch (error) {
+      console.error('인용문 마침표 검수 오류:', error);
+      alert('검수 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // 9. 해설 큰따옴표 → 작은따옴표 변환 검수
+  const handleDoubleQuotesReview = async (dryRun: boolean) => {
+    setLoading('double-quotes');
+    setDoubleQuotesResult(null);
+
+    try {
+      const parsedRange = parseSessionRange(sessionRange);
+
+      const response = await fetch('/api/review-double-quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dryRun,
+          statuses: statusFilter,
+          sessionRange: parsedRange
+        })
+      });
+
+      const data = await response.json();
+      setDoubleQuotesResult(data);
+
+      if (!dryRun && data.success) {
+        alert(`✅ 해설 큰따옴표 검수 완료!\n\n${data.successCount}개 수정됨\n(어휘문제: ${data.vocabularyCount || 0}개, 문단문제: ${data.paragraphCount || 0}개, 종합문제: ${data.comprehensiveCount || 0}개)`);
+      }
+    } catch (error) {
+      console.error('해설 큰따옴표 검수 오류:', error);
       alert('검수 중 오류가 발생했습니다.');
     } finally {
       setLoading(null);
@@ -480,16 +579,16 @@ export default function FinalReviewPage() {
           )}
         </div>
 
-        {/* 검수 항목 2: 어휘문제 해설 따옴표 검수 */}
+        {/* 검수 항목 2: 해설 따옴표 검수 (어휘/문단/종합) */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-3">
-            📚 2. 어휘문제 해설 따옴표 검수
+            📚 2. 해설 따옴표 검수 (어휘/문단/종합)
           </h2>
           <p className="text-gray-600 mb-4">
-            어휘문제(vocabulary_questions) 테이블의 해설(explanation)에서 인용이 아닌 작은따옴표를 삭제합니다.
+            어휘문제(vocabulary_questions), 문단문제(paragraph_questions), 종합문제(comprehensive_questions) 테이블의 해설(explanation)에서 인용이 아닌 작은따옴표를 삭제합니다.
             <br />
             <span className="text-sm text-gray-500">
-              예: '공급' → 공급 (인용 패턴인 '~'와/라고/고/라는/는/처럼/이/가/을/를/에 는 유지)
+              예: &apos;공급&apos; → 공급 (인용 패턴인 &apos;~&apos;와/라고/고/라는/는/처럼/이/가/을/를/에 는 유지)
             </span>
           </p>
 
@@ -503,7 +602,7 @@ export default function FinalReviewPage() {
             </button>
             <button
               onClick={() => {
-                if (confirm('⚠️ 어휘문제 해설 따옴표를 실제로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+                if (confirm('⚠️ 어휘/문단/종합 문제 해설의 따옴표를 실제로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
                   handleExplanationQuotesReview(false);
                 }
               }}
@@ -522,27 +621,56 @@ export default function FinalReviewPage() {
               </h3>
               <p className="text-gray-700 mb-2">{explanationQuotesResult.message}</p>
 
+              {/* 테이블별 건수 표시 */}
+              {explanationQuotesResult.dryRun && (explanationQuotesResult as any).vocabularyCount !== undefined && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-800">
+                    <strong>📊 상세 내역:</strong>
+                    <br />
+                    • 어휘문제: <strong>{(explanationQuotesResult as any).vocabularyCount}개</strong>
+                    <br />
+                    • 문단문제: <strong>{(explanationQuotesResult as any).paragraphCount}개</strong>
+                    <br />
+                    • 종합문제: <strong>{(explanationQuotesResult as any).comprehensiveCount}개</strong>
+                  </p>
+                </div>
+              )}
+
               {explanationQuotesResult.dryRun && explanationQuotesResult.samples && explanationQuotesResult.samples.length > 0 && (
                 <div className="mt-3">
                   <p className="text-sm font-semibold text-gray-700 mb-2">
-                    샘플 미리보기 (최대 10개):
+                    샘플 미리보기 (최대 15개):
                   </p>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {explanationQuotesResult.samples.slice(0, 10).map((sample: any, idx: number) => (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {explanationQuotesResult.samples.slice(0, 15).map((sample: any, idx: number) => (
                       <div key={idx} className="bg-white p-3 rounded border border-gray-200 text-sm">
                         <div className="font-medium text-gray-800 mb-1">
                           콘텐츠 세트: {sample.content_set_id}
                         </div>
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                            문제 ID: {sample.id}
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            sample.tableName === 'vocabulary_questions'
+                              ? 'bg-green-100 text-green-700'
+                              : sample.tableName === 'paragraph_questions'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-purple-100 text-purple-700'
+                          }`}>
+                            {sample.tableLabel}
                           </span>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                            문제 #{sample.question_number}
+                          </span>
+                          {sample.question_type && (
+                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                              {sample.question_type}
+                            </span>
+                          )}
                         </div>
                         <div className="text-red-600 line-through mb-1 text-xs">
-                          {sample.original}
+                          {sample.original.length > 150 ? sample.original.slice(0, 150) + '...' : sample.original}
                         </div>
                         <div className="text-green-600 font-medium text-xs">
-                          {sample.converted}
+                          {sample.converted.length > 150 ? sample.converted.slice(0, 150) + '...' : sample.converted}
                         </div>
                       </div>
                     ))}
@@ -557,6 +685,13 @@ export default function FinalReviewPage() {
                     <div className="text-2xl font-bold text-green-700">
                       {explanationQuotesResult.successCount || 0}
                     </div>
+                    {(explanationQuotesResult as any).vocabularyCount !== undefined && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        어휘: {(explanationQuotesResult as any).vocabularyCount}개,
+                        문단: {(explanationQuotesResult as any).paragraphCount}개,
+                        종합: {(explanationQuotesResult as any).comprehensiveCount}개
+                      </div>
+                    )}
                   </div>
                   <div className="bg-white p-3 rounded">
                     <div className="text-sm text-gray-600">실패</div>
@@ -967,6 +1102,395 @@ export default function FinalReviewPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 검수 항목 7: '예를 들어' 쉼표 검수 */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-3">
+            ✍️ 7. &apos;예를 들어&apos; 쉼표 검수
+          </h2>
+          <p className="text-gray-600 mb-4">
+            어휘문제(vocabulary_questions), 문단문제(paragraph_questions), 종합문제(comprehensive_questions) 테이블의 해설(explanation)에서
+            &apos;예를 들어 &apos;를 &apos;예를 들어, &apos;로 변환합니다.
+            <br />
+            <span className="text-sm text-gray-500">
+              예: &apos;예를 들어 사과는...&apos; → &apos;예를 들어, 사과는...&apos;
+            </span>
+          </p>
+
+          <div className="flex gap-4 mb-4">
+            <button
+              onClick={() => handleExampleCommaReview(true)}
+              disabled={loading !== null}
+              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'example-comma' ? '처리 중...' : '🔍 드라이런 (미리보기)'}
+            </button>
+            <button
+              onClick={() => {
+                if (confirm("⚠️ '예를 들어' 뒤에 쉼표를 실제로 추가하시겠습니까?\n이 작업은 되돌릴 수 없습니다.")) {
+                  handleExampleCommaReview(false);
+                }
+              }}
+              disabled={loading !== null}
+              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'example-comma' ? '처리 중...' : '⚡ 실행'}
+            </button>
+          </div>
+
+          {/* 결과 표시 */}
+          {exampleCommaResult && (
+            <div className={`rounded-lg p-4 ${exampleCommaResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                {exampleCommaResult.dryRun ? '📊 드라이런 결과' : '✅ 실행 결과'}
+              </h3>
+              <p className="text-gray-700 mb-2">{exampleCommaResult.message}</p>
+
+              {/* 테이블별 건수 표시 */}
+              {exampleCommaResult.dryRun && (exampleCommaResult as any).vocabularyCount !== undefined && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-800">
+                    <strong>📊 상세 내역:</strong>
+                    <br />
+                    • 어휘문제: <strong>{(exampleCommaResult as any).vocabularyCount}개</strong>
+                    <br />
+                    • 문단문제: <strong>{(exampleCommaResult as any).paragraphCount}개</strong>
+                    <br />
+                    • 종합문제: <strong>{(exampleCommaResult as any).comprehensiveCount}개</strong>
+                  </p>
+                </div>
+              )}
+
+              {exampleCommaResult.dryRun && exampleCommaResult.samples && exampleCommaResult.samples.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    샘플 미리보기 (최대 20개):
+                  </p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {exampleCommaResult.samples.map((sample: any, idx: number) => (
+                      <div key={idx} className="bg-white p-3 rounded border border-gray-200 text-sm">
+                        <div className="font-medium text-gray-800 mb-1">
+                          콘텐츠 세트: {sample.content_set_id}
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            sample.tableName === 'vocabulary_questions'
+                              ? 'bg-green-100 text-green-700'
+                              : sample.tableName === 'paragraph_questions'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-purple-100 text-purple-700'
+                          }`}>
+                            {sample.tableLabel}
+                          </span>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                            문제 #{sample.question_number}
+                          </span>
+                          {sample.question_type && (
+                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                              {sample.question_type}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-red-600 line-through mb-1 text-xs">
+                          {sample.original.length > 150 ? sample.original.slice(0, 150) + '...' : sample.original}
+                        </div>
+                        <div className="text-green-600 font-medium text-xs">
+                          {sample.converted.length > 150 ? sample.converted.slice(0, 150) + '...' : sample.converted}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!exampleCommaResult.dryRun && (
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div className="bg-white p-3 rounded">
+                    <div className="text-sm text-gray-600">성공</div>
+                    <div className="text-2xl font-bold text-green-700">
+                      {exampleCommaResult.successCount || 0}
+                    </div>
+                    {(exampleCommaResult as any).vocabularyCount !== undefined && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        어휘: {(exampleCommaResult as any).vocabularyCount}개,
+                        문단: {(exampleCommaResult as any).paragraphCount}개,
+                        종합: {(exampleCommaResult as any).comprehensiveCount}개
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-white p-3 rounded">
+                    <div className="text-sm text-gray-600">실패</div>
+                    <div className="text-2xl font-bold text-red-700">
+                      {exampleCommaResult.errorCount || 0}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 검수 항목 8: 인용문 마침표 검수 */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-3">
+            📜 8. 인용문 마침표 검수
+          </h2>
+          <p className="text-gray-600 mb-4">
+            문단문제(paragraph_questions), 종합문제(comprehensive_questions) 테이블의 해설(explanation)에서
+            인용된 완성형 문장에 마침표가 누락된 경우 추가합니다.
+            <br />
+            <span className="text-sm text-gray-500">
+              예: &apos;밥을 먹었다&apos;라고 → &apos;밥을 먹었다.&apos;라고
+              <br />
+              예: &apos;그려야 해&apos;라고 → &apos;그려야 해.&apos;라고
+            </span>
+          </p>
+
+          <div className="flex gap-4 mb-4">
+            <button
+              onClick={() => handleQuotePeriodReview(true)}
+              disabled={loading !== null}
+              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'quote-period' ? '처리 중...' : '🔍 드라이런 (미리보기)'}
+            </button>
+            <button
+              onClick={() => {
+                if (confirm('⚠️ 인용문에 마침표를 실제로 추가하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+                  handleQuotePeriodReview(false);
+                }
+              }}
+              disabled={loading !== null}
+              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'quote-period' ? '처리 중...' : '⚡ 실행'}
+            </button>
+          </div>
+
+          {/* 결과 표시 */}
+          {quotePeriodResult && (
+            <div className={`rounded-lg p-4 ${quotePeriodResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                {quotePeriodResult.dryRun ? '📊 드라이런 결과' : '✅ 실행 결과'}
+              </h3>
+              <p className="text-gray-700 mb-2">{quotePeriodResult.message}</p>
+
+              {/* 테이블별 건수 표시 */}
+              {quotePeriodResult.dryRun && (quotePeriodResult as any).paragraphCount !== undefined && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-800">
+                    <strong>📊 상세 내역:</strong>
+                    <br />
+                    • 문단문제: <strong>{(quotePeriodResult as any).paragraphCount}개</strong>
+                    <br />
+                    • 종합문제: <strong>{(quotePeriodResult as any).comprehensiveCount}개</strong>
+                  </p>
+                </div>
+              )}
+
+              {quotePeriodResult.dryRun && quotePeriodResult.samples && quotePeriodResult.samples.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    샘플 미리보기 (최대 20개):
+                  </p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {quotePeriodResult.samples.map((sample: any, idx: number) => (
+                      <div key={idx} className="bg-white p-3 rounded border border-gray-200 text-sm">
+                        <div className="font-medium text-gray-800 mb-1">
+                          콘텐츠 세트: {sample.content_set_id}
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            sample.tableName === 'paragraph_questions'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-purple-100 text-purple-700'
+                          }`}>
+                            {sample.tableLabel}
+                          </span>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                            문제 #{sample.question_number}
+                          </span>
+                          {sample.question_type && (
+                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                              {sample.question_type}
+                            </span>
+                          )}
+                        </div>
+                        {/* 변경 내역 표시 */}
+                        {sample.changes && sample.changes.length > 0 && (
+                          <div className="mb-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                            <div className="text-xs font-semibold text-yellow-800 mb-1">변경 내역:</div>
+                            {sample.changes.map((change: string, changeIdx: number) => (
+                              <div key={changeIdx} className="text-xs text-yellow-700">
+                                {change}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="text-red-600 line-through mb-1 text-xs">
+                          {sample.original.length > 150 ? sample.original.slice(0, 150) + '...' : sample.original}
+                        </div>
+                        <div className="text-green-600 font-medium text-xs">
+                          {sample.converted.length > 150 ? sample.converted.slice(0, 150) + '...' : sample.converted}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!quotePeriodResult.dryRun && (
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div className="bg-white p-3 rounded">
+                    <div className="text-sm text-gray-600">성공</div>
+                    <div className="text-2xl font-bold text-green-700">
+                      {quotePeriodResult.successCount || 0}
+                    </div>
+                    {(quotePeriodResult as any).paragraphCount !== undefined && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        문단: {(quotePeriodResult as any).paragraphCount}개,
+                        종합: {(quotePeriodResult as any).comprehensiveCount}개
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-white p-3 rounded">
+                    <div className="text-sm text-gray-600">실패</div>
+                    <div className="text-2xl font-bold text-red-700">
+                      {quotePeriodResult.errorCount || 0}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 검수 항목 9: 해설 큰따옴표 검수 */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-3">
+            ❝ 9. 해설 큰따옴표 → 작은따옴표 변환
+          </h2>
+          <p className="text-gray-600 mb-4">
+            어휘문제(vocabulary_questions), 문단문제(paragraph_questions), 종합문제(comprehensive_questions) 테이블의 해설(explanation)에서
+            큰따옴표(&quot;)를 작은따옴표(&apos;)로 변환합니다.
+            <br />
+            <span className="text-sm text-gray-500">
+              예: &quot;공급&quot; → &apos;공급&apos;
+            </span>
+          </p>
+
+          <div className="flex gap-4 mb-4">
+            <button
+              onClick={() => handleDoubleQuotesReview(true)}
+              disabled={loading !== null}
+              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'double-quotes' ? '처리 중...' : '🔍 드라이런 (미리보기)'}
+            </button>
+            <button
+              onClick={() => {
+                if (confirm('⚠️ 해설의 큰따옴표를 작은따옴표로 실제로 변환하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+                  handleDoubleQuotesReview(false);
+                }
+              }}
+              disabled={loading !== null}
+              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'double-quotes' ? '처리 중...' : '⚡ 실행'}
+            </button>
+          </div>
+
+          {/* 결과 표시 */}
+          {doubleQuotesResult && (
+            <div className={`rounded-lg p-4 ${doubleQuotesResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                {doubleQuotesResult.dryRun ? '📊 드라이런 결과' : '✅ 실행 결과'}
+              </h3>
+              <p className="text-gray-700 mb-2">{doubleQuotesResult.message}</p>
+
+              {/* 테이블별 건수 표시 */}
+              {doubleQuotesResult.dryRun && (doubleQuotesResult as any).vocabularyCount !== undefined && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-800">
+                    <strong>📊 상세 내역:</strong>
+                    <br />
+                    • 어휘문제: <strong>{(doubleQuotesResult as any).vocabularyCount}개</strong>
+                    <br />
+                    • 문단문제: <strong>{(doubleQuotesResult as any).paragraphCount}개</strong>
+                    <br />
+                    • 종합문제: <strong>{(doubleQuotesResult as any).comprehensiveCount}개</strong>
+                  </p>
+                </div>
+              )}
+
+              {doubleQuotesResult.dryRun && doubleQuotesResult.samples && doubleQuotesResult.samples.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    샘플 미리보기 (최대 15개):
+                  </p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {doubleQuotesResult.samples.map((sample: any, idx: number) => (
+                      <div key={idx} className="bg-white p-3 rounded border border-gray-200 text-sm">
+                        <div className="font-medium text-gray-800 mb-1">
+                          콘텐츠 세트: {sample.content_set_id}
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            sample.tableName === 'vocabulary_questions'
+                              ? 'bg-green-100 text-green-700'
+                              : sample.tableName === 'paragraph_questions'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-purple-100 text-purple-700'
+                          }`}>
+                            {sample.tableLabel}
+                          </span>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                            문제 #{sample.question_number}
+                          </span>
+                          {sample.question_type && (
+                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                              {sample.question_type}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-red-600 line-through mb-1 text-xs">
+                          {sample.original.length > 150 ? sample.original.slice(0, 150) + '...' : sample.original}
+                        </div>
+                        <div className="text-green-600 font-medium text-xs">
+                          {sample.converted.length > 150 ? sample.converted.slice(0, 150) + '...' : sample.converted}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!doubleQuotesResult.dryRun && (
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div className="bg-white p-3 rounded">
+                    <div className="text-sm text-gray-600">성공</div>
+                    <div className="text-2xl font-bold text-green-700">
+                      {doubleQuotesResult.successCount || 0}
+                    </div>
+                    {(doubleQuotesResult as any).vocabularyCount !== undefined && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        어휘: {(doubleQuotesResult as any).vocabularyCount}개,
+                        문단: {(doubleQuotesResult as any).paragraphCount}개,
+                        종합: {(doubleQuotesResult as any).comprehensiveCount}개
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-white p-3 rounded">
+                    <div className="text-sm text-gray-600">실패</div>
+                    <div className="text-2xl font-bold text-red-700">
+                      {doubleQuotesResult.errorCount || 0}
+                    </div>
                   </div>
                 </div>
               )}
