@@ -101,6 +101,7 @@ export default function FinalReviewPage() {
   const [exampleCommaResult, setExampleCommaResult] = useState<ReviewResult | null>(null);
   const [quotePeriodResult, setQuotePeriodResult] = useState<ReviewResult | null>(null);
   const [doubleQuotesResult, setDoubleQuotesResult] = useState<ReviewResult | null>(null);
+  const [citationMismatchResult, setCitationMismatchResult] = useState<ReviewResult | null>(null);
 
   // 1. 지문 따옴표 검수
   const handlePassageQuotesReview = async (dryRun: boolean) => {
@@ -380,6 +381,34 @@ export default function FinalReviewPage() {
       }
     } catch (error) {
       console.error('해설 큰따옴표 검수 오류:', error);
+      alert('검수 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // 10. 해설 인용 불일치 검수
+  const handleCitationMismatchReview = async () => {
+    setLoading('citation-mismatch');
+    setCitationMismatchResult(null);
+
+    try {
+      const parsedRange = parseSessionRange(sessionRange);
+
+      const response = await fetch('/api/review-explanation-citation-mismatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dryRun: true, // 항상 드라이런 (수정 기능 없음)
+          statuses: statusFilter,
+          sessionRange: parsedRange
+        })
+      });
+
+      const data = await response.json();
+      setCitationMismatchResult(data);
+    } catch (error) {
+      console.error('해설 인용 불일치 검수 오류:', error);
       alert('검수 중 오류가 발생했습니다.');
     } finally {
       setLoading(null);
@@ -1491,6 +1520,104 @@ export default function FinalReviewPage() {
                     <div className="text-2xl font-bold text-red-700">
                       {doubleQuotesResult.errorCount || 0}
                     </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 검수 항목 10: 해설 인용 불일치 검수 */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-3">
+            🔗 10. 해설 인용-지문 불일치 검수
+          </h2>
+          <p className="text-gray-600 mb-4">
+            문단문제(paragraph_questions), 종합문제(comprehensive_questions) 테이블의 해설(explanation)에서
+            작은따옴표(&apos;)로 인용된 텍스트가 지문(passages)에 실제로 존재하는지 확인합니다.
+            <br />
+            <span className="text-sm text-red-600 font-medium">
+              ⚠️ 이 검수는 보고만 하며 데이터를 수정하지 않습니다. 불일치하는 인용은 수동으로 수정해야 합니다.
+            </span>
+          </p>
+
+          <div className="flex gap-4 mb-4">
+            <button
+              onClick={() => handleCitationMismatchReview()}
+              disabled={loading !== null}
+              className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'citation-mismatch' ? '처리 중...' : '🔍 검수 실행 (보고만)'}
+            </button>
+          </div>
+
+          {/* 결과 표시 */}
+          {citationMismatchResult && (
+            <div className={`rounded-lg p-4 ${citationMismatchResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                📊 검수 결과
+              </h3>
+              <p className="text-gray-700 mb-2">{citationMismatchResult.message}</p>
+
+              {citationMismatchResult.mismatchCount !== undefined && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-300 rounded">
+                  <p className="text-sm text-yellow-800">
+                    <strong>📈 통계:</strong>
+                    <br />
+                    • 전체 검사: <strong>{citationMismatchResult.totalChecked}개</strong> 문제
+                    <br />
+                    • 불일치: <strong className="text-red-600">{citationMismatchResult.mismatchCount}개</strong>
+                    <br />
+                    • 문단문제: <strong>{(citationMismatchResult as any).paragraphCount || 0}개</strong>
+                    <br />
+                    • 종합문제: <strong>{(citationMismatchResult as any).comprehensiveCount || 0}개</strong>
+                  </p>
+                </div>
+              )}
+
+              {citationMismatchResult.samples && citationMismatchResult.samples.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    불일치 목록 (최대 30개):
+                  </p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {citationMismatchResult.samples.map((sample: any, idx: number) => (
+                      <div key={idx} className="bg-white p-3 rounded border-2 border-red-300 text-sm">
+                        <div className="font-medium text-gray-800 mb-1">
+                          콘텐츠 세트: {sample.content_set_id}
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            sample.tableName === 'paragraph_questions'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-purple-100 text-purple-700'
+                          }`}>
+                            {sample.tableLabel}
+                          </span>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                            문제 #{sample.question_number}
+                          </span>
+                          {sample.question_type && (
+                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                              {sample.question_type}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mb-2 p-2 bg-red-50 rounded">
+                          <div className="text-xs font-semibold text-red-700 mb-1">지문에 없는 인용:</div>
+                          <div className="text-sm text-red-800 font-medium">&apos;{sample.citation}&apos;</div>
+                        </div>
+                        <div className="mb-2 p-2 bg-gray-50 rounded">
+                          <div className="text-xs font-semibold text-gray-700 mb-1">해설 원문:</div>
+                          <div className="text-xs text-gray-700">
+                            {sample.explanation?.length > 200 ? sample.explanation.slice(0, 200) + '...' : sample.explanation}
+                          </div>
+                        </div>
+                        <div className="text-xs text-red-600 font-medium">
+                          ⚠️ {sample.reason}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

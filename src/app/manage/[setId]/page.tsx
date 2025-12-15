@@ -589,6 +589,34 @@ ${allParagraphs}`;
       };
       return typeMap[type] || type;
     };
+
+    // 백틱 3개(```)로 감싼 내용을 해당 위치에 참조 박스로 변환하는 함수
+    const formatQuestionWithCodeBlocks = (questionText: string): string => {
+      // 백틱 3개로 감싼 내용 추출
+      const codeBlockPattern = /```([\s\S]*?)```/g;
+
+      // 백틱 블록이 없으면 그대로 반환
+      if (!codeBlockPattern.test(questionText)) {
+        return questionText;
+      }
+
+      // 패턴 재설정 (test 후 lastIndex가 변경되므로)
+      codeBlockPattern.lastIndex = 0;
+
+      // 백틱 블록을 참조 박스로 직접 대체
+      const result = questionText.replace(codeBlockPattern, (match, content) => {
+        const formattedContent = content.trim().replace(/\n/g, '<br>');
+        return `
+          <div style="background-color: #f8fafc; border: 3px solid #94a3b8; border-radius: 8px; padding: 16px; margin: 12px 0;">
+            <div style="color: #334155; line-height: 1.7;">
+              ${formattedContent}
+            </div>
+          </div>
+        `;
+      });
+
+      return result;
+    };
     
     // 종합문제를 세트별로 그룹화 (HTML ver.1과 동일한 방식)
     const questionSets: { [key: string]: typeof editableComprehensive } = {};
@@ -1673,18 +1701,21 @@ ${allParagraphs}`;
         const supplementaryQuestions = questions.filter(q => q.isSupplementary || q.is_supplementary);
         const setNumber = setKey.split('_')[1]; // set_1_단답형 -> 1
         const mainQuestionTypeLabel = getComprehensiveQuestionTypeLabel(mainQuestion?.questionType || mainQuestion?.question_type || mainQuestion?.type || '알 수 없음');
-        
+
+        // 기본 문제 코드블록 내용 포맷팅
+        const mainFormattedText = mainQuestion ? formatQuestionWithCodeBlocks(mainQuestion.question) : '';
+
         return `
           <div style="margin-bottom: 50px; padding: 25px; background-color: #f0f8ff; border-radius: 10px;">
             <h3 style="color: #2980b9; margin-bottom: 25px;">종합 문제 세트 ${setNumber}: ${mainQuestionTypeLabel}</h3>
-            
+
             ${mainQuestion ? `
               <div class="question-container" style="border: 2px solid #3498db;">
                 <div class="question-header">
                   <span class="question-number" style="background: #2980b9;">기본 문제</span>
                   <span class="question-type">${getComprehensiveQuestionTypeLabel(mainQuestion.questionType || mainQuestion.type)}</span>
                 </div>
-                <div class="question-text">${mainQuestion.question}</div>
+                <div class="question-text">${mainFormattedText}</div>
                 ${mainQuestion.options && mainQuestion.options.length > 0 ? (
                   (mainQuestion.questionType || mainQuestion.type) === 'OX문제' ? `
                     <div class="options">
@@ -1720,17 +1751,20 @@ ${allParagraphs}`;
                 </div>
               </div>
             ` : ''}
-            
+
             ${supplementaryQuestions.length > 0 ? `
               <div style="margin-top: 20px; padding-left: 20px;">
                 <h4 style="color: #34495e; margin-bottom: 15px;">보완 문제</h4>
-                ${supplementaryQuestions.map((q, index) => `
+                ${supplementaryQuestions.map((q, index) => {
+                  // 보완 문제 코드블록 내용 포맷팅
+                  const suppFormattedText = formatQuestionWithCodeBlocks(q.question);
+                  return `
                   <div class="question-container" style="border: 1px solid #95a5a6;">
                     <div class="question-header">
                       <span class="question-number" style="background: #7f8c8d;">보완 문제 ${index + 1}</span>
                       <span class="question-type">${getComprehensiveQuestionTypeLabel(q.questionType || q.type)}</span>
                     </div>
-                    <div class="question-text">${q.question}</div>
+                    <div class="question-text">${suppFormattedText}</div>
                     ${q.options && q.options.length > 0 ? (
                       (q.questionType || q.type) === 'OX문제' ? `
                         <div class="options">
@@ -1765,7 +1799,7 @@ ${allParagraphs}`;
                       </div>
                     </div>
                   </div>
-                `).join('')}
+                `}).join('')}
               </div>
             ` : ''}
           </div>
