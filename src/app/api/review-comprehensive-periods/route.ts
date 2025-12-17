@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { fetchAllFromTable, fetchAllContentSets, filterContentSets, batchUpdate } from '@/lib/reviewUtils';
 
 // '~다'로 끝나는데 마침표가 없는 경우 마침표 추가하는 함수
 function addPeriodIfNeeded(text: string): string {
@@ -21,135 +16,17 @@ function addPeriodIfNeeded(text: string): string {
   return text;
 }
 
-// 문제 테이블에서 선택지 마침표 검수하는 공통 함수
-async function processQuestionTable(
-  tableName: string,
-  contentSetIds: string[],
-  fieldsToCheck: string[]
-): Promise<{ questions: any[], updates: any[] }> {
-  const chunkSize = 100;
-  let allQuestions: any[] = [];
-
-  for (let i = 0; i < contentSetIds.length; i += chunkSize) {
-    const chunk = contentSetIds.slice(i, i + chunkSize);
-
-    // 각 청크에 대해 페이지네이션
-    let pageNum = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from(tableName)
-        .select('*')
-        .in('content_set_id', chunk)
-        .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        allQuestions.push(...data);
-        if (data.length < 1000) hasMore = false;
-      } else {
-        hasMore = false;
-      }
-      pageNum++;
-    }
-  }
-
-  // 각 문제의 선택지에서 마침표 검사 및 추가
-  const updates: any[] = [];
-
-  for (const question of allQuestions) {
-    let needsUpdate = false;
-    const changedFields: any = {};
-
-    for (const field of fieldsToCheck) {
-      const original = question[field];
-      if (!original) continue;
-
-      const converted = addPeriodIfNeeded(original);
-
-      if (original !== converted) {
-        changedFields[field] = {
-          original,
-          converted
-        };
-        needsUpdate = true;
-      }
-    }
-
-    if (needsUpdate) {
-      updates.push({
-        id: question.id,
-        content_set_id: question.content_set_id,
-        question_number: question.question_number,
-        question_type: question.question_type,
-        tableName,
-        changedFields,
-        updateData: Object.fromEntries(
-          Object.entries(changedFields).map(([field, value]: [string, any]) => [field, value.converted])
-        )
-      });
-    }
-  }
-
-  return { questions: allQuestions, updates };
-}
-
 export async function POST(request: NextRequest) {
   try {
     const { dryRun = true, statuses = [], sessionRange = null } = await request.json();
 
-    // 1. 상태별 필터링하여 content_set_id 조회 (페이지네이션 적용)
-    let allSets: any[] = [];
-    let currentPage = 0;
-    const pageSize = 1000;
-    let hasMoreData = true;
-
     console.log(`📊 종합/문단 문제 마침표 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
 
-    while (hasMoreData) {
-      let query = supabase
-        .from('content_sets')
-        .select('id, session_number, status')
-        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
-
-      // 상태 필터링을 DB 레벨에서 수행
-      if (statuses && statuses.length > 0) {
-        query = query.in('status', statuses);
-      }
-
-      const { data: pageData, error: setsError } = await query;
-      if (setsError) throw setsError;
-
-      if (pageData && pageData.length > 0) {
-        allSets.push(...pageData);
-        console.log(`  페이지 ${currentPage + 1}: ${pageData.length}개 조회 (누적: ${allSets.length}개)`);
-        if (pageData.length < pageSize) hasMoreData = false;
-      } else {
-        hasMoreData = false;
-      }
-      currentPage++;
-    }
-
-    // 차시 범위 필터링 (JavaScript에서 수행)
-    let filteredSets = allSets;
-    if (sessionRange && sessionRange.start && sessionRange.end) {
-      filteredSets = filteredSets.filter(set => {
-        if (!set.session_number) return false;
-
-        // session_number가 숫자인 경우 파싱
-        const sessionNum = parseInt(set.session_number, 10);
-        if (!isNaN(sessionNum)) {
-          return sessionNum >= sessionRange.start && sessionNum <= sessionRange.end;
-        }
-
-        return false;
-      });
-      console.log(`  차시 필터링 후: ${filteredSets.length}개`);
-    }
-
+    // 1. content_sets 전체 조회 및 필터링
+    const allSets = await fetchAllContentSets();
+    const filteredSets = filterContentSets(allSets, statuses, sessionRange);
     const contentSetIds = filteredSets.map(s => s.id);
+    const contentSetIdSet = new Set(contentSetIds);
 
     if (contentSetIds.length === 0) {
       return NextResponse.json({
@@ -162,25 +39,91 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 종합/문단 문제 조회 시작`);
 
-    // 2. 종합문제(comprehensive_questions) 조회 및 검사
+    // 2. comprehensive_questions 전체 조회 후 필터링
     const comprehensiveFieldsToCheck = ['option_1', 'option_2', 'option_3', 'option_4', 'option_5', 'correct_answer'];
-    const { questions: comprehensiveQuestions, updates: comprehensiveUpdates } = await processQuestionTable(
-      'comprehensive_questions',
-      contentSetIds,
-      comprehensiveFieldsToCheck
-    );
+    const comprehensiveQuestions = await fetchAllFromTable('comprehensive_questions', contentSetIdSet);
+    console.log(`📄 종합문제: 총 ${comprehensiveQuestions.length}개 조회`);
 
-    console.log(`📄 종합문제: 총 ${comprehensiveQuestions.length}개 조회, ${comprehensiveUpdates.length}개 마침표 누락 발견`);
+    // 종합문제 마침표 검사
+    const comprehensiveUpdates: any[] = [];
+    for (const question of comprehensiveQuestions) {
+      let needsUpdate = false;
+      const changedFields: any = {};
 
-    // 3. 문단문제(paragraph_questions) 조회 및 검사 (선택지만, correct_answer 제외)
+      for (const field of comprehensiveFieldsToCheck) {
+        const original = question[field];
+        if (!original) continue;
+
+        const converted = addPeriodIfNeeded(original);
+
+        if (original !== converted) {
+          changedFields[field] = {
+            original,
+            converted
+          };
+          needsUpdate = true;
+        }
+      }
+
+      if (needsUpdate) {
+        comprehensiveUpdates.push({
+          id: question.id,
+          content_set_id: question.content_set_id,
+          question_number: question.question_number,
+          question_type: question.question_type,
+          tableName: 'comprehensive_questions',
+          changedFields,
+          updateData: Object.fromEntries(
+            Object.entries(changedFields).map(([field, value]: [string, any]) => [field, value.converted])
+          )
+        });
+      }
+    }
+
+    console.log(`  종합문제: ${comprehensiveUpdates.length}개 마침표 누락 발견`);
+
+    // 3. paragraph_questions 전체 조회 후 필터링
     const paragraphFieldsToCheck = ['option_1', 'option_2', 'option_3', 'option_4', 'option_5'];
-    const { questions: paragraphQuestions, updates: paragraphUpdates } = await processQuestionTable(
-      'paragraph_questions',
-      contentSetIds,
-      paragraphFieldsToCheck
-    );
+    const paragraphQuestions = await fetchAllFromTable('paragraph_questions', contentSetIdSet);
+    console.log(`📄 문단문제: 총 ${paragraphQuestions.length}개 조회`);
 
-    console.log(`📄 문단문제: 총 ${paragraphQuestions.length}개 조회, ${paragraphUpdates.length}개 마침표 누락 발견`);
+    // 문단문제 마침표 검사
+    const paragraphUpdates: any[] = [];
+    for (const question of paragraphQuestions) {
+      let needsUpdate = false;
+      const changedFields: any = {};
+
+      for (const field of paragraphFieldsToCheck) {
+        const original = question[field];
+        if (!original) continue;
+
+        const converted = addPeriodIfNeeded(original);
+
+        if (original !== converted) {
+          changedFields[field] = {
+            original,
+            converted
+          };
+          needsUpdate = true;
+        }
+      }
+
+      if (needsUpdate) {
+        paragraphUpdates.push({
+          id: question.id,
+          content_set_id: question.content_set_id,
+          question_number: question.question_number,
+          question_type: question.question_type,
+          tableName: 'paragraph_questions',
+          changedFields,
+          updateData: Object.fromEntries(
+            Object.entries(changedFields).map(([field, value]: [string, any]) => [field, value.converted])
+          )
+        });
+      }
+    }
+
+    console.log(`  문단문제: ${paragraphUpdates.length}개 마침표 누락 발견`);
 
     // 4. 전체 업데이트 목록 합치기
     const allUpdates = [...comprehensiveUpdates, ...paragraphUpdates];
@@ -205,35 +148,23 @@ export async function POST(request: NextRequest) {
     // 6. 실제 업데이트 (배치 처리)
     let successCount = 0;
     let errorCount = 0;
-    const batchSize = 100;
 
     console.log(`🔄 ${allUpdates.length}개 문제 업데이트 시작`);
 
-    for (let i = 0; i < allUpdates.length; i += batchSize) {
-      const batch = allUpdates.slice(i, i + batchSize);
+    // 종합문제 업데이트
+    if (comprehensiveUpdates.length > 0) {
+      const updates = comprehensiveUpdates.map(u => ({ id: u.id, data: u.updateData }));
+      const result = await batchUpdate('comprehensive_questions', updates);
+      successCount += result.successCount;
+      errorCount += result.errorCount;
+    }
 
-      const batchPromises = batch.map(async (update) => {
-        try {
-          const { error } = await supabase
-            .from(update.tableName)
-            .update(update.updateData)
-            .eq('id', update.id);
-
-          return error ? { success: false } : { success: true };
-        } catch (err) {
-          console.error(`Error updating question ${update.id} in ${update.tableName}:`, err);
-          return { success: false };
-        }
-      });
-
-      const batchResults = await Promise.all(batchPromises);
-      successCount += batchResults.filter(r => r.success).length;
-      errorCount += batchResults.filter(r => !r.success).length;
-
-      // API 부하 방지를 위한 대기
-      if (i + batchSize < allUpdates.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+    // 문단문제 업데이트
+    if (paragraphUpdates.length > 0) {
+      const updates = paragraphUpdates.map(u => ({ id: u.id, data: u.updateData }));
+      const result = await batchUpdate('paragraph_questions', updates);
+      successCount += result.successCount;
+      errorCount += result.errorCount;
     }
 
     console.log(`✅ 완료 - 성공: ${successCount}, 실패: ${errorCount}`);

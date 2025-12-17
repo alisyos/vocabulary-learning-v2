@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { fetchAllFromTable, fetchAllContentSets, filterContentSets } from '@/lib/reviewUtils';
 
 // 해설에서 작은따옴표로 인용된 텍스트들을 추출하는 함수
 function extractCitations(text: string): string[] {
@@ -84,56 +79,13 @@ export async function POST(request: NextRequest) {
   try {
     const { dryRun = true, statuses = [], sessionRange = null } = await request.json();
 
-    // 1. 상태별 필터링하여 content_set_id 조회 (페이지네이션 적용)
-    let allSets: any[] = [];
-    let currentPage = 0;
-    const pageSize = 1000;
-    let hasMoreData = true;
-
     console.log(`📊 해설 인용 불일치 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
 
-    while (hasMoreData) {
-      let query = supabase
-        .from('content_sets')
-        .select('id, session_number, status')
-        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
-
-      // 상태 필터링을 DB 레벨에서 수행
-      if (statuses && statuses.length > 0) {
-        query = query.in('status', statuses);
-      }
-
-      const { data: pageData, error: setsError } = await query;
-      if (setsError) throw setsError;
-
-      if (pageData && pageData.length > 0) {
-        allSets.push(...pageData);
-        console.log(`  페이지 ${currentPage + 1}: ${pageData.length}개 조회 (누적: ${allSets.length}개)`);
-        if (pageData.length < pageSize) hasMoreData = false;
-      } else {
-        hasMoreData = false;
-      }
-      currentPage++;
-    }
-
-    // 차시 범위 필터링 (JavaScript에서 수행)
-    let filteredSets = allSets;
-    if (sessionRange && sessionRange.start && sessionRange.end) {
-      filteredSets = filteredSets.filter(set => {
-        if (!set.session_number) return false;
-
-        // session_number가 숫자인 경우 파싱
-        const sessionNum = parseInt(set.session_number, 10);
-        if (!isNaN(sessionNum)) {
-          return sessionNum >= sessionRange.start && sessionNum <= sessionRange.end;
-        }
-
-        return false;
-      });
-      console.log(`  차시 필터링 후: ${filteredSets.length}개`);
-    }
-
+    // 1. content_sets 전체 조회 및 필터링
+    const allSets = await fetchAllContentSets();
+    const filteredSets = filterContentSets(allSets, statuses, sessionRange);
     const contentSetIds = filteredSets.map(s => s.id);
+    const contentSetIdSet = new Set(contentSetIds);
 
     if (contentSetIds.length === 0) {
       return NextResponse.json({
@@ -148,91 +100,31 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 지문 및 문제 조회 시작`);
 
-    // 2. passages 테이블에서 지문 조회 (content_set_id당 여러 지문이 있을 수 있음)
-    const chunkSize = 100;
-    const passageMap = new Map<string, string>(); // content_set_id -> combined passage text (모든 지문 합침)
-    let totalPassageCount = 0;
+    // 2. passages 테이블 전체 조회 후 필터링
+    console.log(`📄 지문(passages) 조회 중...`);
+    const allPassages = await fetchAllFromTable('passages', contentSetIdSet);
+    console.log(`  → ${allPassages.length}개 지문 조회 완료`);
 
-    for (let i = 0; i < contentSetIds.length; i += chunkSize) {
-      const chunk = contentSetIds.slice(i, i + chunkSize);
-
-      const { data: passages, error: passagesError } = await supabase
-        .from('passages')
-        .select('*')
-        .in('content_set_id', chunk);
-
-      if (passagesError) throw passagesError;
-
-      if (passages) {
-        totalPassageCount += passages.length;
-        for (const passage of passages) {
-          const combinedText = combinePassageParagraphs(passage);
-          // 같은 content_set_id에 여러 지문이 있으면 모두 합침
-          const existingText = passageMap.get(passage.content_set_id) || '';
-          passageMap.set(passage.content_set_id, existingText + ' ' + combinedText);
-        }
-      }
+    // content_set_id별로 지문 텍스트 합치기
+    const passageMap = new Map<string, string>();
+    for (const passage of allPassages) {
+      const combinedText = combinePassageParagraphs(passage);
+      // 같은 content_set_id에 여러 지문이 있으면 모두 합침
+      const existingText = passageMap.get(passage.content_set_id) || '';
+      passageMap.set(passage.content_set_id, existingText + ' ' + combinedText);
     }
 
-    console.log(`📄 ${totalPassageCount}개 지문 조회 완료 (${passageMap.size}개 콘텐츠 세트)`);
+    console.log(`  → ${passageMap.size}개 콘텐츠 세트에 대한 지문 준비 완료`);
 
-    // 3. paragraph_questions 조회
-    let allParagraphQuestions: any[] = [];
-    for (let i = 0; i < contentSetIds.length; i += chunkSize) {
-      const chunk = contentSetIds.slice(i, i + chunkSize);
+    // 3. paragraph_questions 전체 조회 후 필터링
+    console.log(`📝 문단문제(paragraph_questions) 조회 중...`);
+    const allParagraphQuestions = await fetchAllFromTable('paragraph_questions', contentSetIdSet);
+    console.log(`  → ${allParagraphQuestions.length}개 조회 완료`);
 
-      let pageNum = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('paragraph_questions')
-          .select('*')
-          .in('content_set_id', chunk)
-          .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allParagraphQuestions.push(...data);
-          if (data.length < 1000) hasMore = false;
-        } else {
-          hasMore = false;
-        }
-        pageNum++;
-      }
-    }
-
-    console.log(`📝 문단문제 ${allParagraphQuestions.length}개 조회 완료`);
-
-    // 4. comprehensive_questions 조회
-    let allComprehensiveQuestions: any[] = [];
-    for (let i = 0; i < contentSetIds.length; i += chunkSize) {
-      const chunk = contentSetIds.slice(i, i + chunkSize);
-
-      let pageNum = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('comprehensive_questions')
-          .select('*')
-          .in('content_set_id', chunk)
-          .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allComprehensiveQuestions.push(...data);
-          if (data.length < 1000) hasMore = false;
-        } else {
-          hasMore = false;
-        }
-        pageNum++;
-      }
-    }
-
-    console.log(`📝 종합문제 ${allComprehensiveQuestions.length}개 조회 완료`);
+    // 4. comprehensive_questions 전체 조회 후 필터링
+    console.log(`📝 종합문제(comprehensive_questions) 조회 중...`);
+    const allComprehensiveQuestions = await fetchAllFromTable('comprehensive_questions', contentSetIdSet);
+    console.log(`  → ${allComprehensiveQuestions.length}개 조회 완료`);
 
     // 5. 각 문제의 해설에서 인용 텍스트 추출 및 지문과 비교
     const mismatches: any[] = [];

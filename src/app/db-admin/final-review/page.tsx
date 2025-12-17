@@ -102,6 +102,11 @@ export default function FinalReviewPage() {
   const [quotePeriodResult, setQuotePeriodResult] = useState<ReviewResult | null>(null);
   const [doubleQuotesResult, setDoubleQuotesResult] = useState<ReviewResult | null>(null);
   const [citationMismatchResult, setCitationMismatchResult] = useState<ReviewResult | null>(null);
+  const [textReplaceResult, setTextReplaceResult] = useState<ReviewResult | null>(null);
+
+  // 11번 검수용 상태
+  const [searchText, setSearchText] = useState<string>('');
+  const [replaceText, setReplaceText] = useState<string>('');
 
   // 1. 지문 따옴표 검수
   const handlePassageQuotesReview = async (dryRun: boolean) => {
@@ -409,6 +414,45 @@ export default function FinalReviewPage() {
       setCitationMismatchResult(data);
     } catch (error) {
       console.error('해설 인용 불일치 검수 오류:', error);
+      alert('검수 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // 11. 텍스트 일괄 수정 검수
+  const handleTextReplaceReview = async (dryRun: boolean) => {
+    if (!searchText.trim()) {
+      alert('검색어를 입력해주세요.');
+      return;
+    }
+
+    setLoading('text-replace');
+    setTextReplaceResult(null);
+
+    try {
+      const parsedRange = parseSessionRange(sessionRange);
+
+      const response = await fetch('/api/review-text-replace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dryRun,
+          statuses: statusFilter,
+          sessionRange: parsedRange,
+          searchText: searchText.trim(),
+          replaceText: replaceText
+        })
+      });
+
+      const data = await response.json();
+      setTextReplaceResult(data);
+
+      if (!dryRun && data.success) {
+        alert(`✅ 텍스트 일괄 수정 완료!\n\n"${searchText}" → "${replaceText}"\n${data.successCount}개 수정됨`);
+      }
+    } catch (error) {
+      console.error('텍스트 일괄 수정 오류:', error);
       alert('검수 중 오류가 발생했습니다.');
     } finally {
       setLoading(null);
@@ -1619,6 +1663,213 @@ export default function FinalReviewPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 검수 항목 11: 텍스트 일괄 수정 */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-3">
+            ✏️ 11. 텍스트 일괄 수정
+          </h2>
+          <p className="text-gray-600 mb-4">
+            특정 텍스트를 찾아 다른 텍스트로 일괄 수정합니다. 6개 테이블의 모든 텍스트 필드를 대상으로 합니다.
+            <br />
+            <span className="text-sm text-gray-500">
+              예: &apos;관계회복&apos; → &apos;관계 회복&apos; / &apos;까닭&apos; → &apos;이유&apos;
+            </span>
+          </p>
+
+          {/* 검색어/대체어 입력 */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                검색어 (찾을 텍스트)
+              </label>
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="예: 관계회복"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                대체어 (바꿀 텍스트)
+              </label>
+              <input
+                type="text"
+                value={replaceText}
+                onChange={(e) => setReplaceText(e.target.value)}
+                placeholder="예: 관계 회복"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              />
+            </div>
+          </div>
+
+          {/* 검수 대상 테이블 안내 */}
+          <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <p className="text-sm text-gray-700">
+              <strong>📋 검수 대상:</strong>
+              <br />
+              • 지문: title, paragraph_1~10
+              <br />
+              • 어휘: term, definition, example_sentence
+              <br />
+              • 어휘문제: question_text, option_1~5, correct_answer, explanation, term
+              <br />
+              • 문단문제: question_text, option_1~5, correct_answer, explanation, word_segments
+              <br />
+              • 종합문제: question_text, option_1~5, correct_answer, explanation
+              <br />
+              • 콘텐츠세트: title
+            </p>
+          </div>
+
+          <div className="flex gap-4 mb-4">
+            <button
+              onClick={() => handleTextReplaceReview(true)}
+              disabled={loading !== null || !searchText.trim()}
+              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'text-replace' ? '처리 중...' : '🔍 드라이런 (미리보기)'}
+            </button>
+            <button
+              onClick={() => {
+                if (confirm(`⚠️ 텍스트 일괄 수정을 실행하시겠습니까?\n\n"${searchText}" → "${replaceText}"\n\n이 작업은 되돌릴 수 없습니다.`)) {
+                  handleTextReplaceReview(false);
+                }
+              }}
+              disabled={loading !== null || !searchText.trim()}
+              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'text-replace' ? '처리 중...' : '⚡ 실행'}
+            </button>
+          </div>
+
+          {/* 결과 표시 */}
+          {textReplaceResult && (
+            <div className={`rounded-lg p-4 ${textReplaceResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                {textReplaceResult.dryRun ? '📊 드라이런 결과' : '✅ 실행 결과'}
+              </h3>
+              <p className="text-gray-700 mb-2">{textReplaceResult.message}</p>
+
+              {/* 테이블별 건수 표시 */}
+              {textReplaceResult.dryRun && (textReplaceResult as any).tableStats && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-800">
+                    <strong>📊 테이블별 수정 대상:</strong>
+                    <br />
+                    • 지문: <strong>{(textReplaceResult as any).tableStats?.passages || 0}개</strong>
+                    <br />
+                    • 어휘: <strong>{(textReplaceResult as any).tableStats?.vocabulary_terms || 0}개</strong>
+                    <br />
+                    • 어휘문제: <strong>{(textReplaceResult as any).tableStats?.vocabulary_questions || 0}개</strong>
+                    <br />
+                    • 문단문제: <strong>{(textReplaceResult as any).tableStats?.paragraph_questions || 0}개</strong>
+                    <br />
+                    • 종합문제: <strong>{(textReplaceResult as any).tableStats?.comprehensive_questions || 0}개</strong>
+                    <br />
+                    • 콘텐츠세트: <strong>{(textReplaceResult as any).tableStats?.content_sets || 0}개</strong>
+                  </p>
+                </div>
+              )}
+
+              {textReplaceResult.dryRun && textReplaceResult.samples && textReplaceResult.samples.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    샘플 미리보기 (테이블별 최대 3개씩):
+                  </p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {textReplaceResult.samples.map((sample: any, idx: number) => (
+                      <div key={idx} className="bg-white p-3 rounded border border-gray-200 text-sm">
+                        <div className="font-medium text-gray-800 mb-1">
+                          콘텐츠 세트: {sample.content_set_id}
+                        </div>
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            sample.tableName === 'passages'
+                              ? 'bg-blue-100 text-blue-700'
+                              : sample.tableName === 'vocabulary_terms'
+                              ? 'bg-teal-100 text-teal-700'
+                              : sample.tableName === 'vocabulary_questions'
+                              ? 'bg-green-100 text-green-700'
+                              : sample.tableName === 'paragraph_questions'
+                              ? 'bg-orange-100 text-orange-700'
+                              : sample.tableName === 'comprehensive_questions'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {sample.tableLabel}
+                          </span>
+                          {sample.question_number && (
+                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                              문제 #{sample.question_number}
+                            </span>
+                          )}
+                          {sample.term && (
+                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">
+                              {sample.term}
+                            </span>
+                          )}
+                        </div>
+                        {/* 변경 필드별 상세 표시 */}
+                        {Object.entries(sample.changedFields).map(([field, values]: [string, any]) => (
+                          <div key={field} className="mb-2 pl-3 border-l-2 border-blue-300">
+                            <div className="text-xs font-semibold text-gray-600 mb-1">{field}:</div>
+                            <div className="text-red-600 line-through text-xs mb-1">
+                              {values.original.length > 100 ? values.original.slice(0, 100) + '...' : values.original}
+                            </div>
+                            <div className="text-green-600 font-medium text-xs">
+                              {values.converted.length > 100 ? values.converted.slice(0, 100) + '...' : values.converted}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!textReplaceResult.dryRun && (
+                <div className="mt-3">
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div className="bg-white p-3 rounded">
+                      <div className="text-sm text-gray-600">성공</div>
+                      <div className="text-2xl font-bold text-green-700">
+                        {textReplaceResult.successCount || 0}
+                      </div>
+                    </div>
+                    <div className="bg-white p-3 rounded">
+                      <div className="text-sm text-gray-600">실패</div>
+                      <div className="text-2xl font-bold text-red-700">
+                        {textReplaceResult.errorCount || 0}
+                      </div>
+                    </div>
+                  </div>
+                  {(textReplaceResult as any).tableStats && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                      <p className="text-sm text-blue-800">
+                        <strong>📊 테이블별 수정 결과:</strong>
+                        <br />
+                        • 지문: <strong>{(textReplaceResult as any).tableStats?.passages || 0}개</strong>
+                        <br />
+                        • 어휘: <strong>{(textReplaceResult as any).tableStats?.vocabulary_terms || 0}개</strong>
+                        <br />
+                        • 어휘문제: <strong>{(textReplaceResult as any).tableStats?.vocabulary_questions || 0}개</strong>
+                        <br />
+                        • 문단문제: <strong>{(textReplaceResult as any).tableStats?.paragraph_questions || 0}개</strong>
+                        <br />
+                        • 종합문제: <strong>{(textReplaceResult as any).tableStats?.comprehensive_questions || 0}개</strong>
+                        <br />
+                        • 콘텐츠세트: <strong>{(textReplaceResult as any).tableStats?.content_sets || 0}개</strong>
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

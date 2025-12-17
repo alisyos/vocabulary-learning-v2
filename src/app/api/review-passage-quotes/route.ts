@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { fetchAllFromTable, fetchAllContentSets, filterContentSets, batchUpdate } from '@/lib/reviewUtils';
 
 // 작은따옴표로 감싸진 단어를 찾아서 제거하는 함수
 function removeQuotesFromText(text: string): string {
@@ -20,56 +15,13 @@ export async function POST(request: NextRequest) {
   try {
     const { dryRun = true, statuses = [], sessionRange = null } = await request.json();
 
-    // 1. 상태별 필터링하여 content_set_id 조회 (페이지네이션 적용)
-    let allSets: any[] = [];
-    let currentPage = 0;
-    const pageSize = 1000;
-    let hasMoreData = true;
-
     console.log(`📊 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
 
-    while (hasMoreData) {
-      let query = supabase
-        .from('content_sets')
-        .select('id, session_number, status')
-        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
-
-      // 상태 필터링을 DB 레벨에서 수행
-      if (statuses && statuses.length > 0) {
-        query = query.in('status', statuses);
-      }
-
-      const { data: pageData, error: setsError } = await query;
-      if (setsError) throw setsError;
-
-      if (pageData && pageData.length > 0) {
-        allSets.push(...pageData);
-        console.log(`  페이지 ${currentPage + 1}: ${pageData.length}개 조회 (누적: ${allSets.length}개)`);
-        if (pageData.length < pageSize) hasMoreData = false;
-      } else {
-        hasMoreData = false;
-      }
-      currentPage++;
-    }
-
-    // 차시 범위 필터링 (JavaScript에서 수행)
-    let filteredSets = allSets;
-    if (sessionRange && sessionRange.start && sessionRange.end) {
-      filteredSets = filteredSets.filter(set => {
-        if (!set.session_number) return false;
-
-        // session_number가 숫자인 경우 파싱
-        const sessionNum = parseInt(set.session_number, 10);
-        if (!isNaN(sessionNum)) {
-          return sessionNum >= sessionRange.start && sessionNum <= sessionRange.end;
-        }
-
-        return false;
-      });
-      console.log(`  차시 필터링 후: ${filteredSets.length}개`);
-    }
-
+    // 1. content_sets 전체 조회 및 필터링
+    const allSets = await fetchAllContentSets();
+    const filteredSets = filterContentSets(allSets, statuses, sessionRange);
     const contentSetIds = filteredSets.map(s => s.id);
+    const contentSetIdSet = new Set(contentSetIds);
 
     if (contentSetIds.length === 0) {
       return NextResponse.json({
@@ -82,38 +34,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 지문 조회 시작`);
 
-    // 2. passages 테이블에서 해당 content_set_id의 모든 레코드 조회 (페이지네이션 적용)
-    // contentSetIds를 청크로 나누어 조회 (in 절 제한 고려)
-    const chunkSize = 100;
-    let allPassages: any[] = [];
-
-    for (let i = 0; i < contentSetIds.length; i += chunkSize) {
-      const chunk = contentSetIds.slice(i, i + chunkSize);
-
-      // 각 청크에 대해 페이지네이션
-      let pageNum = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('passages')
-          .select('*')
-          .in('content_set_id', chunk)
-          .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allPassages.push(...data);
-          if (data.length < 1000) hasMore = false;
-        } else {
-          hasMore = false;
-        }
-        pageNum++;
-      }
-
-      console.log(`  청크 ${Math.floor(i / chunkSize) + 1}/${Math.ceil(contentSetIds.length / chunkSize)}: ${allPassages.length}개 누적`);
-    }
+    // 2. passages 테이블 전체 조회 후 필터링
+    const allPassages = await fetchAllFromTable('passages', contentSetIdSet);
 
     console.log(`📄 총 ${allPassages.length}개 지문 조회 완료`);
 
@@ -180,40 +102,33 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔄 ${updatesByPassageId.size}개 지문 업데이트 시작`);
 
-    // 각 passage에 대해 업데이트 실행
+    // batchUpdate 형식에 맞게 변환
+    const batchUpdates = Array.from(updatesByPassageId.entries()).map(([passageId, passageUpdates]) => {
+      const updateData: Record<string, any> = {};
+      for (const update of passageUpdates) {
+        updateData[update.paragraph_field] = update.converted;
+      }
+      return { id: passageId, data: updateData };
+    });
+
+    const result = await batchUpdate('passages', batchUpdates);
+
+    // 개별 필드 기준으로 성공/실패 계산
     for (const [passageId, passageUpdates] of updatesByPassageId) {
-      try {
-        // 해당 passage의 모든 필드 업데이트를 하나의 객체로 만듦
-        const updateData: any = {};
-        for (const update of passageUpdates) {
-          updateData[update.paragraph_field] = update.converted;
-        }
-
-        const { error } = await supabase
-          .from('passages')
-          .update(updateData)
-          .eq('id', passageId);
-
-        if (error) {
-          console.error(`Error updating passage ${passageId}:`, error);
-          errorCount += passageUpdates.length;
-        } else {
-          successCount += passageUpdates.length;
-        }
-      } catch (err) {
-        console.error(`Exception updating passage ${passageId}:`, err);
-        errorCount += passageUpdates.length;
+      const updateResult = batchUpdates.find(u => u.id === passageId);
+      if (updateResult) {
+        successCount += passageUpdates.length;
       }
     }
 
-    console.log(`✅ 완료 - 성공: ${successCount}, 실패: ${errorCount}`);
+    console.log(`✅ 완료 - 성공: ${result.successCount}개 지문, 실패: ${result.errorCount}개 지문`);
 
     return NextResponse.json({
       success: true,
       dryRun: false,
-      message: `지문 따옴표 검수 완료: ${successCount}개 성공, ${errorCount}개 실패`,
-      successCount,
-      errorCount,
+      message: `지문 따옴표 검수 완료: ${result.successCount}개 지문 성공, ${result.errorCount}개 지문 실패`,
+      successCount: result.successCount,
+      errorCount: result.errorCount,
       totalProcessed: updates.length
     });
 

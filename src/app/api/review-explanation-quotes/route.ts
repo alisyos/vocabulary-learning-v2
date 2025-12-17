@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { fetchAllFromTable, fetchAllContentSets, filterContentSets, batchUpdate } from '@/lib/reviewUtils';
 
 // 인용이 아닌 작은따옴표를 제거하는 함수
 // 인용 패턴: 닫는 따옴표 뒤에 '와', '라고', '고', '라는', '는', '처럼'이 오는 경우는 유지
@@ -47,95 +42,17 @@ function removeNonQuotationQuotes(text: string): string {
   });
 }
 
-// 테이블별 질문 데이터를 조회하는 헬퍼 함수
-async function fetchQuestionsFromTable(
-  tableName: string,
-  contentSetIds: string[],
-  chunkSize: number = 100
-): Promise<any[]> {
-  const allQuestions: any[] = [];
-
-  for (let i = 0; i < contentSetIds.length; i += chunkSize) {
-    const chunk = contentSetIds.slice(i, i + chunkSize);
-    let pageNum = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from(tableName)
-        .select('*')
-        .in('content_set_id', chunk)
-        .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        allQuestions.push(...data);
-        if (data.length < 1000) hasMore = false;
-      } else {
-        hasMore = false;
-      }
-      pageNum++;
-    }
-  }
-
-  return allQuestions;
-}
-
 export async function POST(request: NextRequest) {
   try {
     const { dryRun = true, statuses = [], sessionRange = null } = await request.json();
 
-    // 1. 상태별 필터링하여 content_set_id 조회 (페이지네이션 적용)
-    let allSets: any[] = [];
-    let currentPage = 0;
-    const pageSize = 1000;
-    let hasMoreData = true;
-
     console.log(`📊 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
 
-    while (hasMoreData) {
-      let query = supabase
-        .from('content_sets')
-        .select('id, session_number, status')
-        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
-
-      // 상태 필터링을 DB 레벨에서 수행
-      if (statuses && statuses.length > 0) {
-        query = query.in('status', statuses);
-      }
-
-      const { data: pageData, error: setsError } = await query;
-      if (setsError) throw setsError;
-
-      if (pageData && pageData.length > 0) {
-        allSets.push(...pageData);
-        console.log(`  페이지 ${currentPage + 1}: ${pageData.length}개 조회 (누적: ${allSets.length}개)`);
-        if (pageData.length < pageSize) hasMoreData = false;
-      } else {
-        hasMoreData = false;
-      }
-      currentPage++;
-    }
-
-    // 차시 범위 필터링 (JavaScript에서 수행)
-    let filteredSets = allSets;
-    if (sessionRange && sessionRange.start && sessionRange.end) {
-      filteredSets = filteredSets.filter(set => {
-        if (!set.session_number) return false;
-
-        // session_number가 숫자인 경우 파싱
-        const sessionNum = parseInt(set.session_number, 10);
-        if (!isNaN(sessionNum)) {
-          return sessionNum >= sessionRange.start && sessionNum <= sessionRange.end;
-        }
-
-        return false;
-      });
-      console.log(`  차시 필터링 후: ${filteredSets.length}개`);
-    }
-
+    // 1. content_sets 전체 조회 및 필터링
+    const allSets = await fetchAllContentSets();
+    const filteredSets = filterContentSets(allSets, statuses, sessionRange);
     const contentSetIds = filteredSets.map(s => s.id);
+    const contentSetIdSet = new Set(contentSetIds);
 
     if (contentSetIds.length === 0) {
       return NextResponse.json({
@@ -148,17 +65,17 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 문제 조회 시작`);
 
-    // 2. 세 테이블에서 해당 content_set_id의 모든 레코드 조회
+    // 2. 세 테이블에서 전체 레코드 조회 후 필터링
     console.log(`  어휘문제(vocabulary_questions) 조회 중...`);
-    const vocabularyQuestions = await fetchQuestionsFromTable('vocabulary_questions', contentSetIds);
+    const vocabularyQuestions = await fetchAllFromTable('vocabulary_questions', contentSetIdSet);
     console.log(`  → ${vocabularyQuestions.length}개 조회`);
 
     console.log(`  문단문제(paragraph_questions) 조회 중...`);
-    const paragraphQuestions = await fetchQuestionsFromTable('paragraph_questions', contentSetIds);
+    const paragraphQuestions = await fetchAllFromTable('paragraph_questions', contentSetIdSet);
     console.log(`  → ${paragraphQuestions.length}개 조회`);
 
     console.log(`  종합문제(comprehensive_questions) 조회 중...`);
-    const comprehensiveQuestions = await fetchQuestionsFromTable('comprehensive_questions', contentSetIds);
+    const comprehensiveQuestions = await fetchAllFromTable('comprehensive_questions', contentSetIdSet);
     console.log(`  → ${comprehensiveQuestions.length}개 조회`);
 
     const totalQuestions = vocabularyQuestions.length + paragraphQuestions.length + comprehensiveQuestions.length;
@@ -267,70 +184,34 @@ export async function POST(request: NextRequest) {
     let vocabularySuccessCount = 0;
     let paragraphSuccessCount = 0;
     let comprehensiveSuccessCount = 0;
-    const batchSize = 100;
 
     console.log(`🔄 ${totalUpdates}개 해설 업데이트 시작`);
 
-    // 테이블별 업데이트 함수
-    const updateTable = async (updates: any[], tableName: string) => {
-      let tableSuccess = 0;
-      let tableError = 0;
-
-      for (let i = 0; i < updates.length; i += batchSize) {
-        const batch = updates.slice(i, i + batchSize);
-
-        const batchPromises = batch.map(async (update) => {
-          try {
-            const { error } = await supabase
-              .from(tableName)
-              .update({ explanation: update.converted })
-              .eq('id', update.id);
-
-            return error ? { success: false } : { success: true };
-          } catch (err) {
-            console.error(`Error updating ${tableName} ${update.id}:`, err);
-            return { success: false };
-          }
-        });
-
-        const batchResults = await Promise.all(batchPromises);
-        tableSuccess += batchResults.filter(r => r.success).length;
-        tableError += batchResults.filter(r => !r.success).length;
-
-        // API 부하 방지를 위한 대기
-        if (i + batchSize < updates.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-
-      return { success: tableSuccess, error: tableError };
-    };
-
     // 어휘문제 업데이트
     if (vocabularyUpdates.length > 0) {
-      console.log(`  어휘문제 업데이트 중...`);
-      const result = await updateTable(vocabularyUpdates, 'vocabulary_questions');
-      vocabularySuccessCount = result.success;
-      successCount += result.success;
-      errorCount += result.error;
+      const updates = vocabularyUpdates.map(u => ({ id: u.id, data: { explanation: u.converted } }));
+      const result = await batchUpdate('vocabulary_questions', updates);
+      vocabularySuccessCount = result.successCount;
+      successCount += result.successCount;
+      errorCount += result.errorCount;
     }
 
     // 문단문제 업데이트
     if (paragraphUpdates.length > 0) {
-      console.log(`  문단문제 업데이트 중...`);
-      const result = await updateTable(paragraphUpdates, 'paragraph_questions');
-      paragraphSuccessCount = result.success;
-      successCount += result.success;
-      errorCount += result.error;
+      const updates = paragraphUpdates.map(u => ({ id: u.id, data: { explanation: u.converted } }));
+      const result = await batchUpdate('paragraph_questions', updates);
+      paragraphSuccessCount = result.successCount;
+      successCount += result.successCount;
+      errorCount += result.errorCount;
     }
 
     // 종합문제 업데이트
     if (comprehensiveUpdates.length > 0) {
-      console.log(`  종합문제 업데이트 중...`);
-      const result = await updateTable(comprehensiveUpdates, 'comprehensive_questions');
-      comprehensiveSuccessCount = result.success;
-      successCount += result.success;
-      errorCount += result.error;
+      const updates = comprehensiveUpdates.map(u => ({ id: u.id, data: { explanation: u.converted } }));
+      const result = await batchUpdate('comprehensive_questions', updates);
+      comprehensiveSuccessCount = result.successCount;
+      successCount += result.successCount;
+      errorCount += result.errorCount;
     }
 
     console.log(`✅ 완료 - 성공: ${successCount}, 실패: ${errorCount}`);

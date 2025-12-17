@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { fetchAllFromTable, fetchAllContentSets, filterContentSets } from '@/lib/reviewUtils';
 
 // 정답이 선택지 중 하나와 일치하는지 확인하는 함수
 function checkAnswerMatch(question: any): { isMatch: boolean; reason: string } {
@@ -63,56 +58,13 @@ export async function POST(request: NextRequest) {
   try {
     const { dryRun = true, statuses = [], sessionRange = null } = await request.json();
 
-    // 1. 상태별 필터링하여 content_set_id 조회 (페이지네이션 적용)
-    let allSets: any[] = [];
-    let currentPage = 0;
-    const pageSize = 1000;
-    let hasMoreData = true;
-
     console.log(`📊 종합문제 정답-선택지 일치 검수 시작 - 상태: ${statuses.join(', ')}, 차시: ${sessionRange ? `${sessionRange.start}-${sessionRange.end}` : '전체'}`);
 
-    while (hasMoreData) {
-      let query = supabase
-        .from('content_sets')
-        .select('id, session_number, status')
-        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
-
-      // 상태 필터링을 DB 레벨에서 수행
-      if (statuses && statuses.length > 0) {
-        query = query.in('status', statuses);
-      }
-
-      const { data: pageData, error: setsError } = await query;
-      if (setsError) throw setsError;
-
-      if (pageData && pageData.length > 0) {
-        allSets.push(...pageData);
-        console.log(`  페이지 ${currentPage + 1}: ${pageData.length}개 조회 (누적: ${allSets.length}개)`);
-        if (pageData.length < pageSize) hasMoreData = false;
-      } else {
-        hasMoreData = false;
-      }
-      currentPage++;
-    }
-
-    // 차시 범위 필터링 (JavaScript에서 수행)
-    let filteredSets = allSets;
-    if (sessionRange && sessionRange.start && sessionRange.end) {
-      filteredSets = filteredSets.filter(set => {
-        if (!set.session_number) return false;
-
-        // session_number가 숫자인 경우 파싱
-        const sessionNum = parseInt(set.session_number, 10);
-        if (!isNaN(sessionNum)) {
-          return sessionNum >= sessionRange.start && sessionNum <= sessionRange.end;
-        }
-
-        return false;
-      });
-      console.log(`  차시 필터링 후: ${filteredSets.length}개`);
-    }
-
+    // 1. content_sets 전체 조회 및 필터링
+    const allSets = await fetchAllContentSets();
+    const filteredSets = filterContentSets(allSets, statuses, sessionRange);
     const contentSetIds = filteredSets.map(s => s.id);
+    const contentSetIdSet = new Set(contentSetIds);
 
     if (contentSetIds.length === 0) {
       return NextResponse.json({
@@ -127,38 +79,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 총 ${contentSetIds.length}개 콘텐츠 세트의 종합문제 조회 시작`);
 
-    // 2. comprehensive_questions 테이블에서 해당 content_set_id의 모든 레코드 조회 (페이지네이션 적용)
-    // contentSetIds를 청크로 나누어 조회 (in 절 제한 고려)
-    const chunkSize = 100;
-    let allQuestions: any[] = [];
-
-    for (let i = 0; i < contentSetIds.length; i += chunkSize) {
-      const chunk = contentSetIds.slice(i, i + chunkSize);
-
-      // 각 청크에 대해 페이지네이션
-      let pageNum = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('comprehensive_questions')
-          .select('*')
-          .in('content_set_id', chunk)
-          .range(pageNum * 1000, (pageNum + 1) * 1000 - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allQuestions.push(...data);
-          if (data.length < 1000) hasMore = false;
-        } else {
-          hasMore = false;
-        }
-        pageNum++;
-      }
-
-      console.log(`  청크 ${Math.floor(i / chunkSize) + 1}/${Math.ceil(contentSetIds.length / chunkSize)}: ${allQuestions.length}개 누적`);
-    }
+    // 2. comprehensive_questions 테이블 전체 조회 후 필터링
+    const allQuestions = await fetchAllFromTable('comprehensive_questions', contentSetIdSet);
 
     console.log(`📄 총 ${allQuestions.length}개 종합문제 조회 완료`);
 
