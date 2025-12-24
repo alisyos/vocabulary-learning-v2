@@ -1876,8 +1876,8 @@ ${allParagraphs}`;
       }
 
       try {
-        // 이미지 데이터 JSON (다운로드 시점의 이미지 목록 임베드)
-        const imageData = ${JSON.stringify(visualMaterials)};
+        // 이미지 데이터 JSON (다운로드 시점의 이미지 목록 임베드) - 표시 상태인 이미지만 포함
+        const imageData = ${JSON.stringify(visualMaterials.filter((img: any) => img.is_visible === true))};
 
         if (imageData.length === 0) {
           imageGallery.innerHTML = \`

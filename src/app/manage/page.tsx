@@ -628,11 +628,11 @@ export default function ManagePage() {
             continue;
           }
 
-          // 2. 시각자료 가져오기 (session_number가 있는 경우)
+          // 2. 시각자료 가져오기 (session_number가 있는 경우) - 표시 상태인 이미지만
           let visualMaterials = [];
           if (result.data.contentSet.session_number) {
             const imageResponse = await fetch(
-              `/api/images?session_number=${encodeURIComponent(result.data.contentSet.session_number)}`
+              `/api/images?session_number=${encodeURIComponent(result.data.contentSet.session_number)}&visible_only=true`
             );
             const imageResult = await imageResponse.json();
             if (imageResult.success) {
