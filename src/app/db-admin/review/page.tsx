@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import RoleAuthGuard from '@/components/RoleAuthGuard';
 import ContentEditModal from '@/components/ContentEditModal';
+import { generateHtmlV2 } from '@/lib/htmlGeneratorV2';
 
 interface DataSet {
   id: string;
@@ -67,6 +68,13 @@ export default function ContentSetReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<ApiResponse['stats'] | null>(null);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [selectedSets, setSelectedSets] = useState<Set<string>>(new Set());
+
+  // 일괄 작업 상태
+  const [batchOperation, setBatchOperation] = useState<{
+    loading: boolean;
+    type: 'download' | null;
+  }>({ loading: false, type: null });
 
   // 전체 옵션을 위한 별도 상태 (필터링과 무관하게 유지)
   const [allOptions, setAllOptions] = useState<{
@@ -266,6 +274,137 @@ export default function ContentSetReviewPage() {
     }
   };
 
+  // 전체 선택/해제 토글
+  const toggleSelectAll = () => {
+    if (selectedSets.size === paginatedData.length) {
+      setSelectedSets(new Set());
+    } else {
+      const newSelected = new Set<string>();
+      paginatedData.forEach(item => {
+        const id = item.id || item.setId;
+        if (id) newSelected.add(id);
+      });
+      setSelectedSets(newSelected);
+    }
+  };
+
+  // 개별 항목 선택 토글
+  const toggleSelectItem = (itemId: string) => {
+    const newSelected = new Set(selectedSets);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedSets(newSelected);
+  };
+
+  // 일괄 HTML 다운로드
+  const handleBatchHtmlDownload = async () => {
+    if (selectedSets.size === 0) {
+      alert('다운로드할 콘텐츠를 선택해주세요.');
+      return;
+    }
+
+    const selectedCount = selectedSets.size;
+    if (!confirm(`선택한 ${selectedCount}개의 콘텐츠를 HTML로 다운로드하시겠습니까?`)) {
+      return;
+    }
+
+    setBatchOperation({ loading: true, type: 'download' });
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const setId of Array.from(selectedSets)) {
+        try {
+          // 1. 세트 상세 정보 가져오기
+          const response = await fetch(`/api/get-set-details-supabase?setId=${setId}`);
+          const result = await response.json();
+
+          if (!result.success || !result.data) {
+            failCount++;
+            continue;
+          }
+
+          // 2. 시각자료 가져오기 (session_number가 있는 경우) - 표시 상태인 이미지만
+          let visualMaterials = [];
+          if (result.data.contentSet.session_number) {
+            const imageResponse = await fetch(
+              `/api/images?session_number=${encodeURIComponent(result.data.contentSet.session_number)}&visible_only=true`
+            );
+            const imageResult = await imageResponse.json();
+            if (imageResult.success) {
+              visualMaterials = imageResult.data || [];
+            }
+          }
+
+          // 3. passages 데이터 변환 (DB 형식 → UI 형식)
+          const passages = (result.data.passages || []).map((p: any) => ({
+            id: p.id,
+            title: p.title,
+            paragraphs: [
+              p.paragraph_1, p.paragraph_2, p.paragraph_3,
+              p.paragraph_4, p.paragraph_5, p.paragraph_6,
+              p.paragraph_7, p.paragraph_8, p.paragraph_9,
+              p.paragraph_10
+            ].filter((para: string | null | undefined) => para && para.trim() !== ''),
+            passage_number: p.passage_number
+          }));
+
+          // 4. HTML 생성
+          const htmlContent = generateHtmlV2({
+            contentSet: result.data.contentSet,
+            passages,
+            passage: result.data.passage,
+            vocabularyTerms: result.data.vocabularyTerms || [],
+            vocabularyQuestions: result.data.vocabularyQuestions || [],
+            paragraphQuestions: result.data.paragraphQuestions || [],
+            comprehensiveQuestions: result.data.comprehensiveQuestions || [],
+            introductionQuestion: result.data.introductionQuestion || '',
+            visualMaterials
+          });
+
+          // 5. 다운로드
+          const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          const gradePrefix = result.data.contentSet.grade_number
+            ? `${result.data.contentSet.grade_number}_`
+            : '';
+          const sessionPrefix = result.data.contentSet.session_number
+            ? `${result.data.contentSet.session_number}차시_`
+            : '';
+          link.download = `${gradePrefix}${sessionPrefix}${setId}.html`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+
+          successCount++;
+          // 브라우저가 다운로드를 처리할 시간을 주기 위한 짧은 지연
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`세트 ${setId} 다운로드 실패:`, error);
+          failCount++;
+        }
+      }
+
+      setSelectedSets(new Set());
+
+      if (failCount === 0) {
+        alert(`${successCount}개의 HTML 파일이 성공적으로 다운로드되었습니다.`);
+      } else {
+        alert(`${successCount}개 다운로드 성공, ${failCount}개 다운로드 실패`);
+      }
+    } catch (error) {
+      console.error('일괄 HTML 다운로드 중 오류:', error);
+      alert('일괄 HTML 다운로드 중 오류가 발생했습니다.');
+    } finally {
+      setBatchOperation({ loading: false, type: null });
+    }
+  };
 
   return (
     <RoleAuthGuard allowedRoles={['admin', 'reviewer']}>
@@ -391,6 +530,44 @@ export default function ContentSetReviewPage() {
           </div>
         </div>
 
+        {/* 일괄 작업 버튼 */}
+        {selectedSets.size > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedSets.size}개 항목 선택됨
+              </span>
+              <button
+                onClick={() => setSelectedSets(new Set())}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                선택 해제
+              </button>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handleBatchHtmlDownload}
+                disabled={batchOperation.loading}
+                className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {batchOperation.loading && batchOperation.type === 'download' ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>다운로드 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>일괄 HTML 다운로드</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 데이터 목록 */}
         {loading ? (
           <div className="bg-white rounded-lg shadow p-8 text-center">
@@ -422,6 +599,14 @@ export default function ContentSetReviewPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-2 py-3 text-left w-10">
+                      <input
+                        type="checkbox"
+                        checked={paginatedData.length > 0 && selectedSets.size === paginatedData.length}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       생성일
                     </th>
@@ -461,8 +646,18 @@ export default function ContentSetReviewPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedData.map((item) => (
-                    <tr key={item.setId} className="hover:bg-gray-50">
+                  {paginatedData.map((item) => {
+                    const itemId = item.id || item.setId || '';
+                    return (
+                    <tr key={itemId} className="hover:bg-gray-50">
+                      <td className="px-2 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedSets.has(itemId)}
+                          onChange={() => toggleSelectItem(itemId)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                      </td>
                       <td className="px-2 py-3 text-xs text-gray-500 text-center">
                         <div className="leading-tight space-y-0.5">
                           <div className="font-medium">{formatDate(item.createdAt).datePart}</div>
@@ -556,7 +751,8 @@ export default function ContentSetReviewPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
