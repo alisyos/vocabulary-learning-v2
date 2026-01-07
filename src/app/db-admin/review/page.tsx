@@ -95,7 +95,8 @@ export default function ContentSetReviewPage() {
     session: '', // 차시 필터 추가
     user: '',
     status: '검수완료,승인완료', // 기본값을 검수완료와 승인완료로 설정
-    search: ''
+    search: '',
+    excludeOldSessions: true // 1000차시 이전 제외 (기본값: 제외)
   });
 
   // 페이지네이션
@@ -174,6 +175,15 @@ export default function ContentSetReviewPage() {
 
   // 검색 필터링
   const filteredDataSets = dataSets.filter(item => {
+    // 1000차시 이전 제외 필터
+    if (filters.excludeOldSessions) {
+      const sessionNum = item.session_number ? parseInt(item.session_number) : 0;
+      // 차시 번호가 없거나 1000 미만인 경우 제외
+      if (!item.session_number || isNaN(sessionNum) || sessionNum < 1000) {
+        return false;
+      }
+    }
+
     // 차시 필터 (완전 일치 검색)
     if (filters.session) {
       // "없음" 또는 "null" 입력 시 차시 정보가 없는 항목만 표시
@@ -422,18 +432,21 @@ export default function ContentSetReviewPage() {
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-xl font-bold text-blue-600">{totalCount}</div>
-              <div className="text-xs text-gray-600">검수 대상 콘텐츠</div>
+              <div className="text-xl font-bold text-blue-600">{filteredDataSets.length}</div>
+              <div className="text-xs text-gray-600">
+                검수 대상 콘텐츠
+                {filters.excludeOldSessions && <span className="text-gray-400 ml-1">(1000+)</span>}
+              </div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
               <div className="text-xl font-bold text-green-600">
-                {dataSets.filter(d => d.status === '검수완료').length}
+                {filteredDataSets.filter(d => d.status === '검수완료').length}
               </div>
               <div className="text-xs text-gray-600">검수완료</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
               <div className="text-xl font-bold text-blue-600">
-                {dataSets.filter(d => d.status === '승인완료').length}
+                {filteredDataSets.filter(d => d.status === '승인완료').length}
               </div>
               <div className="text-xs text-gray-600">승인완료</div>
             </div>
@@ -486,11 +499,23 @@ export default function ContentSetReviewPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">차시</label>
               <input
                 type="text"
-                placeholder="차시 번호 입력 (예: 29) 또는 '없음'"
+                placeholder="차시 번호 입력 (예: 1029) 또는 '없음'"
                 value={filters.session}
                 onChange={(e) => setFilters(prev => ({ ...prev, session: e.target.value }))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
+              {/* 1000차시 이전 제외 체크박스 */}
+              <label className="flex items-center mt-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={filters.excludeOldSessions}
+                  onChange={(e) => setFilters(prev => ({ ...prev, excludeOldSessions: e.target.checked }))}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="ml-2 text-xs text-gray-600">
+                  1000차시 이전 제외
+                </span>
+              </label>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">상태</label>
@@ -522,7 +547,7 @@ export default function ContentSetReviewPage() {
               {filteredDataSets.length}개의 콘텐츠 세트
             </p>
             <button
-              onClick={() => setFilters({ subject: '', grade: '', area: '', session: '', user: '', status: '검수완료,승인완료', search: '' })}
+              onClick={() => setFilters({ subject: '', grade: '', area: '', session: '', user: '', status: '검수완료,승인완료', search: '', excludeOldSessions: true })}
               className="text-sm text-blue-600 hover:text-blue-800"
             >
               필터 초기화
