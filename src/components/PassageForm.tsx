@@ -845,45 +845,54 @@ export default function PassageForm({ onSubmit, loading, initialData, streamingS
           </select>
         </div>
 
-        {/* 핵심 개념어 (자동 설정) */}
+        {/* 핵심 개념어 (자동 설정 후 편집 가능) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             핵심 개념어 *
+            <span className="text-xs text-blue-600 ml-2 font-normal">
+              (자동 입력 후 수정 가능)
+            </span>
           </label>
           <input
             type="text"
             value={formData.keyword}
-            readOnly
-            className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
-            placeholder="소주제 선택 시 자동으로 설정됩니다"
+            onChange={(e) => setFormData({ ...formData, keyword: e.target.value })}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            placeholder="차시 검색 또는 소주제 선택 시 자동으로 설정됩니다"
           />
         </div>
 
-        {/* 지문용 키워드 (자동 설정) */}
+        {/* 지문용 키워드 (자동 설정 후 편집 가능) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             지문용 키워드
+            <span className="text-xs text-blue-600 ml-2 font-normal">
+              (자동 입력 후 수정 가능)
+            </span>
           </label>
           <input
             type="text"
             value={formData.keywords_for_passages || ''}
-            readOnly
-            className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
-            placeholder="소주제 선택 시 자동으로 설정됩니다"
+            onChange={(e) => setFormData({ ...formData, keywords_for_passages: e.target.value })}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            placeholder="차시 검색 또는 소주제 선택 시 자동으로 설정됩니다"
           />
         </div>
 
-        {/* 문제용 키워드 (자동 설정) */}
+        {/* 어휘문제용 키워드 (자동 설정 후 편집 가능) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             어휘문제용 키워드
+            <span className="text-xs text-blue-600 ml-2 font-normal">
+              (자동 입력 후 수정 가능)
+            </span>
           </label>
           <input
             type="text"
             value={formData.keywords_for_questions || ''}
-            readOnly
-            className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
-            placeholder="소주제 선택 시 자동으로 설정됩니다"
+            onChange={(e) => setFormData({ ...formData, keywords_for_questions: e.target.value })}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            placeholder="차시 검색 또는 소주제 선택 시 자동으로 설정됩니다"
           />
         </div>
 
