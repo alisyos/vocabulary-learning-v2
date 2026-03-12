@@ -806,67 +806,279 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                       const coreTerms = editableVocabTerms.filter(term => term.has_question_generated === true);
                       const difficultTerms = editableVocabTerms.filter(term => term.has_question_generated !== true);
 
+                      // 지문이 2개 이상인지 확인
+                      const hasMultiplePassages = editablePassages.length >= 2;
+
+                      // 어려운 어휘를 지문별로 그룹핑
+                      const difficultByPassage1 = difficultTerms.filter(t =>
+                        t.passage_id === editablePassages[0]?.id
+                      );
+                      const difficultByPassage2 = difficultTerms.filter(t =>
+                        t.passage_id === editablePassages[1]?.id
+                      );
+                      const difficultUnassigned = difficultTerms.filter(t =>
+                        !t.passage_id || !editablePassages.some((p: any) => p.id === t.passage_id)
+                      );
+
+                      // 지문 텍스트에 용어가 포함되는지 검사
+                      const isTermInItsPassage = (termText: string, passageId?: string): boolean => {
+                        const targetPassages = passageId
+                          ? editablePassages.filter((p: any) => p.id === passageId)
+                          : editablePassages;
+                        const passageText = targetPassages
+                          .map((p: any) => [p.paragraph_1, p.paragraph_2, p.paragraph_3, p.paragraph_4, p.paragraph_5,
+                            p.paragraph_6, p.paragraph_7, p.paragraph_8, p.paragraph_9, p.paragraph_10]
+                            .filter(Boolean).join(' '))
+                          .join(' ');
+                        return passageText.includes(termText);
+                      };
+
+                      // 어휘 카드 렌더링 함수
+                      const renderTermCard = (term: any, index: number, type: 'core' | 'difficult', showPassageMove?: boolean) => {
+                        const termId = term.id;
+                        const notInPassage = !isTermInItsPassage(term.term, term.passage_id);
+
+                        return (
+                          <div key={term.id} className={`bg-white border ${type === 'core' ? 'border-blue-200' : 'border-orange-200'} rounded-lg p-4`}>
+                            <div className="flex justify-between items-center mb-3">
+                              <div className="flex items-center flex-wrap gap-1">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${type === 'core' ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'} mr-2`}>
+                                  {type === 'core' ? `핵심어 ${index + 1}` : `어려운 어휘 ${index + 1}`}
+                                </span>
+                                {notInPassage && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                                    지문 미포함
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {showPassageMove && hasMultiplePassages && (
+                                  <>
+                                    {term.passage_id !== editablePassages[0]?.id && (
+                                      <button
+                                        onClick={() => updateVocabTerm(termId, 'passage_id', editablePassages[0]?.id)}
+                                        className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                                        title="지문1로 이동"
+                                      >
+                                        지문1
+                                      </button>
+                                    )}
+                                    {term.passage_id !== editablePassages[1]?.id && (
+                                      <button
+                                        onClick={() => updateVocabTerm(termId, 'passage_id', editablePassages[1]?.id)}
+                                        className="text-xs px-2 py-1 bg-green-50 text-green-600 rounded hover:bg-green-100"
+                                        title="지문2로 이동"
+                                      >
+                                        지문2
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                                {type !== 'core' && (
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm('이 어려운 어휘를 삭제하시겠습니까?')) {
+                                      setEditableVocabTerms(prev => prev.filter(t => t.id !== termId));
+                                    }
+                                  }}
+                                  className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded hover:bg-red-100"
+                                  title="삭제"
+                                >
+                                  삭제
+                                </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">용어</label>
+                                <input
+                                  type="text"
+                                  value={term.term}
+                                  onChange={(e) => updateVocabTerm(termId, 'term', e.target.value)}
+                                  readOnly={type === 'core'}
+                                  className={`w-full border border-gray-300 rounded-md px-2 py-1 text-sm ${type === 'core' ? 'bg-gray-100 text-gray-600' : ''}`}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">정의</label>
+                                <input
+                                  type="text"
+                                  value={term.definition}
+                                  onChange={(e) => updateVocabTerm(termId, 'definition', e.target.value)}
+                                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">예문</label>
+                                <input
+                                  type="text"
+                                  value={term.example_sentence || ''}
+                                  onChange={(e) => updateVocabTerm(termId, 'example_sentence', e.target.value)}
+                                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      };
+
+                      // 인라인 추가 폼 렌더링 함수
+                      const renderAddForm = (type: 'core' | 'difficult') => {
+                        const formId = `add-${type}-form`;
+                        return (
+                          <div id={formId} className="hidden bg-white border border-dashed border-gray-300 rounded-lg p-4 mt-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">용어 *</label>
+                                <input type="text" id={`${formId}-term`} className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm" placeholder="용어 입력" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">정의 *</label>
+                                <input type="text" id={`${formId}-def`} className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm" placeholder="정의 입력" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">예문 *</label>
+                                <input type="text" id={`${formId}-example`} className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm" placeholder="예문 입력" />
+                              </div>
+                            </div>
+                            {type === 'difficult' && hasMultiplePassages && (
+                              <div className="mb-3">
+                                <label className="block text-xs text-gray-500 mb-1">지문 선택</label>
+                                <select id={`${formId}-passage`} className="border border-gray-300 rounded-md px-2 py-1 text-sm">
+                                  <option value={editablePassages[0]?.id}>지문 1</option>
+                                  <option value={editablePassages[1]?.id}>지문 2</option>
+                                </select>
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  const termEl = document.getElementById(`${formId}-term`) as HTMLInputElement;
+                                  const defEl = document.getElementById(`${formId}-def`) as HTMLInputElement;
+                                  const exampleEl = document.getElementById(`${formId}-example`) as HTMLInputElement;
+                                  const passageEl = document.getElementById(`${formId}-passage`) as HTMLSelectElement;
+
+                                  if (!termEl?.value?.trim() || !defEl?.value?.trim() || !exampleEl?.value?.trim()) {
+                                    alert('용어, 정의, 예문은 필수 입력 항목입니다.');
+                                    return;
+                                  }
+
+                                  const newTerm = {
+                                    id: `new-${Date.now()}`,
+                                    content_set_id: contentSetId,
+                                    term: termEl.value.trim(),
+                                    definition: defEl.value.trim(),
+                                    example_sentence: exampleEl.value.trim(),
+                                    has_question_generated: type === 'core',
+                                    passage_id: passageEl?.value || editablePassages[0]?.id || null
+                                  };
+
+                                  setEditableVocabTerms(prev => [...prev, newTerm]);
+
+                                  // 폼 초기화 및 닫기
+                                  termEl.value = '';
+                                  defEl.value = '';
+                                  exampleEl.value = '';
+                                  document.getElementById(formId)!.classList.add('hidden');
+                                }}
+                                className="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
+                              >
+                                추가
+                              </button>
+                              <button
+                                onClick={() => document.getElementById(formId)!.classList.add('hidden')}
+                                className="px-3 py-1 text-sm bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+                              >
+                                취소
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      };
+
+                      // 어려운 어휘 리스트 렌더링 (지문별 구분 또는 단일 리스트)
+                      const renderDifficultTermsList = () => {
+                        if (!hasMultiplePassages) {
+                          // 지문 1개일 때: 단일 리스트
+                          return (
+                            <div className="space-y-4">
+                              {difficultTerms.map((term, index) => renderTermCard(term, index, 'difficult', false))}
+                            </div>
+                          );
+                        }
+
+                        // 지문 2개 이상일 때: 지문별 구분
+                        return (
+                          <div className="space-y-6">
+                            {/* 지문1 어휘 */}
+                            <div>
+                              <h4 className="text-sm font-medium text-orange-700 mb-2 flex items-center">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700 mr-2">지문 1</span>
+                                {editablePassages[0]?.title && <span className="text-gray-500 text-xs truncate max-w-xs">{editablePassages[0].title}</span>}
+                                <span className="ml-2 text-xs text-gray-400">({difficultByPassage1.length}개)</span>
+                              </h4>
+                              {difficultByPassage1.length > 0 ? (
+                                <div className="space-y-4">
+                                  {difficultByPassage1.map((term, index) => renderTermCard(term, index, 'difficult', true))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-400 py-2">지문1에 해당하는 어려운 어휘가 없습니다.</p>
+                              )}
+                            </div>
+
+                            {/* 지문2 어휘 */}
+                            <div>
+                              <h4 className="text-sm font-medium text-orange-700 mb-2 flex items-center">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-green-50 text-green-700 mr-2">지문 2</span>
+                                {editablePassages[1]?.title && <span className="text-gray-500 text-xs truncate max-w-xs">{editablePassages[1].title}</span>}
+                                <span className="ml-2 text-xs text-gray-400">({difficultByPassage2.length}개)</span>
+                              </h4>
+                              {difficultByPassage2.length > 0 ? (
+                                <div className="space-y-4">
+                                  {difficultByPassage2.map((term, index) => renderTermCard(term, index, 'difficult', true))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-400 py-2">지문2에 해당하는 어려운 어휘가 없습니다.</p>
+                              )}
+                            </div>
+
+                            {/* 미배정 어휘 */}
+                            {difficultUnassigned.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-medium text-orange-700 mb-2 flex items-center">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600 mr-2">미배정</span>
+                                  <span className="ml-2 text-xs text-gray-400">({difficultUnassigned.length}개)</span>
+                                </h4>
+                                <div className="space-y-4">
+                                  {difficultUnassigned.map((term, index) => renderTermCard(term, index, 'difficult', true))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      };
+
                       return (
                         <>
                           {/* 핵심어 섹션 */}
                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                            <div className="flex items-center mb-4">
-                              <h3 className="text-lg font-semibold text-blue-800">📌 핵심어</h3>
-                              <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {coreTerms.length}개
-                              </span>
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center">
+                                <h3 className="text-lg font-semibold text-blue-800">핵심어</h3>
+                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {coreTerms.length}개
+                                </span>
+                              </div>
                             </div>
                             <p className="text-sm text-blue-600 mb-4">
-                              어휘 문제 출제 대상이 되는 핵심 용어들입니다.
+                              어휘 문제 출제 대상이 되는 핵심 용어들입니다. (어휘 문제와 연결되어 있어 추가/삭제 불가)
                             </p>
 
                             {coreTerms.length > 0 ? (
-                              <div className="space-y-4">
-                                {coreTerms.map((term, index) => {
-                                  const termId = term.id;
-                                  return (
-                                    <div key={term.id} className="bg-white border border-blue-200 rounded-lg p-4">
-                                      <div className="flex justify-between items-center mb-3">
-                                        <div className="flex items-center">
-                                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
-                                            핵심어 {index + 1}
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                          <label className="block text-xs text-gray-500 mb-1">용어 (읽기 전용)</label>
-                                          <input
-                                            type="text"
-                                            value={term.term}
-                                            readOnly
-                                            className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm bg-gray-100 text-gray-600"
-                                            title="용어는 수정할 수 없습니다"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-xs text-gray-500 mb-1">정의</label>
-                                          <input
-                                            type="text"
-                                            value={term.definition}
-                                            onChange={(e) => updateVocabTerm(termId, 'definition', e.target.value)}
-                                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-xs text-gray-500 mb-1">예문</label>
-                                          <input
-                                            type="text"
-                                            value={term.example_sentence || ''}
-                                            onChange={(e) => updateVocabTerm(termId, 'example_sentence', e.target.value)}
-                                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                              <div className="space-y-4 mt-4">
+                                {coreTerms.map((term, index) => renderTermCard(term, index, 'core'))}
                               </div>
                             ) : (
                               <div className="text-center py-4 text-blue-600">
@@ -877,63 +1089,29 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
 
                           {/* 어려운 어휘 섹션 */}
                           <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                            <div className="flex items-center mb-4">
-                              <h3 className="text-lg font-semibold text-orange-800">📖 어려운 어휘</h3>
-                              <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                {difficultTerms.length}개
-                              </span>
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center">
+                                <h3 className="text-lg font-semibold text-orange-800">어려운 어휘</h3>
+                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  {difficultTerms.length}개
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => document.getElementById('add-difficult-form')?.classList.toggle('hidden')}
+                                className="text-sm px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600"
+                              >
+                                + 어려운 어휘 추가
+                              </button>
                             </div>
                             <p className="text-sm text-orange-600 mb-4">
                               보조 설명용 용어들로, 문제 출제 대상이 아닙니다.
                             </p>
 
-                            {difficultTerms.length > 0 ? (
-                              <div className="space-y-4">
-                                {difficultTerms.map((term, index) => {
-                                  const termId = term.id;
-                                  return (
-                                    <div key={term.id} className="bg-white border border-orange-200 rounded-lg p-4">
-                                      <div className="flex justify-between items-center mb-3">
-                                        <div className="flex items-center">
-                                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 mr-2">
-                                            어려운 어휘 {index + 1}
-                                          </span>
-                                        </div>
-                                      </div>
+                            {renderAddForm('difficult')}
 
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                          <label className="block text-xs text-gray-500 mb-1">용어 (읽기 전용)</label>
-                                          <input
-                                            type="text"
-                                            value={term.term}
-                                            readOnly
-                                            className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm bg-gray-100 text-gray-600"
-                                            title="용어는 수정할 수 없습니다"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-xs text-gray-500 mb-1">정의</label>
-                                          <input
-                                            type="text"
-                                            value={term.definition}
-                                            onChange={(e) => updateVocabTerm(termId, 'definition', e.target.value)}
-                                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-xs text-gray-500 mb-1">예문</label>
-                                          <input
-                                            type="text"
-                                            value={term.example_sentence || ''}
-                                            onChange={(e) => updateVocabTerm(termId, 'example_sentence', e.target.value)}
-                                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                            {difficultTerms.length > 0 ? (
+                              <div className="mt-4">
+                                {renderDifficultTermsList()}
                               </div>
                             ) : (
                               <div className="text-center py-4 text-orange-600">

@@ -140,7 +140,8 @@ export async function PUT(request: NextRequest) {
                 term: term,
                 definition: definition,
                 example_sentence: example,
-                has_question_generated: hasQuestionGenerated
+                has_question_generated: hasQuestionGenerated,
+                passage_id: termData?.passage_id || null
               };
             } else {
               // 기본값: 어려운 어휘 (has_question_generated = false)
@@ -150,7 +151,8 @@ export async function PUT(request: NextRequest) {
                 term: `용어${index + 1}`,
                 definition: vocab,
                 example_sentence: null,
-                has_question_generated: termData?.has_question_generated ?? false
+                has_question_generated: termData?.has_question_generated ?? false,
+                passage_id: termData?.passage_id || null
               };
             }
           } else {
@@ -165,7 +167,8 @@ export async function PUT(request: NextRequest) {
               term: vocab.term || '',
               definition: vocab.definition || '',
               example_sentence: vocab.example_sentence || null,
-              has_question_generated: hasQuestionGenerated
+              has_question_generated: hasQuestionGenerated,
+              passage_id: vocab.passage_id || null
             };
           }
         });

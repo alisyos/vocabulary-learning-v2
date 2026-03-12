@@ -403,7 +403,8 @@ export const db = {
               term: newTerm.term,
               definition: newTerm.definition,
               example_sentence: newTerm.example_sentence,
-              has_question_generated: newTerm.has_question_generated
+              has_question_generated: newTerm.has_question_generated,
+              passage_id: (newTerm as any).passage_id || null
             }
           })
           processedIds.add(existingTerm.id)

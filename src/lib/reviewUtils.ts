@@ -25,6 +25,7 @@ export async function fetchAllFromTable(
     const { data, error } = await supabase
       .from(tableName)
       .select(selectFields)
+      .order('id', { ascending: true })
       .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
 
     if (error) {
@@ -71,6 +72,7 @@ export async function fetchAllContentSets(): Promise<any[]> {
     const { data, error } = await supabase
       .from('content_sets')
       .select('id, session_number, status')
+      .order('id', { ascending: true })
       .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
 
     if (error) throw error;

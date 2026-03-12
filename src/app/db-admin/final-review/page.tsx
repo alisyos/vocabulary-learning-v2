@@ -103,6 +103,7 @@ export default function FinalReviewPage() {
   const [doubleQuotesResult, setDoubleQuotesResult] = useState<ReviewResult | null>(null);
   const [citationMismatchResult, setCitationMismatchResult] = useState<ReviewResult | null>(null);
   const [textReplaceResult, setTextReplaceResult] = useState<ReviewResult | null>(null);
+  const [definitionPeriodsResult, setDefinitionPeriodsResult] = useState<ReviewResult | null>(null);
 
   // 11번 검수용 상태
   const [searchText, setSearchText] = useState<string>('');
@@ -453,6 +454,38 @@ export default function FinalReviewPage() {
       }
     } catch (error) {
       console.error('텍스트 일괄 수정 오류:', error);
+      alert('검수 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // 12. 어휘 용어설명 마침표 검수
+  const handleDefinitionPeriodsReview = async (dryRun: boolean) => {
+    setLoading('definition-periods');
+    setDefinitionPeriodsResult(null);
+
+    try {
+      const parsedRange = parseSessionRange(sessionRange);
+
+      const response = await fetch('/api/review-definition-periods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dryRun,
+          statuses: statusFilter,
+          sessionRange: parsedRange
+        })
+      });
+
+      const data = await response.json();
+      setDefinitionPeriodsResult(data);
+
+      if (!dryRun && data.success) {
+        alert(`✅ 어휘 용어설명 마침표 검수 완료!\n\n${data.successCount}개 수정됨`);
+      }
+    } catch (error) {
+      console.error('어휘 용어설명 마침표 검수 오류:', error);
       alert('검수 중 오류가 발생했습니다.');
     } finally {
       setLoading(null);
@@ -1870,6 +1903,101 @@ export default function FinalReviewPage() {
                       </p>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 검수 항목 12: 어휘 용어설명 마침표 검수 */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-3">
+            📌 12. 어휘 용어설명 마침표 검수
+          </h2>
+          <p className="text-gray-600 mb-4">
+            vocabulary_terms 테이블의 definition 값에서 문장 끝 마침표를 제거하여 통일된 형식으로 수정합니다.
+            <br />
+            <span className="text-sm text-gray-500">
+              예: &apos;물질을 이루는 가장 작은 단위.&apos; → &apos;물질을 이루는 가장 작은 단위&apos;
+            </span>
+          </p>
+
+          <div className="flex gap-4 mb-4">
+            <button
+              onClick={() => handleDefinitionPeriodsReview(true)}
+              disabled={loading !== null}
+              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'definition-periods' ? '처리 중...' : '🔍 드라이런 (미리보기)'}
+            </button>
+            <button
+              onClick={() => {
+                if (confirm('⚠️ 어휘 용어설명의 마침표를 실제로 제거하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+                  handleDefinitionPeriodsReview(false);
+                }
+              }}
+              disabled={loading !== null}
+              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 font-semibold"
+            >
+              {loading === 'definition-periods' ? '처리 중...' : '⚡ 실행'}
+            </button>
+          </div>
+
+          {/* 결과 표시 */}
+          {definitionPeriodsResult && (
+            <div className={`rounded-lg p-4 ${definitionPeriodsResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                {definitionPeriodsResult.dryRun ? '📊 드라이런 결과' : '✅ 실행 결과'}
+              </h3>
+              <p className="text-gray-700 mb-2">{definitionPeriodsResult.message}</p>
+
+              {definitionPeriodsResult.dryRun && definitionPeriodsResult.samples && definitionPeriodsResult.samples.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    샘플 미리보기 (최대 20개):
+                  </p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {definitionPeriodsResult.samples.map((sample: any, idx: number) => (
+                      <div key={idx} className="bg-white p-3 rounded border border-gray-200 text-sm">
+                        <div className="font-medium text-gray-800 mb-1">
+                          콘텐츠 세트: {sample.content_set_id}
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">
+                            {sample.term}
+                          </span>
+                        </div>
+                        {Object.entries(sample.changedFields).map(([field, value]: [string, any]) => (
+                          <div key={field} className="mb-2 pl-3 border-l-2 border-blue-300">
+                            <div className="text-xs font-semibold text-gray-600 mb-1">{field}:</div>
+                            <div className="text-red-600 line-through text-xs mb-1">
+                              {value.original.length > 100 ? value.original.slice(0, 100) + '...' : value.original}
+                            </div>
+                            <div className="text-green-600 font-medium text-xs">
+                              {value.converted.length > 100 ? value.converted.slice(0, 100) + '...' : value.converted}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!definitionPeriodsResult.dryRun && (
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div className="bg-white p-3 rounded">
+                    <div className="text-sm text-gray-600">성공</div>
+                    <div className="text-2xl font-bold text-green-700">
+                      {definitionPeriodsResult.successCount || 0}
+                    </div>
+                  </div>
+                  <div className="bg-white p-3 rounded">
+                    <div className="text-sm text-gray-600">실패</div>
+                    <div className="text-2xl font-bold text-red-700">
+                      {definitionPeriodsResult.errorCount || 0}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
