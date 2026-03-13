@@ -685,6 +685,10 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                           <p><strong>대주제:</strong> {data.contentSet.main_topic}</p>
                           <p><strong>소주제:</strong> {data.contentSet.sub_topic}</p>
                           <p><strong>키워드:</strong> {data.contentSet.keywords}</p>
+                          <p><strong>핵심어:</strong> {editableVocabTerms
+                            .filter(term => term.has_question_generated === true)
+                            .map(term => term.term)
+                            .join(', ') || '-'}</p>
                           <p><strong>상태:</strong>
                             <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
                               data.contentSet.status === '승인완료'
