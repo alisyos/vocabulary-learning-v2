@@ -96,17 +96,8 @@ export async function GET(request: NextRequest) {
         // ArrayBuffer를 Buffer로 변환
         const buffer = Buffer.from(await fileData.arrayBuffer());
 
-        // 파일명에 차시 번호 포함 (session_number가 정수인 경우)
-        let fileName = image.file_name;
-        if (image.session_number !== null && image.session_number !== undefined) {
-          // 확장자 분리
-          const lastDotIndex = fileName.lastIndexOf('.');
-          const name = lastDotIndex > -1 ? fileName.substring(0, lastDotIndex) : fileName;
-          const ext = lastDotIndex > -1 ? fileName.substring(lastDotIndex) : '';
-
-          // 차시_파일명.확장자 형식 (예: 15_image.png)
-          fileName = `${image.session_number}_${name}${ext}`;
-        }
+        // DB의 file_path 값을 파일명으로 사용 (예: 653c7285-5364-4645-8df7-4d1c706c153f.jpg)
+        const fileName = image.file_path;
 
         // ZIP 파일에 추가
         archive.append(buffer, { name: fileName });
