@@ -34,6 +34,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
   const [currentStatus, setCurrentStatus] = useState<string>('검수 전');
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [selectedVocabTerm, setSelectedVocabTerm] = useState<string>('');
+  const [selectedCompType, setSelectedCompType] = useState<string>('');
 
   // 시각자료 (이미지) 상태
   const [visualMaterials, setVisualMaterials] = useState<any[]>([]);
@@ -1657,322 +1658,221 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                 {activeTab === 'comprehensive' && (
                   <div className="space-y-6">
                     {(() => {
-                      // 기본문제와 보완문제로 분류
-                      const basicQuestions = editableComprehensive.filter(q => {
+                      if (editableComprehensive.length === 0) {
+                        return (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-8">
+                            <div className="text-center text-gray-500">
+                              <div className="text-4xl mb-4">📝</div>
+                              <p>저장된 종합 문제가 없습니다.</p>
+                              <p className="text-sm mt-2">콘텐츠 생성 과정에서 종합 문제가 생성되지 않았을 수 있습니다.</p>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // 문제 유형별로 그룹화
+                      const typeGroups: Record<string, { basic: any[]; supplementary: any[] }> = {};
+                      const typeOrder: string[] = [];
+                      editableComprehensive.forEach(q => {
+                        const qType = q.question_type || q.type || '종합 문제';
+                        if (!typeGroups[qType]) {
+                          typeGroups[qType] = { basic: [], supplementary: [] };
+                          typeOrder.push(qType);
+                        }
                         const isSupplementary = q.difficulty === '보완' ||
                                               q.is_supplementary === true ||
                                               q.isSupplementary === true;
-                        return !isSupplementary;
+                        if (isSupplementary) {
+                          typeGroups[qType].supplementary.push(q);
+                        } else {
+                          typeGroups[qType].basic.push(q);
+                        }
                       });
 
-                      const supplementaryQuestions = editableComprehensive.filter(q => {
-                        const isSupplementary = q.difficulty === '보완' ||
-                                              q.is_supplementary === true ||
-                                              q.isSupplementary === true;
-                        return isSupplementary;
-                      });
+                      // 선택된 유형이 없거나 유효하지 않으면 첫 번째 유형 선택
+                      const activeType = (selectedCompType && typeGroups[selectedCompType]) ? selectedCompType : typeOrder[0];
+                      const activeGroup = typeGroups[activeType] || { basic: [], supplementary: [] };
 
-                      console.log('종합 문제 분류 결과:', {
-                        총문제수: editableComprehensive.length,
-                        기본문제수: basicQuestions.length,
-                        보완문제수: supplementaryQuestions.length
-                      });
+                      // 종합 문제 카드 렌더링 헬퍼
+                      const renderCompCard = (question: any, label: string, index: number, borderColor: string, labelBg: string, labelText: string) => {
+                        const questionId = question.id;
+                        return (
+                          <div key={question.id} className={`bg-white border ${borderColor} rounded-lg p-6`}>
+                            <div className="mb-4">
+                              <div className="flex justify-between items-center">
+                                <h4 className="font-semibold">{label} {index + 1}</h4>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${labelBg} ${labelText}`}>
+                                  {label}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
+                                <textarea
+                                  value={question.question}
+                                  onChange={(e) => updateComprehensiveQuestion(questionId, 'question', e.target.value)}
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
+                                />
+                              </div>
+
+                              {/* 종합 문제는 모두 5지선다 객관식 */}
+                              <div>
+                                <div className="space-y-3">
+                                  {[1, 2, 3, 4, 5].map(num => {
+                                    const optionKey = `option_${num}`;
+                                    const optionValue = question[optionKey];
+
+                                    return (
+                                      <div key={num}>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">보기 {num}</label>
+                                        <input
+                                          type="text"
+                                          value={optionValue || ''}
+                                          onChange={(e) => {
+                                            const newValue = e.target.value;
+
+                                            const currentOptions = question.options
+                                              ? [...question.options]
+                                              : [
+                                                  question.option_1 || '',
+                                                  question.option_2 || '',
+                                                  question.option_3 || '',
+                                                  question.option_4 || '',
+                                                  question.option_5 || ''
+                                                ];
+
+                                            const oldOptionValue = currentOptions[num - 1];
+                                            currentOptions[num - 1] = newValue;
+
+                                            updateComprehensiveQuestion(questionId, 'options', currentOptions);
+                                            updateComprehensiveQuestion(questionId, optionKey, newValue);
+
+                                            const currentAnswer = question.correct_answer || question.answer || question.correctAnswer || '';
+
+                                            if (currentAnswer === String(num)) {
+                                              updateComprehensiveQuestion(questionId, 'correct_answer', String(num));
+                                              updateComprehensiveQuestion(questionId, 'answer', String(num));
+                                              updateComprehensiveQuestion(questionId, 'correctAnswer', String(num));
+                                            } else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
+                                              updateComprehensiveQuestion(questionId, 'correct_answer', newValue);
+                                              updateComprehensiveQuestion(questionId, 'answer', newValue);
+                                              updateComprehensiveQuestion(questionId, 'correctAnswer', newValue);
+                                            }
+                                          }}
+                                          className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                          placeholder={`보기 ${num} 내용을 입력하세요`}
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
+                                  <input
+                                    type="text"
+                                    value={question.correct_answer || question.answer || question.correctAnswer || ''}
+                                    onChange={(e) => {
+                                      updateComprehensiveQuestion(questionId, 'correct_answer', e.target.value);
+                                      updateComprehensiveQuestion(questionId, 'answer', e.target.value);
+                                      updateComprehensiveQuestion(questionId, 'correctAnswer', e.target.value);
+                                    }}
+                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                    placeholder="정답 번호 (예: 1, 2, 3, 4, 5)"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
+                                  <textarea
+                                    value={question.explanation}
+                                    onChange={(e) => updateComprehensiveQuestion(questionId, 'explanation', e.target.value)}
+                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      };
 
                       return (
-                        <div className="space-y-6">
-                          {/* 기본문제 섹션 */}
-                          {basicQuestions.length > 0 ? (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                              <div className="flex items-center mb-4">
-                                <h3 className="text-lg font-semibold text-blue-800">✅ 기본문제</h3>
-                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  {basicQuestions.length}개
-                                </span>
+                        <div className="space-y-4">
+                          {/* 유형별 탭 네비게이션 */}
+                          <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3">
+                            {typeOrder.map((typeName) => {
+                              const group = typeGroups[typeName];
+                              const totalCount = group.basic.length + group.supplementary.length;
+                              const isActive = typeName === activeType;
+                              return (
+                                <button
+                                  key={typeName}
+                                  onClick={() => setSelectedCompType(typeName)}
+                                  className={`px-3 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                                    isActive
+                                      ? 'bg-indigo-600 text-white'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {typeName}
+                                  <span className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs ${
+                                    isActive ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-600'
+                                  }`}>
+                                    {totalCount}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* 선택된 유형의 문제 표시 */}
+                          <div className="space-y-6">
+                            {/* 기본문제 섹션 */}
+                            {activeGroup.basic.length > 0 && (
+                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                                <div className="flex items-center mb-4">
+                                  <h3 className="text-lg font-semibold text-blue-800">기본문제</h3>
+                                  <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {activeGroup.basic.length}개
+                                  </span>
+                                </div>
+                                <div className="space-y-4">
+                                  {activeGroup.basic.map((question, index) =>
+                                    renderCompCard(question, '기본문제', index, 'border-blue-200', 'bg-blue-100', 'text-blue-800')
+                                  )}
+                                </div>
                               </div>
-                              <p className="text-sm text-blue-600 mb-4">
-                                기본 학습을 위한 종합 문제들입니다.
-                              </p>
+                            )}
 
-                              <div className="space-y-4">
-                                {basicQuestions.map((question, index) => {
-                                  const questionId = question.id;
-                                  return (
-                                    <div key={question.id} className="bg-white border border-blue-200 rounded-lg p-6">
-                                      <div className="mb-4">
-                                        <div className="flex justify-between items-center">
-                                          <h4 className="font-semibold">기본문제 {index + 1}</h4>
-                                          <div className="flex gap-2">
-                                            <span className="text-sm text-gray-500">
-                                              {question.question_type || question.type || '종합 문제'}
-                                            </span>
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                              기본문제
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <div className="space-y-3">
-                                        <div>
-                                          <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
-                                          <textarea
-                                            value={question.question}
-                                            onChange={(e) => updateComprehensiveQuestion(questionId, 'question', e.target.value)}
-                                            className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
-                                          />
-                                        </div>
-
-                                        {/* 종합 문제는 모두 5지선다 객관식 */}
-                                        <div>
-                                          <div className="space-y-3">
-                                            {[1, 2, 3, 4, 5].map(num => {
-                                              const optionKey = `option_${num}`;
-                                              const optionValue = question[optionKey];
-
-                                              return (
-                                                <div key={num}>
-                                                  <label className="block text-sm font-medium text-gray-700 mb-1">보기 {num}</label>
-                                                  <input
-                                                    type="text"
-                                                    value={optionValue || ''}
-                                                    onChange={(e) => {
-                                                      const newValue = e.target.value;
-
-                                                      // 기존 options 배열 또는 option_1~5 필드에서 가져오기
-                                                      const currentOptions = question.options
-                                                        ? [...question.options]
-                                                        : [
-                                                            question.option_1 || '',
-                                                            question.option_2 || '',
-                                                            question.option_3 || '',
-                                                            question.option_4 || '',
-                                                            question.option_5 || ''
-                                                          ];
-
-                                                      // 이전 보기 값 저장 (정답 업데이트 확인용)
-                                                      const oldOptionValue = currentOptions[num - 1];
-
-                                                      // 새 보기 값 설정
-                                                      currentOptions[num - 1] = newValue;
-
-                                                      // options 배열 업데이트
-                                                      updateComprehensiveQuestion(questionId, 'options', currentOptions);
-                                                      // 호환성을 위한 개별 필드도 함께 업데이트
-                                                      updateComprehensiveQuestion(questionId, optionKey, newValue);
-
-                                                      // 정답 보기를 수정한 경우, 정답도 자동 업데이트
-                                                      const currentAnswer = question.correct_answer || question.answer || question.correctAnswer || '';
-
-                                                      // 객관식 문제인 경우: 정답이 번호(1~5)인지 확인
-                                                      if (currentAnswer === String(num)) {
-                                                        // 정답 번호를 수정한 경우, 정답 텍스트를 새 보기 값으로 유지
-                                                        updateComprehensiveQuestion(questionId, 'correct_answer', String(num));
-                                                        updateComprehensiveQuestion(questionId, 'answer', String(num));
-                                                        updateComprehensiveQuestion(questionId, 'correctAnswer', String(num));
-                                                      }
-                                                      // 정답이 이전 보기 텍스트와 일치하는 경우
-                                                      else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
-                                                        // 정답을 새 보기 값으로 업데이트
-                                                        updateComprehensiveQuestion(questionId, 'correct_answer', newValue);
-                                                        updateComprehensiveQuestion(questionId, 'answer', newValue);
-                                                        updateComprehensiveQuestion(questionId, 'correctAnswer', newValue);
-                                                      }
-                                                    }}
-                                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                                    placeholder={`보기 ${num} 내용을 입력하세요`}
-                                                  />
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                          <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                                            <input
-                                              type="text"
-                                              value={question.correct_answer || question.answer || question.correctAnswer || ''}
-                                              onChange={(e) => {
-                                                updateComprehensiveQuestion(questionId, 'correct_answer', e.target.value);
-                                                updateComprehensiveQuestion(questionId, 'answer', e.target.value);
-                                                updateComprehensiveQuestion(questionId, 'correctAnswer', e.target.value);
-                                              }}
-                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                              placeholder="정답 번호 (예: 1, 2, 3, 4, 5)"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
-                                            <textarea
-                                              value={question.explanation}
-                                              onChange={(e) => updateComprehensiveQuestion(questionId, 'explanation', e.target.value)}
-                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
-                                            />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                            {/* 보완문제 섹션 */}
+                            {activeGroup.supplementary.length > 0 && (
+                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                                <div className="flex items-center mb-4">
+                                  <h3 className="text-lg font-semibold text-orange-800">보완문제</h3>
+                                  <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    {activeGroup.supplementary.length}개
+                                  </span>
+                                </div>
+                                <div className="space-y-4">
+                                  {activeGroup.supplementary.map((question, index) =>
+                                    renderCompCard(question, '보완문제', index, 'border-orange-200', 'bg-orange-100', 'text-orange-800')
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                              <div className="text-center text-blue-600">
-                                <div className="text-4xl mb-4">✅</div>
-                                <p>기본 종합 문제가 없습니다.</p>
-                                <p className="text-sm mt-2">모든 종합 문제가 보완문제로 분류되었을 수 있습니다.</p>
+                            )}
+
+                            {/* 해당 유형에 문제가 없는 경우 */}
+                            {activeGroup.basic.length === 0 && activeGroup.supplementary.length === 0 && (
+                              <div className="bg-gray-50 border border-gray-200 rounded-lg p-8">
+                                <div className="text-center text-gray-500">
+                                  <p>이 유형에 대한 문제가 없습니다.</p>
+                                </div>
                               </div>
-                            </div>
-                          )}
-
-                          {/* 보완문제 섹션 */}
-                          {supplementaryQuestions.length > 0 ? (
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                              <div className="flex items-center mb-4">
-                                <h3 className="text-lg font-semibold text-orange-800">🔄 보완문제</h3>
-                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                  {supplementaryQuestions.length}개
-                                </span>
-                              </div>
-                              <p className="text-sm text-orange-600 mb-4">
-                                추가적인 학습 보완을 위한 종합 문제들입니다.
-                              </p>
-
-                              <div className="space-y-4">
-                                {supplementaryQuestions.map((question, index) => {
-                                  const questionId = question.id;
-                                  return (
-                                    <div key={question.id} className="bg-white border border-orange-200 rounded-lg p-6">
-                                      <div className="mb-4">
-                                        <div className="flex justify-between items-center">
-                                          <h4 className="font-semibold">보완문제 {index + 1}</h4>
-                                          <div className="flex gap-2">
-                                            <span className="text-sm text-gray-500">
-                                              {question.question_type || question.type || '종합 문제'}
-                                            </span>
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                              보완문제
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <div className="space-y-3">
-                                        <div>
-                                          <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
-                                          <textarea
-                                            value={question.question}
-                                            onChange={(e) => updateComprehensiveQuestion(questionId, 'question', e.target.value)}
-                                            className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
-                                          />
-                                        </div>
-
-                                        {/* 종합 문제는 모두 5지선다 객관식 */}
-                                        <div>
-                                          <div className="space-y-3">
-                                            {[1, 2, 3, 4, 5].map(num => {
-                                              const optionKey = `option_${num}`;
-                                              const optionValue = question[optionKey];
-
-                                              return (
-                                                <div key={num}>
-                                                  <label className="block text-sm font-medium text-gray-700 mb-1">보기 {num}</label>
-                                                  <input
-                                                    type="text"
-                                                    value={optionValue || ''}
-                                                    onChange={(e) => {
-                                                      const newValue = e.target.value;
-
-                                                      // 기존 options 배열 또는 option_1~5 필드에서 가져오기
-                                                      const currentOptions = question.options
-                                                        ? [...question.options]
-                                                        : [
-                                                            question.option_1 || '',
-                                                            question.option_2 || '',
-                                                            question.option_3 || '',
-                                                            question.option_4 || '',
-                                                            question.option_5 || ''
-                                                          ];
-
-                                                      // 이전 보기 값 저장 (정답 업데이트 확인용)
-                                                      const oldOptionValue = currentOptions[num - 1];
-
-                                                      // 새 보기 값 설정
-                                                      currentOptions[num - 1] = newValue;
-
-                                                      // options 배열 업데이트
-                                                      updateComprehensiveQuestion(questionId, 'options', currentOptions);
-                                                      // 호환성을 위한 개별 필드도 함께 업데이트
-                                                      updateComprehensiveQuestion(questionId, optionKey, newValue);
-
-                                                      // 정답 보기를 수정한 경우, 정답도 자동 업데이트
-                                                      const currentAnswer = question.correct_answer || question.answer || question.correctAnswer || '';
-
-                                                      // 객관식 문제인 경우: 정답이 번호(1~5)인지 확인
-                                                      if (currentAnswer === String(num)) {
-                                                        // 정답 번호를 수정한 경우, 정답 텍스트를 새 보기 값으로 유지
-                                                        updateComprehensiveQuestion(questionId, 'correct_answer', String(num));
-                                                        updateComprehensiveQuestion(questionId, 'answer', String(num));
-                                                        updateComprehensiveQuestion(questionId, 'correctAnswer', String(num));
-                                                      }
-                                                      // 정답이 이전 보기 텍스트와 일치하는 경우
-                                                      else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
-                                                        // 정답을 새 보기 값으로 업데이트
-                                                        updateComprehensiveQuestion(questionId, 'correct_answer', newValue);
-                                                        updateComprehensiveQuestion(questionId, 'answer', newValue);
-                                                        updateComprehensiveQuestion(questionId, 'correctAnswer', newValue);
-                                                      }
-                                                    }}
-                                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                                    placeholder={`보기 ${num} 내용을 입력하세요`}
-                                                  />
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                          <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                                            <input
-                                              type="text"
-                                              value={question.correct_answer || question.answer || question.correctAnswer || ''}
-                                              onChange={(e) => {
-                                                updateComprehensiveQuestion(questionId, 'correct_answer', e.target.value);
-                                                updateComprehensiveQuestion(questionId, 'answer', e.target.value);
-                                                updateComprehensiveQuestion(questionId, 'correctAnswer', e.target.value);
-                                              }}
-                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                              placeholder="정답 번호 (예: 1, 2, 3, 4, 5)"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
-                                            <textarea
-                                              value={question.explanation}
-                                              onChange={(e) => updateComprehensiveQuestion(questionId, 'explanation', e.target.value)}
-                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
-                                            />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                              <div className="text-center text-orange-600">
-                                <div className="text-4xl mb-4">🔄</div>
-                                <p>보완 종합 문제가 없습니다.</p>
-                                <p className="text-sm mt-2">필요에 따라 보완문제를 추가로 생성할 수 있습니다.</p>
-                              </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       );
                     })()}
