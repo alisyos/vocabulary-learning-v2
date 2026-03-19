@@ -33,6 +33,7 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
   const [introductionQuestion, setIntroductionQuestion] = useState<string>('');
   const [currentStatus, setCurrentStatus] = useState<string>('검수 전');
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [selectedVocabTerm, setSelectedVocabTerm] = useState<string>('');
 
   // 시각자료 (이미지) 상태
   const [visualMaterials, setVisualMaterials] = useState<any[]>([]);
@@ -1142,34 +1143,6 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                 {activeTab === 'vocab-questions' && (
                   <div className="space-y-6">
                     {(() => {
-                      // 기본문제와 보완문제로 분류
-                      const basicQuestions = editableVocabQuestions.filter(q => {
-                        const isSupplementary = q.difficulty === '보완' ||
-                                              q.question_type === '보완' ||
-                                              q.is_supplementary === true;
-                        console.log(`문제 "${q.term}" 분류:`, {
-                          difficulty: q.difficulty,
-                          question_type: q.question_type,
-                          is_supplementary: q.is_supplementary,
-                          isSupplementary: isSupplementary,
-                          classification: isSupplementary ? '보완문제' : '기본문제'
-                        });
-                        return !isSupplementary;
-                      });
-
-                      const supplementaryQuestions = editableVocabQuestions.filter(q => {
-                        const isSupplementary = q.difficulty === '보완' ||
-                                              q.question_type === '보완' ||
-                                              q.is_supplementary === true;
-                        return isSupplementary;
-                      });
-
-                      console.log('문제 분류 결과:', {
-                        총문제수: editableVocabQuestions.length,
-                        기본문제수: basicQuestions.length,
-                        보완문제수: supplementaryQuestions.length
-                      });
-
                       // 전체 문제가 없을 때
                       if (editableVocabQuestions.length === 0) {
                         return (
@@ -1183,413 +1156,256 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                         );
                       }
 
+                      // 어휘(term)별로 문제 그룹화
+                      const termGroups: Record<string, { basic: any[]; supplementary: any[] }> = {};
+                      const termOrder: string[] = [];
+                      editableVocabQuestions.forEach(q => {
+                        const term = q.term || '(알 수 없음)';
+                        if (!termGroups[term]) {
+                          termGroups[term] = { basic: [], supplementary: [] };
+                          termOrder.push(term);
+                        }
+                        const isSupplementary = q.difficulty === '보완' ||
+                                              q.question_type === '보완' ||
+                                              q.is_supplementary === true;
+                        if (isSupplementary) {
+                          termGroups[term].supplementary.push(q);
+                        } else {
+                          termGroups[term].basic.push(q);
+                        }
+                      });
+
+                      // 선택된 어휘가 없거나 유효하지 않으면 첫 번째 어휘 선택
+                      const activeTerm = (selectedVocabTerm && termGroups[selectedVocabTerm]) ? selectedVocabTerm : termOrder[0];
+                      const activeGroup = termGroups[activeTerm] || { basic: [], supplementary: [] };
+
+                      // 문제 카드 렌더링 헬퍼
+                      const renderQuestionCard = (question: any, label: string, index: number, borderColor: string, labelBg: string, labelText: string) => {
+                        const questionId = question.id;
+                        return (
+                          <div key={question.id} className={`bg-white border ${borderColor} rounded-lg p-6`}>
+                            <div className="mb-4">
+                              <div className="flex justify-between items-center">
+                                <h4 className="font-semibold">{label} {index + 1}</h4>
+                                <div className="flex gap-2">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                                    {question.detailed_question_type || '5지선다 객관식'}
+                                  </span>
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${labelBg} ${labelText}`}>
+                                    {label}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
+                                <textarea
+                                  value={question.question}
+                                  onChange={(e) => updateVocabQuestion(questionId, 'question', e.target.value)}
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
+                                />
+                              </div>
+
+                              {(question.detailed_question_type === '단답형 초성 문제' ||
+                                question.detailed_question_type === '단답형' ||
+                                question.question_type === '주관식') ? (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                  <label className="block text-sm font-medium text-blue-800 mb-2">
+                                    {question.detailed_question_type === '단답형 초성 문제' ? '💡 초성 힌트' : '💡 힌트'}
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={question.answerInitials || question.answer_initials || ''}
+                                    onChange={(e) => updateVocabQuestion(questionId, 'answerInitials', e.target.value)}
+                                    className="w-full border border-blue-300 rounded-md px-3 py-2 text-sm bg-white"
+                                    placeholder={
+                                      question.detailed_question_type === '단답형 초성 문제'
+                                        ? "초성 힌트"
+                                        : "힌트 또는 추가 정보"
+                                    }
+                                  />
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    현재 초성 힌트 값: &quot;{question.answer_initials}&quot;
+                                  </div>
+                                </div>
+                              ) : (
+                                (() => {
+                                  let optionCount = 5;
+                                  if (question.detailed_question_type === '2개중 선택형') {
+                                    optionCount = 2;
+                                  } else if (question.detailed_question_type === '3개중 선택형') {
+                                    optionCount = 3;
+                                  } else if (question.detailed_question_type === '낱말 골라 쓰기') {
+                                    optionCount = 4;
+                                  }
+
+                                  const gridCols = `grid-cols-${optionCount}`;
+
+                                  return (
+                                    <div className={`grid ${gridCols} gap-2`}>
+                                      {Array.from({ length: optionCount }, (_, i) => i + 1).map(num => {
+                                        const optionValue = (question.options && question.options[num - 1]) || question[`option_${num}`] || '';
+                                        return (
+                                          <div key={num}>
+                                            <label className="block text-xs text-gray-500 mb-1">보기 {num}</label>
+                                            <input
+                                              type="text"
+                                              value={optionValue}
+                                              onChange={(e) => {
+                                                const newValue = e.target.value;
+                                                const currentOptions = question.options
+                                                  ? [...question.options]
+                                                  : [
+                                                      question.option_1 || '',
+                                                      question.option_2 || '',
+                                                      question.option_3 || '',
+                                                      question.option_4 || '',
+                                                      question.option_5 || ''
+                                                    ];
+                                                const oldOptionValue = currentOptions[num - 1];
+                                                currentOptions[num - 1] = newValue;
+                                                updateVocabQuestion(questionId, 'options', currentOptions);
+                                                const currentAnswer = question.correctAnswer || question.correct_answer || '';
+                                                if (currentAnswer === String(num)) {
+                                                  updateVocabQuestion(questionId, 'correctAnswer', String(num));
+                                                } else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
+                                                  updateVocabQuestion(questionId, 'correctAnswer', newValue);
+                                                }
+                                              }}
+                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                              placeholder={`보기 ${num}`}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })()
+                              )}
+
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
+                                  <input
+                                    type="text"
+                                    value={question.correctAnswer || question.correct_answer || ''}
+                                    onChange={(e) => updateVocabQuestion(questionId, 'correctAnswer', e.target.value)}
+                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                    placeholder={
+                                      (question.detailed_question_type === '단답형 초성 문제' ||
+                                       question.detailed_question_type === '단답형' ||
+                                       question.question_type === '주관식')
+                                        ? "정답 단어 (예: 안전교육)"
+                                        : question.detailed_question_type === '2개중 선택형'
+                                          ? "정답 번호 (예: 1, 2)"
+                                          : question.detailed_question_type === '3개중 선택형'
+                                            ? "정답 번호 (예: 1, 2, 3)"
+                                            : question.detailed_question_type === '낱말 골라 쓰기'
+                                              ? "정답 번호 (예: 1, 2, 3, 4)"
+                                              : "정답 번호 (예: 1, 2, 3, 4, 5)"
+                                    }
+                                  />
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    현재 정답 값: &quot;{question.correct_answer}&quot;
+                                    {(question.detailed_question_type === '단답형 초성 문제' ||
+                                      question.detailed_question_type === '단답형' ||
+                                      question.question_type === '주관식') && (
+                                      <span className="text-blue-600 ml-2">
+                                        (주관식 문제: 단어 입력)
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
+                                  <textarea
+                                    value={question.explanation}
+                                    onChange={(e) => updateVocabQuestion(questionId, 'explanation', e.target.value)}
+                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      };
+
                       return (
-                        <div className="space-y-6">
-                          {/* 기본문제 섹션 */}
-                          {basicQuestions.length > 0 ? (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                              <div className="flex items-center mb-4">
-                                <h3 className="text-lg font-semibold text-green-800">✅ 기본문제</h3>
-                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  {basicQuestions.length}개
-                                </span>
+                        <div className="space-y-4">
+                          {/* 어휘별 탭 네비게이션 */}
+                          <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3">
+                            {termOrder.map((term) => {
+                              const group = termGroups[term];
+                              const totalCount = group.basic.length + group.supplementary.length;
+                              const isActive = term === activeTerm;
+                              return (
+                                <button
+                                  key={term}
+                                  onClick={() => setSelectedVocabTerm(term)}
+                                  className={`px-3 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                                    isActive
+                                      ? 'bg-indigo-600 text-white'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {term}
+                                  <span className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs ${
+                                    isActive ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-600'
+                                  }`}>
+                                    {totalCount}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* 선택된 어휘의 문제 표시 */}
+                          <div className="space-y-6">
+                            {/* 기본문제 섹션 */}
+                            {activeGroup.basic.length > 0 && (
+                              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                                <div className="flex items-center mb-4">
+                                  <h3 className="text-lg font-semibold text-green-800">기본문제</h3>
+                                  <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    {activeGroup.basic.length}개
+                                  </span>
+                                </div>
+                                <div className="space-y-4">
+                                  {activeGroup.basic.map((question, index) =>
+                                    renderQuestionCard(question, '기본문제', index, 'border-green-200', 'bg-green-100', 'text-green-800')
+                                  )}
+                                </div>
                               </div>
-                              <p className="text-sm text-green-600 mb-4">
-                                핵심 어휘에 대한 기본 문제들입니다.
-                              </p>
+                            )}
 
-                              <div className="space-y-4">
-                                {basicQuestions.map((question, index) => {
-                                  const questionId = question.id;
-                                  return (
-                                    <div key={question.id} className="bg-white border border-green-200 rounded-lg p-6">
-                                      <div className="mb-4">
-                                        <div className="flex justify-between items-center">
-                                          <h4 className="font-semibold">기본문제 {index + 1} - {question.term}</h4>
-                                          <div className="flex gap-2">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                                              {question.detailed_question_type || '5지선다 객관식'}
-                                            </span>
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                              기본문제
-                                            </span>
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                              ID: {question.id}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <div className="space-y-3">
-                                        <div>
-                                          <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
-                                          <textarea
-                                            value={question.question}
-                                            onChange={(e) => updateVocabQuestion(questionId, 'question', e.target.value)}
-                                            className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
-                                          />
-                                        </div>
-
-                                        {/* 문제 유형에 따른 조건부 렌더링 - 기본문제 */}
-                                        {(question.detailed_question_type === '단답형 초성 문제' ||
-                                          question.detailed_question_type === '단답형' ||
-                                          question.question_type === '주관식') ? (
-                                          // 주관식 힌트 영역
-                                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                            <label className="block text-sm font-medium text-blue-800 mb-2">
-                                              {question.detailed_question_type === '단답형 초성 문제' ? '💡 초성 힌트' : '💡 힌트'}
-                                            </label>
-                                            <input
-                                              type="text"
-                                              value={question.answerInitials || question.answer_initials || ''}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'answerInitials', e.target.value)}
-                                              className="w-full border border-blue-300 rounded-md px-3 py-2 text-sm bg-white"
-                                              placeholder={
-                                                question.detailed_question_type === '단답형 초성 문제'
-                                                  ? "초성 힌트"
-                                                  : "힌트 또는 추가 정보"
-                                              }
-                                            />
-                                            {/* 디버깅용 answer_initials 값 표시 */}
-                                            <div className="text-xs text-gray-500 mt-1">
-                                              현재 초성 힌트 값: "{question.answer_initials}"
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          // 객관식 보기 영역
-                                          (() => {
-                                            // 문제 유형에 따른 보기 개수 결정
-                                            let optionCount = 5; // 기본값: 5지선다
-                                            if (question.detailed_question_type === '2개중 선택형') {
-                                              optionCount = 2;
-                                            } else if (question.detailed_question_type === '3개중 선택형') {
-                                              optionCount = 3;
-                                            } else if (question.detailed_question_type === '낱말 골라 쓰기') {
-                                              optionCount = 4;
-                                            }
-
-                                            const gridCols = `grid-cols-${optionCount}`;
-
-                                            return (
-                                              <div className={`grid ${gridCols} gap-2`}>
-                                                {Array.from({ length: optionCount }, (_, i) => i + 1).map(num => {
-                                                  const optionValue = (question.options && question.options[num - 1]) || question[`option_${num}`] || '';
-                                                  console.log(`Question ${question.term} - Option ${num}:`, optionValue);
-                                                  return (
-                                                    <div key={num}>
-                                                      <label className="block text-xs text-gray-500 mb-1">보기 {num}</label>
-                                                      <input
-                                                        type="text"
-                                                        value={optionValue}
-                                                        onChange={(e) => {
-                                                          const newValue = e.target.value;
-
-                                                          // 기존 options 배열 또는 option_1~5 필드에서 가져오기
-                                                          const currentOptions = question.options
-                                                            ? [...question.options]
-                                                            : [
-                                                                question.option_1 || '',
-                                                                question.option_2 || '',
-                                                                question.option_3 || '',
-                                                                question.option_4 || '',
-                                                                question.option_5 || ''
-                                                              ];
-
-                                                          // 이전 보기 값 저장 (정답 업데이트 확인용)
-                                                          const oldOptionValue = currentOptions[num - 1];
-
-                                                          // 새 보기 값 설정
-                                                          currentOptions[num - 1] = newValue;
-
-                                                          // options 배열 업데이트
-                                                          updateVocabQuestion(questionId, 'options', currentOptions);
-
-                                                          // 정답 보기를 수정한 경우, 정답도 자동 업데이트
-                                                          const currentAnswer = question.correctAnswer || question.correct_answer || '';
-
-                                                          // 객관식 문제인 경우: 정답이 번호(1~5)인지 확인
-                                                          if (currentAnswer === String(num)) {
-                                                            // 정답 번호를 수정한 경우, 정답 텍스트를 새 보기 값으로 업데이트
-                                                            updateVocabQuestion(questionId, 'correctAnswer', String(num));
-                                                          }
-                                                          // 정답이 이전 보기 텍스트와 일치하는 경우
-                                                          else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
-                                                            // 정답을 새 보기 값으로 업데이트
-                                                            updateVocabQuestion(questionId, 'correctAnswer', newValue);
-                                                          }
-                                                        }}
-                                                        className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                                        placeholder={`보기 ${num}`}
-                                                      />
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
-                                            );
-                                          })()
-                                        )}
-
-                                        <div className="space-y-3">
-                                          <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                                            <input
-                                              type="text"
-                                              value={question.correctAnswer || question.correct_answer || ''}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'correctAnswer', e.target.value)}
-                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                              placeholder={
-                                                (question.detailed_question_type === '단답형 초성 문제' ||
-                                                 question.detailed_question_type === '단답형' ||
-                                                 question.question_type === '주관식')
-                                                  ? "정답 단어 (예: 안전교육)"
-                                                  : question.detailed_question_type === '2개중 선택형'
-                                                    ? "정답 번호 (예: 1, 2)"
-                                                    : question.detailed_question_type === '3개중 선택형'
-                                                      ? "정답 번호 (예: 1, 2, 3)"
-                                                      : question.detailed_question_type === '낱말 골라 쓰기'
-                                                        ? "정답 번호 (예: 1, 2, 3, 4)"
-                                                        : "정답 번호 (예: 1, 2, 3, 4, 5)"
-                                              }
-                                            />
-                                            {/* 디버깅용 정답 값 표시 */}
-                                            <div className="text-xs text-gray-500 mt-1">
-                                              현재 정답 값: "{question.correct_answer}"
-                                              {(question.detailed_question_type === '단답형 초성 문제' ||
-                                                question.detailed_question_type === '단답형' ||
-                                                question.question_type === '주관식') && (
-                                                <span className="text-blue-600 ml-2">
-                                                  (주관식 문제: 단어 입력)
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                          <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
-                                            <textarea
-                                              value={question.explanation}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'explanation', e.target.value)}
-                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
-                                            />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                            {/* 보완문제 섹션 */}
+                            {activeGroup.supplementary.length > 0 && (
+                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                                <div className="flex items-center mb-4">
+                                  <h3 className="text-lg font-semibold text-orange-800">보완문제</h3>
+                                  <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    {activeGroup.supplementary.length}개
+                                  </span>
+                                </div>
+                                <div className="space-y-4">
+                                  {activeGroup.supplementary.map((question, index) =>
+                                    renderQuestionCard(question, '보완문제', index, 'border-orange-200', 'bg-orange-100', 'text-orange-800')
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                              <div className="text-center text-green-600">
-                                <div className="text-4xl mb-4">✅</div>
-                                <p>기본 어휘 문제가 없습니다.</p>
-                                <p className="text-sm mt-2">모든 어휘 문제가 보완문제로 분류되었을 수 있습니다.</p>
+                            )}
+
+                            {/* 해당 어휘에 문제가 없는 경우 */}
+                            {activeGroup.basic.length === 0 && activeGroup.supplementary.length === 0 && (
+                              <div className="bg-gray-50 border border-gray-200 rounded-lg p-8">
+                                <div className="text-center text-gray-500">
+                                  <p>이 어휘에 대한 문제가 없습니다.</p>
+                                </div>
                               </div>
-                            </div>
-                          )}
-
-                          {/* 보완문제 섹션 */}
-                          {supplementaryQuestions.length > 0 ? (
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                              <div className="flex items-center mb-4">
-                                <h3 className="text-lg font-semibold text-orange-800">🔄 보완문제</h3>
-                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                  {supplementaryQuestions.length}개
-                                </span>
-                              </div>
-                              <p className="text-sm text-orange-600 mb-4">
-                                추가적인 학습 보완을 위한 문제들입니다.
-                              </p>
-
-                              <div className="space-y-4">
-                                {supplementaryQuestions.map((question, index) => {
-                                  const questionId = question.id;
-                                  return (
-                                    <div key={question.id} className="bg-white border border-orange-200 rounded-lg p-6">
-                                      <div className="mb-4">
-                                        <div className="flex justify-between items-center">
-                                          <h4 className="font-semibold">보완문제 {index + 1} - {question.term}</h4>
-                                          <div className="flex gap-2">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                                              {question.detailed_question_type || '5지선다 객관식'}
-                                            </span>
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                              보완문제
-                                            </span>
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                              ID: {question.id}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <div className="space-y-3">
-                                        <div>
-                                          <label className="block text-sm font-medium text-gray-700 mb-1">문제</label>
-                                          <textarea
-                                            value={question.question}
-                                            onChange={(e) => updateVocabQuestion(questionId, 'question', e.target.value)}
-                                            className="w-full border border-gray-300 rounded-md px-3 py-2 h-20 text-sm"
-                                          />
-                                        </div>
-
-                                        {/* 문제 유형에 따른 조건부 렌더링 - 보완문제 */}
-                                        {(question.detailed_question_type === '단답형 초성 문제' ||
-                                          question.detailed_question_type === '단답형' ||
-                                          question.question_type === '주관식') ? (
-                                          // 주관식 힌트 영역
-                                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                            <label className="block text-sm font-medium text-blue-800 mb-2">
-                                              {question.detailed_question_type === '단답형 초성 문제' ? '💡 초성 힌트' : '💡 힌트'}
-                                            </label>
-                                            <input
-                                              type="text"
-                                              value={question.answerInitials || question.answer_initials || ''}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'answerInitials', e.target.value)}
-                                              className="w-full border border-blue-300 rounded-md px-3 py-2 text-sm bg-white"
-                                              placeholder={
-                                                question.detailed_question_type === '단답형 초성 문제'
-                                                  ? "초성 힌트"
-                                                  : "힌트 또는 추가 정보"
-                                              }
-                                            />
-                                            {/* 디버깅용 answer_initials 값 표시 */}
-                                            <div className="text-xs text-gray-500 mt-1">
-                                              현재 초성 힌트 값: "{question.answer_initials}"
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          // 객관식 보기 영역
-                                          (() => {
-                                            // 문제 유형에 따른 보기 개수 결정
-                                            let optionCount = 5; // 기본값: 5지선다
-                                            if (question.detailed_question_type === '2개중 선택형') {
-                                              optionCount = 2;
-                                            } else if (question.detailed_question_type === '3개중 선택형') {
-                                              optionCount = 3;
-                                            } else if (question.detailed_question_type === '낱말 골라 쓰기') {
-                                              optionCount = 4;
-                                            }
-
-                                            const gridCols = `grid-cols-${optionCount}`;
-
-                                            return (
-                                              <div className={`grid ${gridCols} gap-2`}>
-                                                {Array.from({ length: optionCount }, (_, i) => i + 1).map(num => {
-                                                  const optionValue = (question.options && question.options[num - 1]) || question[`option_${num}`] || '';
-                                                  console.log(`Question ${question.term} - Option ${num}:`, optionValue);
-                                                  return (
-                                                    <div key={num}>
-                                                      <label className="block text-xs text-gray-500 mb-1">보기 {num}</label>
-                                                      <input
-                                                        type="text"
-                                                        value={optionValue}
-                                                        onChange={(e) => {
-                                                          const newValue = e.target.value;
-
-                                                          // 기존 options 배열 또는 option_1~5 필드에서 가져오기
-                                                          const currentOptions = question.options
-                                                            ? [...question.options]
-                                                            : [
-                                                                question.option_1 || '',
-                                                                question.option_2 || '',
-                                                                question.option_3 || '',
-                                                                question.option_4 || '',
-                                                                question.option_5 || ''
-                                                              ];
-
-                                                          // 이전 보기 값 저장 (정답 업데이트 확인용)
-                                                          const oldOptionValue = currentOptions[num - 1];
-
-                                                          // 새 보기 값 설정
-                                                          currentOptions[num - 1] = newValue;
-
-                                                          // options 배열 업데이트
-                                                          updateVocabQuestion(questionId, 'options', currentOptions);
-
-                                                          // 정답 보기를 수정한 경우, 정답도 자동 업데이트
-                                                          const currentAnswer = question.correctAnswer || question.correct_answer || '';
-
-                                                          // 객관식 문제인 경우: 정답이 번호(1~5)인지 확인
-                                                          if (currentAnswer === String(num)) {
-                                                            // 정답 번호를 수정한 경우, 정답 텍스트를 새 보기 값으로 업데이트
-                                                            updateVocabQuestion(questionId, 'correctAnswer', String(num));
-                                                          }
-                                                          // 정답이 이전 보기 텍스트와 일치하는 경우
-                                                          else if (currentAnswer === oldOptionValue && oldOptionValue !== '') {
-                                                            // 정답을 새 보기 값으로 업데이트
-                                                            updateVocabQuestion(questionId, 'correctAnswer', newValue);
-                                                          }
-                                                        }}
-                                                        className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                                        placeholder={`보기 ${num}`}
-                                                      />
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
-                                            );
-                                          })()
-                                        )}
-
-                                        <div className="space-y-3">
-                                          <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">정답</label>
-                                            <input
-                                              type="text"
-                                              value={question.correctAnswer || question.correct_answer || ''}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'correctAnswer', e.target.value)}
-                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                              placeholder={
-                                                (question.detailed_question_type === '단답형 초성 문제' ||
-                                                 question.detailed_question_type === '단답형' ||
-                                                 question.question_type === '주관식')
-                                                  ? "정답 단어 (예: 안전교육)"
-                                                  : question.detailed_question_type === '2개중 선택형'
-                                                    ? "정답 번호 (예: 1, 2)"
-                                                    : question.detailed_question_type === '3개중 선택형'
-                                                      ? "정답 번호 (예: 1, 2, 3)"
-                                                      : question.detailed_question_type === '낱말 골라 쓰기'
-                                                        ? "정답 번호 (예: 1, 2, 3, 4)"
-                                                        : "정답 번호 (예: 1, 2, 3, 4, 5)"
-                                              }
-                                            />
-                                            {/* 디버깅용 정답 값 표시 */}
-                                            <div className="text-xs text-gray-500 mt-1">
-                                              현재 정답 값: "{question.correct_answer}"
-                                              {(question.detailed_question_type === '단답형 초성 문제' ||
-                                                question.detailed_question_type === '단답형' ||
-                                                question.question_type === '주관식') && (
-                                                <span className="text-blue-600 ml-2">
-                                                  (주관식 문제: 단어 입력)
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                          <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">해설</label>
-                                            <textarea
-                                              value={question.explanation}
-                                              onChange={(e) => updateVocabQuestion(questionId, 'explanation', e.target.value)}
-                                              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-20"
-                                            />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                              <div className="text-center text-orange-600">
-                                <div className="text-4xl mb-4">🔄</div>
-                                <p>보완 어휘 문제가 없습니다.</p>
-                                <p className="text-sm mt-2">필요에 따라 보완문제를 추가로 생성할 수 있습니다.</p>
-                              </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       );
                     })()}
