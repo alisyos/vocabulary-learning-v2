@@ -447,7 +447,19 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
 
       const result = await response.json();
 
-      if (result.success) {
+      if (result.success && result.partialFailure) {
+        // 부분 실패 - 경고 알림
+        const details = result.failures || {};
+        const failedParts: string[] = [];
+        if (details.vocabQuestions > 0) failedParts.push(`어휘 문제 ${details.vocabQuestions}건`);
+        if (details.comprehensiveQuestions > 0) failedParts.push(`종합 문제 ${details.comprehensiveQuestions}건`);
+        if (details.paragraphQuestions > 0) failedParts.push(`지문 문제 ${details.paragraphQuestions}건`);
+        alert(`저장이 부분적으로 완료되었습니다.\n\n저장 실패 항목:\n- ${failedParts.join('\n- ')}\n\n해당 항목을 확인 후 다시 저장해 주세요.`);
+        console.warn('부분 저장 실패:', result);
+
+        // 부분 성공이므로 데이터 새로고침
+        await fetchContentData();
+      } else if (result.success) {
         alert('변경사항이 성공적으로 저장되었습니다.');
         console.log('저장 완료:', result);
 

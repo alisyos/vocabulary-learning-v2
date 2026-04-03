@@ -41,6 +41,13 @@ export async function PUT(request: NextRequest) {
 
     console.log('📋 입력 데이터 검증 완료');
 
+    // 섹션별 실패 카운트 추적
+    const failures = {
+      vocabQuestions: 0,
+      comprehensiveQuestions: 0,
+      paragraphQuestions: 0,
+    };
+
     // editablePassages가 있으면 우선 사용, 없으면 editablePassage 사용
     const passagesToProcess = editablePassages || (editablePassage ? [editablePassage] : []);
     console.log('📝 처리할 지문 수:', passagesToProcess.length);
@@ -239,6 +246,7 @@ export async function PUT(request: NextRequest) {
 
       if (failedCount > 0) {
         console.warn(`⚠️ ${failedCount}개의 어휘 문제 업데이트 실패`);
+        failures.vocabQuestions = failedCount;
       }
 
       const vocabEndTime = Date.now();
@@ -373,6 +381,7 @@ export async function PUT(request: NextRequest) {
 
       if (failedCount > 0) {
         console.warn(`⚠️ ${failedCount}개의 종합문제 업데이트 실패`);
+        failures.comprehensiveQuestions = failedCount;
       }
 
       const compEndTime = Date.now();
@@ -438,6 +447,10 @@ export async function PUT(request: NextRequest) {
 
       const results = await Promise.allSettled(createPromises);
       const successCount = results.filter(r => r.status === 'fulfilled' && r.value !== null).length;
+      const paraFailedCount = editableParagraphQuestions.length - successCount;
+      if (paraFailedCount > 0) {
+        failures.paragraphQuestions = paraFailedCount;
+      }
 
       const paraEndTime = Date.now();
       console.log(`📄 ParagraphQuestions 재생성 완료: ${successCount}/${editableParagraphQuestions.length}개 성공 (소요시간: ${paraEndTime - paraStartTime}ms)`);
@@ -447,9 +460,15 @@ export async function PUT(request: NextRequest) {
     const totalTime = endTime - startTime;
     console.log(`✅ 모든 데이터 업데이트 완료 (총 소요시간: ${totalTime}ms)`);
 
+    const totalFailures = failures.vocabQuestions + failures.comprehensiveQuestions + failures.paragraphQuestions;
+
     return NextResponse.json({
       success: true,
-      message: '콘텐츠가 성공적으로 수정되었습니다.',
+      partialFailure: totalFailures > 0,
+      failures,
+      message: totalFailures > 0
+        ? `저장 완료 (일부 실패: 어휘 문제 ${failures.vocabQuestions}건, 종합 문제 ${failures.comprehensiveQuestions}건, 지문 문제 ${failures.paragraphQuestions}건)`
+        : '콘텐츠가 성공적으로 수정되었습니다.',
       contentSetId: contentSetId
     });
 
