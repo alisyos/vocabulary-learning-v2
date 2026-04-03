@@ -41,12 +41,23 @@ export async function PUT(request: NextRequest) {
 
     console.log('📋 입력 데이터 검증 완료');
 
-    // 섹션별 실패 카운트 추적
+    // 섹션별 실패/스킵 카운트 추적
     const failures = {
       vocabQuestions: 0,
       comprehensiveQuestions: 0,
       paragraphQuestions: 0,
     };
+    const skipped = {
+      vocabQuestions: 0,
+    };
+
+    // === 저장 전 스냅샷 (히스토리 백업) ===
+    try {
+      await db.createContentSetSnapshot(contentSetId, '편집 전 자동 백업');
+      console.log('📸 편집 전 스냅샷 저장 완료');
+    } catch (snapshotError) {
+      console.error('⚠️ 스냅샷 저장 실패 (저장은 계속 진행):', snapshotError);
+    }
 
     // editablePassages가 있으면 우선 사용, 없으면 editablePassage 사용
     const passagesToProcess = editablePassages || (editablePassage ? [editablePassage] : []);
@@ -200,6 +211,7 @@ export async function PUT(request: NextRequest) {
 
         if (!existingQuestion?.id) {
           console.log(`⏭️ 어휘 문제 ${i + 1} 스킵 (기존 ID 없음)`);
+          skipped.vocabQuestions++;
           return null;
         }
 
@@ -461,13 +473,16 @@ export async function PUT(request: NextRequest) {
     console.log(`✅ 모든 데이터 업데이트 완료 (총 소요시간: ${totalTime}ms)`);
 
     const totalFailures = failures.vocabQuestions + failures.comprehensiveQuestions + failures.paragraphQuestions;
+    const totalSkipped = skipped.vocabQuestions;
+    const hasIssues = totalFailures > 0 || totalSkipped > 0;
 
     return NextResponse.json({
       success: true,
-      partialFailure: totalFailures > 0,
+      partialFailure: hasIssues,
       failures,
-      message: totalFailures > 0
-        ? `저장 완료 (일부 실패: 어휘 문제 ${failures.vocabQuestions}건, 종합 문제 ${failures.comprehensiveQuestions}건, 지문 문제 ${failures.paragraphQuestions}건)`
+      skipped,
+      message: hasIssues
+        ? `저장 완료 (일부 미반영: 어휘 문제 실패 ${failures.vocabQuestions}건, 스킵 ${skipped.vocabQuestions}건, 종합 문제 실패 ${failures.comprehensiveQuestions}건, 지문 문제 실패 ${failures.paragraphQuestions}건)`
         : '콘텐츠가 성공적으로 수정되었습니다.',
       contentSetId: contentSetId
     });

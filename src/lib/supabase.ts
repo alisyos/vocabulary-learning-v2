@@ -644,6 +644,171 @@ export const db = {
     if (error) throw error
   },
 
+  // 누락된 delete 함수
+  async deletePassagesByContentSetId(contentSetId: string) {
+    const { error } = await supabase
+      .from('passages')
+      .delete()
+      .eq('content_set_id', contentSetId)
+
+    if (error) throw error
+  },
+
+  async deleteVocabularyQuestionsByContentSetId(contentSetId: string) {
+    const { error } = await supabase
+      .from('vocabulary_questions')
+      .delete()
+      .eq('content_set_id', contentSetId)
+
+    if (error) throw error
+  },
+
+  // Content Set History (버전 관리)
+  async createContentSetSnapshot(contentSetId: string, description: string = '수동 저장') {
+    // 1. 현재 전체 상태 조회
+    const currentState = await this.getContentSetById(contentSetId);
+    if (!currentState) throw new Error('Content set not found');
+
+    // 2. 최신 version_number 조회
+    const { data: maxVersion } = await supabase
+      .from('content_set_history')
+      .select('version_number')
+      .eq('content_set_id', contentSetId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .single();
+
+    const nextVersion = (maxVersion?.version_number || 0) + 1;
+
+    // 3. 스냅샷 저장
+    const { data, error } = await supabase
+      .from('content_set_history')
+      .insert({
+        content_set_id: contentSetId,
+        version_number: nextVersion,
+        snapshot: currentState,
+        description
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // 4. 보관 제한 적용 (콘텐츠 세트별 최근 15건)
+    await this.pruneContentSetHistory(contentSetId, 15);
+
+    return data;
+  },
+
+  async getContentSetHistory(contentSetId: string) {
+    const { data, error } = await supabase
+      .from('content_set_history')
+      .select('id, content_set_id, version_number, description, created_at')
+      .eq('content_set_id', contentSetId)
+      .order('version_number', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getContentSetSnapshot(historyId: string) {
+    const { data, error } = await supabase
+      .from('content_set_history')
+      .select('*')
+      .eq('id', historyId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async pruneContentSetHistory(contentSetId: string, keepCount: number = 15) {
+    const { data: toKeep } = await supabase
+      .from('content_set_history')
+      .select('id')
+      .eq('content_set_id', contentSetId)
+      .order('version_number', { ascending: false })
+      .limit(keepCount);
+
+    if (!toKeep || toKeep.length < keepCount) return;
+
+    const keepIds = toKeep.map(r => r.id);
+
+    const { error } = await supabase
+      .from('content_set_history')
+      .delete()
+      .eq('content_set_id', contentSetId)
+      .not('id', 'in', `(${keepIds.join(',')})`);
+
+    if (error) throw error;
+  },
+
+  async restoreFromSnapshot(contentSetId: string, snapshot: any) {
+    // 1. 하위 테이블 전체 삭제 (역순)
+    await this.deleteComprehensiveQuestionsByContentSetId(contentSetId);
+    await this.deleteParagraphQuestionsByContentSetId(contentSetId);
+    await this.deleteVocabularyQuestionsByContentSetId(contentSetId);
+    await this.deleteVocabularyTermsByContentSetId(contentSetId);
+    await this.deletePassagesByContentSetId(contentSetId);
+
+    // 2. 스냅샷에서 하위 데이터 재생성 (새 UUID 사용, content_set_id는 현재 ID로)
+    // 2-1. Passages
+    if (snapshot.passages && snapshot.passages.length > 0) {
+      for (const passage of snapshot.passages) {
+        const { id, created_at, content_set_id, ...passageData } = passage;
+        await this.createPassage({
+          content_set_id: contentSetId,
+          ...passageData
+        });
+      }
+    }
+
+    // 2-2. Vocabulary Terms
+    if (snapshot.vocabulary_terms && snapshot.vocabulary_terms.length > 0) {
+      const terms = snapshot.vocabulary_terms.map((term: any) => {
+        const { id, created_at, content_set_id, ...termData } = term;
+        return { content_set_id: contentSetId, ...termData };
+      });
+      await this.createVocabularyTerms(terms);
+    }
+
+    // 2-3. Vocabulary Questions
+    if (snapshot.vocabulary_questions && snapshot.vocabulary_questions.length > 0) {
+      const questions = snapshot.vocabulary_questions.map((q: any) => {
+        const { id, created_at, content_set_id, ...qData } = q;
+        return { content_set_id: contentSetId, ...qData };
+      });
+      await this.createVocabularyQuestions(questions);
+    }
+
+    // 2-4. Paragraph Questions
+    if (snapshot.paragraph_questions && snapshot.paragraph_questions.length > 0) {
+      for (const q of snapshot.paragraph_questions) {
+        const { id, created_at, content_set_id, ...qData } = q;
+        await this.createParagraphQuestion({
+          content_set_id: contentSetId,
+          ...qData
+        });
+      }
+    }
+
+    // 2-5. Comprehensive Questions
+    if (snapshot.comprehensive_questions && snapshot.comprehensive_questions.length > 0) {
+      const questions = snapshot.comprehensive_questions.map((q: any) => {
+        const { id, created_at, content_set_id, original_question_id, ...qData } = q;
+        return { content_set_id: contentSetId, ...qData };
+      });
+      await this.createComprehensiveQuestions(questions);
+    }
+
+    // 3. Content Set 레코드 업데이트
+    const { id, created_at, updated_at, passages, vocabulary_terms, vocabulary_questions, paragraph_questions, comprehensive_questions, ...contentSetData } = snapshot;
+    await this.updateContentSet(contentSetId, {
+      ...contentSetData,
+      updated_at: new Date().toISOString()
+    });
+  },
+
   // AI Generation Logs
   async createAIGenerationLog(data: Omit<AIGenerationLog, 'id' | 'created_at'>) {
     const { data: result, error } = await supabase

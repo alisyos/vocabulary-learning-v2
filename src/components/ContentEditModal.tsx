@@ -36,6 +36,14 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
   const [selectedVocabTerm, setSelectedVocabTerm] = useState<string>('');
   const [selectedCompType, setSelectedCompType] = useState<string>('');
 
+  // 수정 이력 상태
+  const [historyList, setHistoryList] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [previewSnapshot, setPreviewSnapshot] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState<number | null>(null);
+
   // 시각자료 (이미지) 상태
   const [visualMaterials, setVisualMaterials] = useState<any[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
@@ -129,6 +137,83 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
       fetchContentData();
     }
   }, [isOpen, contentSetId]);
+
+  // 수정 이력 로드 함수
+  const fetchHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/content-set-history?contentSetId=${contentSetId}`);
+      const result = await res.json();
+      if (result.success) {
+        setHistoryList(result.history || []);
+      }
+    } catch (error) {
+      console.error('히스토리 로드 오류:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // 히스토리 탭 활성화 시 로드
+  useEffect(() => {
+    if (activeTab === 'history' && contentSetId) {
+      fetchHistory();
+    }
+  }, [activeTab, contentSetId]);
+
+  // 버전 복원 핸들러
+  const handleRestore = async (historyId: string) => {
+    if (!confirm('이 버전으로 복원하시겠습니까?\n현재 상태는 자동으로 백업됩니다.')) return;
+
+    setRestoring(true);
+    try {
+      const res = await fetch('/api/content-set-history/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ historyId, contentSetId })
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert(`${result.message}`);
+        await fetchContentData();
+        setActiveTab('info');
+        await fetchHistory();
+      } else {
+        alert(`복원 실패: ${result.message}`);
+      }
+    } catch (error) {
+      alert('복원 중 오류가 발생했습니다.');
+      console.error('복원 오류:', error);
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  // 스냅샷 상세 조회 (토글 방식)
+  const fetchSnapshot = async (historyId: string, versionNumber: number) => {
+    if (previewVersion === versionNumber) {
+      setPreviewSnapshot(null);
+      setPreviewVersion(null);
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewVersion(versionNumber);
+    try {
+      const res = await fetch(`/api/content-set-history?historyId=${historyId}`);
+      const result = await res.json();
+      if (result.success) {
+        setPreviewSnapshot(result.snapshot);
+      } else {
+        alert('스냅샷 조회 실패: ' + (result.message || ''));
+        setPreviewVersion(null);
+      }
+    } catch (error) {
+      console.error('스냅샷 조회 오류:', error);
+      setPreviewVersion(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   // 시각자료 로드 함수
   const fetchVisualMaterials = async (sessionNumber: string | null | undefined) => {
@@ -448,13 +533,15 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
       const result = await response.json();
 
       if (result.success && result.partialFailure) {
-        // 부분 실패 - 경고 알림
+        // 부분 실패 또는 스킵 - 경고 알림
         const details = result.failures || {};
-        const failedParts: string[] = [];
-        if (details.vocabQuestions > 0) failedParts.push(`어휘 문제 ${details.vocabQuestions}건`);
-        if (details.comprehensiveQuestions > 0) failedParts.push(`종합 문제 ${details.comprehensiveQuestions}건`);
-        if (details.paragraphQuestions > 0) failedParts.push(`지문 문제 ${details.paragraphQuestions}건`);
-        alert(`저장이 부분적으로 완료되었습니다.\n\n저장 실패 항목:\n- ${failedParts.join('\n- ')}\n\n해당 항목을 확인 후 다시 저장해 주세요.`);
+        const skippedDetails = result.skipped || {};
+        const issueParts: string[] = [];
+        if (details.vocabQuestions > 0) issueParts.push(`어휘 문제 저장 실패 ${details.vocabQuestions}건`);
+        if (skippedDetails.vocabQuestions > 0) issueParts.push(`어휘 문제 ID 불일치로 스킵 ${skippedDetails.vocabQuestions}건`);
+        if (details.comprehensiveQuestions > 0) issueParts.push(`종합 문제 저장 실패 ${details.comprehensiveQuestions}건`);
+        if (details.paragraphQuestions > 0) issueParts.push(`지문 문제 저장 실패 ${details.paragraphQuestions}건`);
+        alert(`저장이 부분적으로 완료되었습니다.\n\n미반영 항목:\n- ${issueParts.join('\n- ')}\n\n해당 항목을 확인 후 다시 저장해 주세요.`);
         console.warn('부분 저장 실패:', result);
 
         // 부분 성공이므로 데이터 새로고침
@@ -519,7 +606,8 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
     { id: 'vocab-questions', name: '어휘 문제', icon: '❓' },
     { id: 'paragraph-questions', name: '지문 문제', icon: '📄' },
     { id: 'comprehensive', name: '종합 문제', icon: '🧠' },
-    { id: 'visual-materials', name: '시각자료', icon: '🖼️' }
+    { id: 'visual-materials', name: '시각자료', icon: '🖼️' },
+    { id: 'history', name: '수정 이력', icon: '🕐' }
   ];
 
   // 저장 중 로딩 모달
@@ -2001,6 +2089,221 @@ export default function ContentEditModal({ isOpen, onClose, contentSetId }: Cont
                     )}
                   </div>
                 )}
+
+                {/* 수정 이력 탭 */}
+                {activeTab === 'history' && (
+                <div className="p-6 space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">수정 이력</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      편집 저장 시 자동으로 현재 상태가 백업됩니다. 콘텐츠 세트별 최근 15개 버전이 유지됩니다.
+                    </p>
+                  </div>
+
+                  {historyLoading ? (
+                    <div className="text-center py-8 text-gray-500">로딩 중...</div>
+                  ) : historyList.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">저장된 수정 이력이 없습니다.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {historyList.map((item) => (
+                        <div key={item.id}>
+                          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  v{item.version_number}
+                                </span>
+                                <span className="text-sm text-gray-700">
+                                  {new Date(item.created_at).toLocaleString('ko-KR', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit'
+                                  })}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1 ml-1">{item.description}</p>
+                            </div>
+                            <div className="flex items-center gap-2 ml-4">
+                              <button
+                                onClick={() => fetchSnapshot(item.id, item.version_number)}
+                                disabled={previewLoading && previewVersion === item.version_number}
+                                className={`px-3 py-2 text-sm rounded-md whitespace-nowrap ${
+                                  previewVersion === item.version_number
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                } disabled:opacity-50`}
+                              >
+                                {previewLoading && previewVersion === item.version_number
+                                  ? '로딩...'
+                                  : previewVersion === item.version_number
+                                    ? '접기'
+                                    : '상세보기'}
+                              </button>
+                              <button
+                                onClick={() => handleRestore(item.id)}
+                                disabled={restoring}
+                                className="px-3 py-2 text-sm bg-amber-500 text-white rounded-md hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                              >
+                                {restoring ? '복원 중...' : '복원'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 스냅샷 미리보기 */}
+                          {previewVersion === item.version_number && previewSnapshot && (
+                            <div className="mt-1 mb-3 border border-blue-200 rounded-lg bg-blue-50 p-4 space-y-3">
+                              <h4 className="text-sm font-semibold text-blue-900">
+                                v{item.version_number} 스냅샷 상세
+                              </h4>
+
+                              {/* 지문 */}
+                              <details className="group">
+                                <summary className="cursor-pointer text-sm font-medium text-gray-800 hover:text-blue-700">
+                                  지문 ({previewSnapshot.passages?.length || 0}건)
+                                </summary>
+                                <div className="mt-2 space-y-3 pl-2">
+                                  {previewSnapshot.passages?.map((passage: any, pi: number) => (
+                                    <div key={pi} className="bg-white rounded p-3 border border-gray-200">
+                                      <p className="text-sm font-medium text-gray-900 mb-2">{passage.title}</p>
+                                      {[passage.paragraph_1, passage.paragraph_2, passage.paragraph_3, passage.paragraph_4, passage.paragraph_5,
+                                        passage.paragraph_6, passage.paragraph_7, passage.paragraph_8, passage.paragraph_9, passage.paragraph_10]
+                                        .filter((p: string) => p && p.trim())
+                                        .map((p: string, idx: number) => (
+                                          <p key={idx} className="text-xs text-gray-700 mb-1 leading-relaxed">{p}</p>
+                                        ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+
+                              {/* 어휘 용어 */}
+                              <details className="group">
+                                <summary className="cursor-pointer text-sm font-medium text-gray-800 hover:text-blue-700">
+                                  어휘 용어 ({previewSnapshot.vocabulary_terms?.length || 0}건)
+                                </summary>
+                                <div className="mt-2 pl-2">
+                                  <div className="bg-white rounded border border-gray-200 divide-y divide-gray-100">
+                                    {previewSnapshot.vocabulary_terms?.map((term: any, ti: number) => (
+                                      <div key={ti} className="px-3 py-2">
+                                        <span className="text-xs font-semibold text-blue-800">{term.term}</span>
+                                        <span className="text-xs text-gray-500 ml-2">: {term.definition}</span>
+                                        {term.example_sentence && (
+                                          <p className="text-xs text-gray-400 mt-0.5 italic">{term.example_sentence}</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </details>
+
+                              {/* 어휘 문제 */}
+                              <details className="group">
+                                <summary className="cursor-pointer text-sm font-medium text-gray-800 hover:text-blue-700">
+                                  어휘 문제 ({previewSnapshot.vocabulary_questions?.length || 0}건)
+                                </summary>
+                                <div className="mt-2 space-y-2 pl-2">
+                                  {previewSnapshot.vocabulary_questions?.map((q: any, qi: number) => (
+                                    <div key={qi} className="bg-white rounded p-3 border border-gray-200">
+                                      <p className="text-xs font-medium text-gray-900">
+                                        <span className="text-blue-600">Q{q.question_number || qi + 1}.</span> {q.question_text}
+                                      </p>
+                                      <div className="mt-1 space-y-0.5">
+                                        {[q.option_1, q.option_2, q.option_3, q.option_4, q.option_5]
+                                          .filter((o: string) => o && o.trim())
+                                          .map((o: string, oi: number) => (
+                                            <p key={oi} className={`text-xs ${String(oi + 1) === String(q.correct_answer) ? 'text-green-700 font-semibold' : 'text-gray-600'}`}>
+                                              {oi + 1}. {o} {String(oi + 1) === String(q.correct_answer) && '(정답)'}
+                                            </p>
+                                          ))}
+                                      </div>
+                                      {q.explanation && (
+                                        <p className="text-xs text-gray-500 mt-1 border-t border-gray-100 pt-1">{q.explanation}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+
+                              {/* 지문 문제 */}
+                              <details className="group">
+                                <summary className="cursor-pointer text-sm font-medium text-gray-800 hover:text-blue-700">
+                                  지문 문제 ({previewSnapshot.paragraph_questions?.length || 0}건)
+                                </summary>
+                                <div className="mt-2 space-y-2 pl-2">
+                                  {previewSnapshot.paragraph_questions?.map((q: any, qi: number) => (
+                                    <div key={qi} className="bg-white rounded p-3 border border-gray-200">
+                                      <p className="text-xs font-medium text-gray-900">
+                                        <span className="text-purple-600">Q{q.question_number || qi + 1}.</span> {q.question_text}
+                                        <span className="ml-2 text-gray-400">({q.question_type})</span>
+                                      </p>
+                                      <div className="mt-1 space-y-0.5">
+                                        {[q.option_1, q.option_2, q.option_3, q.option_4, q.option_5]
+                                          .filter((o: string) => o && o.trim())
+                                          .map((o: string, oi: number) => (
+                                            <p key={oi} className={`text-xs ${String(oi + 1) === String(q.correct_answer) ? 'text-green-700 font-semibold' : 'text-gray-600'}`}>
+                                              {oi + 1}. {o} {String(oi + 1) === String(q.correct_answer) && '(정답)'}
+                                            </p>
+                                          ))}
+                                      </div>
+                                      <p className="text-xs text-gray-500 mt-1">정답: {q.correct_answer}</p>
+                                      {q.explanation && (
+                                        <p className="text-xs text-gray-500 border-t border-gray-100 pt-1 mt-1">{q.explanation}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+
+                              {/* 종합 문제 */}
+                              <details className="group">
+                                <summary className="cursor-pointer text-sm font-medium text-gray-800 hover:text-blue-700">
+                                  종합 문제 ({previewSnapshot.comprehensive_questions?.length || 0}건)
+                                </summary>
+                                <div className="mt-2 space-y-2 pl-2">
+                                  {previewSnapshot.comprehensive_questions?.map((q: any, qi: number) => (
+                                    <div key={qi} className="bg-white rounded p-3 border border-gray-200">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                                          {q.question_type}
+                                        </span>
+                                        {q.is_supplementary && (
+                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+                                            보완
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs font-medium text-gray-900">
+                                        <span className="text-orange-600">Q{q.question_number || qi + 1}.</span> {q.question_text}
+                                      </p>
+                                      <div className="mt-1 space-y-0.5">
+                                        {[q.option_1, q.option_2, q.option_3, q.option_4, q.option_5]
+                                          .filter((o: string) => o && o.trim())
+                                          .map((o: string, oi: number) => (
+                                            <p key={oi} className={`text-xs ${String(oi + 1) === String(q.correct_answer) ? 'text-green-700 font-semibold' : 'text-gray-600'}`}>
+                                              {oi + 1}. {o} {String(oi + 1) === String(q.correct_answer) && '(정답)'}
+                                            </p>
+                                          ))}
+                                      </div>
+                                      <p className="text-xs text-gray-500 mt-1">정답: {q.correct_answer}</p>
+                                      {q.explanation && (
+                                        <p className="text-xs text-gray-500 border-t border-gray-100 pt-1 mt-1">{q.explanation}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               </div>
 
               {/* 하단 버튼 */}

@@ -422,6 +422,16 @@ export interface AIGenerationLog {
   created_at?: string;
 }
 
+// 콘텐츠 세트 수정 히스토리 (content_set_history 테이블)
+export interface ContentSetHistory {
+  id: string;
+  content_set_id: string;
+  version_number: number;
+  snapshot: any; // JSONB - 전체 콘텐츠 세트 스냅샷
+  description: string;
+  created_at: string;
+}
+
 // 사용 통계 (usage_statistics 테이블)
 export interface UsageStatisticsV2 {
   id?: number;
