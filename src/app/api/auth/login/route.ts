@@ -4,20 +4,22 @@ import { LoginRequest, LoginResponse, Account } from '@/types';
 // 계정 정보 및 권한 설정
 interface AccountWithRole extends Account {
   role?: 'admin' | 'reviewer' | 'user';
+  passwordVersion: number;
 }
 
 // 하드코딩된 계정 정보
+// passwordVersion: 비밀번호 변경 시 숫자를 증가시키면 기존 세션이 자동 무효화됨
 const ACCOUNTS: AccountWithRole[] = [
-  { userId: 'song', password: '0000', name: '송선생님', role: 'admin' },
-  { userId: 'user1', password: '1111', name: '사용자1', role: 'admin' },
-  { userId: 'user2', password: '2222', name: '사용자2', role: 'admin' },
-  { userId: 'user3', password: '3333', name: '사용자3', role: 'admin' },
-  { userId: 'user4', password: '4444', name: '사용자4', role: 'admin' },
-  { userId: 'user5', password: '5555', name: '사용자5', role: 'admin' },
-  { userId: 'ahn', password: '0000', name: '안선생님', role: 'admin' },
-  { userId: 'kang', password: '4321', name: '강선생님', role: 'admin' },
-  { userId: 'test', password: '0000', name: '테스트계정', role: 'admin' },
-  { userId: 'almond', password: 'almond11@', name: '검수담당자', role: 'reviewer' },
+  { userId: 'song', password: '0000', name: '송선생님', role: 'admin', passwordVersion: 1 },
+  { userId: 'user1', password: '1111', name: '사용자1', role: 'admin', passwordVersion: 1 },
+  { userId: 'user2', password: '2222', name: '사용자2', role: 'admin', passwordVersion: 1 },
+  { userId: 'user3', password: '3333', name: '사용자3', role: 'admin', passwordVersion: 1 },
+  { userId: 'user4', password: '4444', name: '사용자4', role: 'admin', passwordVersion: 1 },
+  { userId: 'user5', password: '5555', name: '사용자5', role: 'admin', passwordVersion: 1 },
+  { userId: 'ahn', password: '0000', name: '안선생님', role: 'admin', passwordVersion: 1 },
+  { userId: 'kang', password: '4321', name: '강선생님', role: 'admin', passwordVersion: 1 },
+  { userId: 'test', password: '0000', name: '테스트계정', role: 'admin', passwordVersion: 1 },
+  { userId: 'almond', password: 'almond12!@', name: '검수담당자', role: 'reviewer', passwordVersion: 2 },
 ];
 
 export async function POST(request: NextRequest) {
@@ -41,7 +43,8 @@ export async function POST(request: NextRequest) {
       userId: account.userId,
       name: account.name,
       isLoggedIn: true,
-      role: account.role || 'user'
+      role: account.role || 'user',
+      passwordVersion: account.passwordVersion
     };
 
     // 역할별 기본 리다이렉트 URL 설정
